@@ -1,31 +1,30 @@
-# Proyecto-UVGride
+# UVGride - Sistema de Movilidad Universitaria  
+**Universidad del Valle de Guatemala (UVG)**  
 
-Adrián Ricardo González Muralles - 23152 
+## 📌 Integrantes  
+- **Adrián Ricardo González Muralles** - 23152  
+- **Jose Pablo Ordoñez Barrios** – 231329  
+- **Manuel Armando Ulin Pérez** - 221017  
+- **Marcos Rodrigo Ambrocio Larios** - 231140  
+- **José Alejandro Antón Escobar** - 221041  
+- **Rene Sebastian Espinal Zamora** - 228676  
 
-Jose Pablo Ordoñez Barrios – 231329 
+📚 **Curso:** Ingeniería de Software 1  
+📌 **Sección:** 10  
+📍 **Ubicación:** Guatemala, 2025  
 
-Manuel Armando Ulin Pérez - 221017 
+---
 
-Marcos Rodrigo Ambrocio Larios - 231140 
+## 📖 Descripción del Proyecto  
+UVGride es un sistema de movilidad universitaria diseñado para optimizar el transporte dentro y hacia la Universidad del Valle de Guatemala. Su objetivo es proporcionar a los estudiantes un medio eficiente, accesible y económico para desplazarse, mejorando la experiencia de movilidad en el campus.
 
-José Alejandro Antón Escobar - 221041 
+---
 
-Rene Sebastian Espinal Zamora - 228676 
+## 📂 Estructura del Repositorio  
+El repositorio se organiza en las siguientes carpetas:
 
- 
-
- 
-
-Ingeniería de Software 1 
-
-Sección 10 
-
-Guatemala, 2025 
-
-
-
-Sistema de Movilidad Universitaria para la Universidad del Valle de Guatemala (UVGride) 
-
-Descripción de la entidad 
-
-La Universidad del Valle de Guatemala es una institución de educación superior reconocida por su enfoque en la innovación, la investigación y la excelencia académica. Su comunidad está conformada por estudiantes, docentes y colaboradores que diariamente se trasladan al campus para realizar actividades académicas y administrativas. Sin embargo, la falta de un sistema de transporte universitario eficiente representa un desafío significativo, especialmente para aquellos que residen en zonas alejadas dentro del área metropolitana e interdepartamental. Este proyecto se enmarca en la búsqueda de soluciones tecnológicas que mejoren la movilidad dentro de la comunidad universitaria, optimizando tiempos de traslado y ofreciendo un medio de transporte accesible y seguro. 
+📁 **Avances 1** - Contiene los avances correspondientes al primer corte del proyecto.  
+📁 **Avances 2** - Contiene los avances correspondientes al segundo corte del proyecto.  
+📁 **Corte 1** - Documento final de la primera entrega del proyecto.  
+📁 **Corte 2** - Documento final de la segunda entrega del proyecto.  
+📁 **Scrum** - Próximamente... (seguimiento y planificación ágil del proyecto).  
