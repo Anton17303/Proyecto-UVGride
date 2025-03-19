@@ -1,0 +1,114 @@
+
+@startuml
+
+' Diagrama 3: Relación entre entidades de un sistema de viajes
+
+class Conductor {
+    - id_conductor: int
+    - id_usuario: int
+    - licencia_conducir: str
+    - estado_disponibilidad: bool
+    - id_vehiculo: int
+}
+
+class Transaccion {
+    - id_transaccion: int
+    - id_usuario: int
+    - id_viaje: int
+    - metodo_pago: int
+    - monto: float
+    - estado_pago: str
+    - fecha_pago: timestamp
+}
+
+class Vehiculo {
+    - id_vehiculo: int
+    - id_conductor: int
+    - marca: str
+    - modelo: str
+    - placa: str
+    - color: str
+    - capacidad_pasajeros: int
+}
+
+class Reporte {
+    - id_reporte: int
+    - id_viaje: int
+    - id_usuario: int
+    - tipo_problema: str
+    - descripcion: str
+    - estado_reporte: str
+    - fecha_reporte: timestamp
+}
+
+class ViajeMaestro {
+    - id_viaje_maestro: int
+    - id_conductor: int
+    - origen: str
+    - destino: str
+    - hora_solicitud: timestamp
+    - hora_inicio: timestamp
+    - hora_finalizacion: timestamp
+    - estado_viaje: str
+    - costo_total: float
+}
+
+class MetodoPago {
+    - id_metodo_pago: int
+    - id_usuario: int
+    - tipo_pago: str
+    - detalles_pago: str
+    - activo: bool
+}
+
+class ViajeDetalle {
+    - id_viaje_detalle: int
+    - id_viaje_maestro: int
+    - id_pasajero: int
+    - estado_pasajero: str
+}
+
+class Notificacion {
+    - id_notificacion: int
+    - id_usuario: int
+    - id_viaje: int
+    - mensaje: str
+    - tipo: str
+    - estado: str
+    - envio_timestamp: timestamp
+}
+
+class HistorialViajes {
+    - id_historial_viaje: int
+    - id_usuario: int
+    - id_viaje: int
+    - fecha: timestamp
+}
+
+class Bitacora {
+    - id_bitacora: int
+    - fecha_hora: timestamp
+    - usuario: int
+    - operacion: str
+    - tabla_afectada: str
+    - id_registro_afectado: int
+}
+
+class User {
+    - id_usuario: int
+    - nombre: str
+    - apellido: str
+    - correo: str
+    - contraseña: str
+    - telefono: str
+}
+
+Conductor --> Vehiculo : Tiene
+Conductor --> ViajeMaestro : Relacionado con
+Transaccion --> MetodoPago : Usa
+ViajeMaestro --> ViajeDetalle : Tiene detalles
+ViajeDetalle --> User : Pertenece a
+HistorialViajes --> User : Registra viajes de
+Bitacora --> User : Acción realizada por
+
+@enduml

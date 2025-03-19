@@ -1,0 +1,96 @@
+
+@startuml
+
+' Diagrama 1: Vista, Controlador y Modelo para un sistema de viajes
+
+class LoginView {
+    + mostrar_formulario()
+    + autenticar_usuario()
+}
+
+class RegisterView {
+    + mostrar_formulario()
+    + registrar_usuario()
+}
+
+class TravelView {
+    + listar_viajes()
+    + seleccionar_viaje()
+}
+
+class ReservationView {
+    + mostrar_reservas()
+    + gestionar_reserva()
+}
+
+class CalificationView {
+    + mostrar_calificaciones()
+    + agregar_calificacion()
+}
+
+class UserControl {
+    + registrar_usuario()
+    + autenticar_usuario()
+    + actualizar_perfil()
+}
+
+class TravelControl {
+    + crear_viaje()
+    + listar_viajes()
+    + buscar_viajes()
+}
+
+class ReservationControl {
+    + reservar_viaje()
+    + cancelar_reserva()
+    + confirmar_reserva()
+}
+
+class CalificationControl {
+    + calificar_conductor()
+    + ver_calificaciones()
+}
+
+class User {
+    - id: int
+    - nombre: str
+    - correo: str
+    - contraseña: str
+    - tipo_usuario: str
+}
+
+class Travel {
+    - id: int
+    - origen: str
+    - destino: str
+    - hora_salida: timestamp
+    - costo: float
+}
+
+class Reservation {
+    - id: int
+    - usuario_id: int
+    - viaje_id: int
+    - estado: str
+}
+
+class Calification {
+    - id: int
+    - usuario_id: int
+    - viaje_id: int
+    - puntuacion: int
+    - comentario: str
+}
+
+LoginView --> UserControl : Usa
+RegisterView --> UserControl : Usa
+TravelView --> TravelControl : Usa
+ReservationView --> ReservationControl : Usa
+CalificationView --> CalificationControl : Usa
+
+UserControl --> User : Gestiona
+TravelControl --> Travel : Gestiona
+ReservationControl --> Reservation : Gestiona
+CalificationControl --> Calification : Gestiona
+
+@enduml

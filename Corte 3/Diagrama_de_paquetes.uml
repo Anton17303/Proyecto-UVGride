@@ -1,0 +1,46 @@
+
+@startuml
+
+' Diagrama 2: Arquitectura de software basada en MVC
+
+class View {
+    ' Comunicación de UI
+}
+
+class Controller {
+    ' Manejo de lógica
+}
+
+class Model {
+    ' Acceso a BD
+}
+
+class Utils {
+    ' Uso de funciones auxiliares
+}
+
+class Persistence {
+    ' Manejo de datos
+}
+
+class Entities {
+    ' Definición de datos
+}
+
+class BusinessLogic {
+    ' Procesos de negocio
+}
+
+class DAO {
+    ' Data Access Objects
+}
+
+View --> Controller
+Controller --> Model
+Controller --> Utils
+Model --> Persistence
+Model --> Entities
+Model --> BusinessLogic
+Persistence --> DAO
+
+@enduml
