@@ -12,7 +12,7 @@ import {
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { API_URL } from '../services/api';
+import { API_URL } from '../services/api.ts';
 
 type RootStackParamList = {
   Login: undefined;
