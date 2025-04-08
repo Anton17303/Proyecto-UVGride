@@ -3,11 +3,12 @@ import {
   View,
   Text,
   TextInput,
-  Button,
+  TouchableOpacity,
   StyleSheet,
   Alert,
   KeyboardAvoidingView,
   Platform,
+  SafeAreaView,
 } from 'react-native';
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
@@ -51,49 +52,98 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <Text style={styles.title}>Iniciar sesión en UVGride 🐐</Text>
+    <SafeAreaView style={styles.safe}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <Text style={styles.title}>Inicia sesión</Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Correo electrónico"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-      />
+        <Text style={styles.label}>Correo</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="example@uvg.com"
+          value={email}
+          onChangeText={setEmail}
+          placeholderTextColor="#999"
+          autoCapitalize="none"
+        />
 
-      <TextInput
-        style={styles.input}
-        placeholder="Contraseña"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
+        <Text style={styles.label}>Contraseña</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="******"
+          value={password}
+          onChangeText={setPassword}
+          placeholderTextColor="#999"
+          secureTextEntry
+        />
 
-      <Button title={loading ? 'Cargando...' : 'Iniciar Sesión'} onPress={handleLogin} />
-    </KeyboardAvoidingView>
+        <TouchableOpacity style={styles.button} onPress={handleLogin}>
+          <Text style={styles.buttonText}>
+            {loading ? 'Cargando...' : 'Iniciar sesión'}
+          </Text>
+        </TouchableOpacity>
+        <Text style={styles.subtext}>
+          Al iniciar sesión, aceptas nuestros términos y condiciones.
+        </Text>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, justifyContent: 'center', backgroundColor: '#fff' },
+  safe: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  container: {
+    flex: 1,
+    padding: 24,
+    justifyContent: 'center',
+    backgroundColor: '#000',
+  },
   title: {
-    fontSize: 26,
+    fontSize: 32,
+    color: '#fff',
     fontWeight: 'bold',
-    marginBottom: 30,
     textAlign: 'center',
-    color: '#222',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  subtext: {
+    fontSize: 12,
+    color: '#ccc',
+    textAlign: 'center',
+    marginBottom: 40,
+    letterSpacing: 1,
+  },
+  label: {
+    color: '#fff',
+    marginBottom: 6,
+    marginTop: 12,
+    fontSize: 14,
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    backgroundColor: '#f9f9f9',
+    backgroundColor: '#333',
+    color: '#fff',
+    borderRadius: 12,
     padding: 12,
-    borderRadius: 8,
+    fontSize: 16,
+    marginBottom: 8,
+  },
+  button: {
+    marginTop: 24,
+    backgroundColor: '#fff',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
     marginBottom: 16,
+  },
+  buttonText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
   },
 });
