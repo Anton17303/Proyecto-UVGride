@@ -1,1 +1,1 @@
-export const API_URL = 'http://192.168.0.x:3001'; // reemplaza con tu IP local real para probar la app
+export const API_URL = 'http://10.100.0.161:3001'; // reemplaza con tu IP local real para probar la app
