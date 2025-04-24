@@ -2,7 +2,7 @@
   "name": "uvgride",
   "version": "1.0.0",
   "main": "index.ts",
-  "type": "module",  
+  "type": "module",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",

@@ -2,11 +2,19 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-import LoginScreen from '../screens/LoginScreen';
-import RegisterScreen from '../screens/RegisterScreen';
-import HomeScreen from '../screens/HomeScreen';
-import ProfileScreen from '../screens/ProfileScreen';
-import SettingsScreen from '../screens/SettingsScreen';
+import LoginScreen from '../screens/LoginScreen.js';
+import RegisterScreen from '../screens/RegisterScreen.js';
+import HomeScreen from '../screens/HomeScreen.js';
+import ProfileScreen from '../screens/ProfileScreen.js';
+import SettingsScreen from '../screens/SettingsScreen.js';
+
+export type RootStackParamList = {
+  Login : undefined;
+  Register : undefined;
+  Home : undefined;
+  Profile : undefined;
+  Settings : undefined;
+}
 
 const Stack = createNativeStackNavigator();
 
