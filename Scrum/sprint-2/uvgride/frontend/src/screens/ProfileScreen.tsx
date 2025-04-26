@@ -56,26 +56,6 @@ export default function ProfileScreen() {
           ))}
         </View>
       </ScrollView>
-
-      {/* Barra de navegación inferior */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Home')}>
-          <Text>🏠</Text>
-          <Text style={styles.navText}>Inicio</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Routes')}>
-          <Text>🗺️</Text>
-          <Text style={styles.navText}>Rutas</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('History')}>
-          <Text>📋</Text>
-          <Text style={styles.navText}>Historial</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.navItem, styles.activeNavItem]}>
-          <Text>👤</Text>
-          <Text style={[styles.navText, styles.activeNavText]}>Perfil</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }
@@ -84,9 +64,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
-  },
-  scrollContainer: {
-    paddingBottom: 80, // Espacio para la barra de navegación
   },
   profileHeader: {
     alignItems: 'center',
@@ -165,34 +142,5 @@ const styles = StyleSheet.create({
   optionText: {
     fontSize: 16,
     color: '#333',
-  },
-  bottomNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingVertical: 12,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
-  navItem: {
-    alignItems: 'center',
-    padding: 5,
-  },
-  activeNavItem: {
-    color: '#6200ee',
-  },
-  navText: {
-    fontSize: 12,
-    marginTop: 3,
-    color: '#666',
-  },
-  activeNavText: {
-    color: '#6200ee',
-    fontWeight: 'bold',
   },
 });
