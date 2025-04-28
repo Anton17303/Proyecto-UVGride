@@ -8,7 +8,7 @@ import RegisterScreen from '../screens/RegisterScreen';
 import HomeScreen from '../screens/HomeScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import SettingsScreen from '../screens/SettingsScreen';
-
+import TravelScreen from '../screens/TravelScreen';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function Navigation() {
@@ -39,6 +39,11 @@ export default function Navigation() {
           name="Settings"
           component={SettingsScreen}
           options={{ title: 'Configuración' }}
+        />
+        <Stack.Screen
+        name="Travel"
+        component={TravelScreen}
+        options={{ title: 'Viaje' }}
         />
       </Stack.Navigator>
     </NavigationContainer>

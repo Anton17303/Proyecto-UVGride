@@ -1,8 +1,8 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import HomeScreen from '../screens/HomeScreen';
-import ProfileScreen from '../screens/ProfileScreen';
+import HomeScreen from '../screens/HomeScreen.js';
+import ProfileScreen from '../screens/ProfileScreen.js';
 export type BottomTabParamList = {
   Home: undefined;
   Profile: undefined;
