@@ -1,11 +1,13 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import HomeScreen from '../screens/HomeScreen.js';
-import ProfileScreen from '../screens/ProfileScreen.js';
+import HomeScreen from '../screens/HomeScreen';
+import ProfileScreen from '../screens/ProfileScreen';
+import TravelScreen from '../screens/TravelScreen';
 export type BottomTabParamList = {
   Home: undefined;
   Profile: undefined;
+  Travel: undefined;
 };
 
 const Tab = createBottomTabNavigator<BottomTabParamList>();
@@ -25,13 +27,17 @@ export default function BottomTabs() {
             iconName = 'home-outline';
           } else if (route.name === 'Profile') {
             iconName = 'person-outline';
+          } else if (route.name === 'Travel' ) {
+            iconName = 'airplane-outline';
           }
 
           return <Ionicons name={iconName} size={size} color={color} />;
         },
       })}
     >
+      
       <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="Travel" component={TravelScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );

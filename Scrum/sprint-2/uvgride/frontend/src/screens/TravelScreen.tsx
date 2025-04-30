@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/types';
+import { RootStackParamList } from '../navigation/type';
 
 export default function TravelScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -30,8 +30,9 @@ export default function TravelScreen() {
 
 const styles = StyleSheet.create({
   container: { 
+
     flex: 1, 
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
     alignItems: 'center', 
     backgroundColor: '#f5f5f5',
   },
