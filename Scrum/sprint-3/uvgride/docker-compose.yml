@@ -3,17 +3,20 @@ services:
     build: ./backend
     container_name: uvgride-backend
     ports:
-      - "3001:3001"
+    - "3001:3001"
     depends_on:
-      - database
+    - database
     environment:
-      - NODE_ENV=development
-      - DATABASE_URL=postgres://postgres:password@database:5432/uvgride
+    - NODE_ENV=development
+    - DB_NAME=uvgride
+    - DB_USER=postgres
+    - DB_PASSWORD=password
+    - DB_HOST=database
+    - DB_PORT=5432
+    command: sh -c "npx wait-on tcp:database:5432 && npm start"
     volumes:
-      - ./backend:/app
-      - backend_node_modules:/app/node_modules
+    - ./backend:/app
     restart: always
-    command: npm start
 
   frontend:
     build: ./frontend
