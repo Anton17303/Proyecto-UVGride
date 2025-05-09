@@ -1,22 +1,28 @@
-# Correr Frontend
-- npx expo start
+# Correr Docker
+docker-compose up --build
+(Esperar a que se inicien todos los servicios)
 
-# Correr Backend
-## (En la carpeta 'backend')
-- npm run dev
+# Importante
+Cambiar IP en frontend/src/services/api.ts a la IP local
 
+# Acceder a pgadmin
+http://localhost:5050
 
-# Para corre el Docker
+correo: admin@admin.com
+contraseña: admin
 
-## Paso 1: Crear y ejecutar el script de configuración
- se abre una terminal y se coloca el siguiente comando:
- 
- ./setup.sh
+# Conexión con la base de datos
+Host: database
+Puerto: 5432
+Usuario: postgres
+Contraseña: password
+Base de datos: uvgride
 
- le solicitara con que aplicacion iniciarla, selecionar Git
+# Iniciar frontend
+docker-compose logs -f frontend (con docker corriendo)
+Escanear código QR
 
-## Paso 2: Iniciar Docker
- una vez ejecutado el script de configuracion, se coloca el siguiente comando:
+ó
 
- docker-compose up -d
- 
+docker exec -it uvgride-frontend sh
+npx expo start --tunnel

@@ -1,12 +1,3 @@
--- Crear la database.
-create database uvgride;
-
--- Ver la database actual.
-select current_database();
-
--- select para verificar la correcta creación.
-select * from calificacion_detalle cd ;
-
 -- Creación de las entidades.
 create table usuario (
 id_usuario serial primary key,
@@ -44,8 +35,8 @@ id_conductor int not null,
 origen varchar(255) not null,
 destino varchar(255) not null,
 hora_solicitud timestamp not null,
-hora_inicio timestamp not null,
-hora_finalizacion timestamp not null,
+hora_inicio timestamp,
+hora_finalizacion timestamp,
 estado_viaje varchar(255) not null,
 costo_total decimal(10,2) not null,
 foreign key (id_conductor) references conductor(id_conductor)
