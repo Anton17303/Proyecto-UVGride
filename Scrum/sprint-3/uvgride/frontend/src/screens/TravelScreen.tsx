@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/type';
@@ -34,7 +34,6 @@ export default function TravelScreen() {
     } catch (error) {
       console.error('Error al obtener nombre del lugar:', error);
       setPlaceName('Error al obtener nombre');
-
     }
   };
 
@@ -58,9 +57,12 @@ export default function TravelScreen() {
     }
   };
 
+  const goToTripForm = () => {
+    navigation.navigate('TripForm', { origin: placeName });
+  };
+
   return (
     <View style={styles.container}>
-
       <MapView
         style={styles.map}
         region={region}
@@ -74,13 +76,12 @@ export default function TravelScreen() {
             description={'Punto seleccionado'}
           />
         )}
-
         <Marker
           coordinate={{ latitude: 14.604361, longitude: -90.490041 }}
           title={'UVG'}
           description={'Universidad del Valle de Guatemala'}
           pinColor={'green'}
-          />
+        />
       </MapView>
 
       <View style={styles.zoomContainer}>
@@ -91,52 +92,36 @@ export default function TravelScreen() {
           <Text style={styles.zoomText}>−</Text>
         </TouchableOpacity>
       </View>
+
+      <TouchableOpacity style={styles.startButton} onPress={goToTripForm}>
+        <Text style={styles.buttonText}>Iniciar viaje</Text>
+      </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  text: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    margin: 10,
-    textAlign: 'center',
-    color: '#333',
-  },
-  map: {
-    flex: 1,
-  },
+  container: { flex: 1 },
+  map: { flex: 1 },
   zoomContainer: {
     position: 'absolute',
     top: 100,
     right: 20,
     backgroundColor: 'rgba(255,255,255,0.8)',
     borderRadius: 8,
-    flexDirection: 'column',
-    alignItems: 'center',
     padding: 5,
   },
-  zoomButton: {
-    padding: 10,
-    alignItems: 'center',
-  },
-  zoomText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  button: {
-    padding: 15,
+  zoomButton: { padding: 10 },
+  zoomText: { fontSize: 24, fontWeight: 'bold' },
+  startButton: {
+    position: 'absolute',
+    bottom: 40,
+    left: 20,
+    right: 20,
     backgroundColor: '#6200ee',
+    padding: 15,
     borderRadius: 8,
-    margin: 10,
     alignItems: 'center',
   },
-  buttonText: {
-    color: 'white',
-    fontWeight: 'bold',
-  },
+  buttonText: { color: 'white', fontWeight: 'bold' },
 });
