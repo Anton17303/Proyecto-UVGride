@@ -7,6 +7,7 @@ import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { API_URL } from '../services/api';
+import { useUser } from '../context/UserContext'; // 👈 Importar el contexto
 
 type RootStackParamList = {
   Login: undefined;
@@ -21,6 +22,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const { setUser } = useUser(); // 👈 Obtener función para guardar el usuario
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -36,6 +38,7 @@ export default function LoginScreen() {
         password,
       });
 
+      setUser(res.data.user); // 👈 Guardar el usuario logueado
       Alert.alert('Éxito', `Bienvenido, ${res.data.user.name}`);
       navigation.navigate('Home');
     } catch (err: any) {

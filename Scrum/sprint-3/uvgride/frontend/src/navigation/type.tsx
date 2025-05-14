@@ -5,6 +5,9 @@ export type RootStackParamList = {
   Profile: undefined;
   Settings: undefined;
   Travel: undefined;
-  TripForm: { origin?: string }; 
-  EditProfile: undefined;
+  TripFormScreen: {
+    origin: string;
+    latitude: number;
+    longitude: number;
+  };
 };
