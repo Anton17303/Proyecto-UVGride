@@ -7,7 +7,7 @@ import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { API_URL } from '../services/api';
-import { useUser } from '../context/UserContext'; // 👈 Importar el contexto
+import { useUser } from '../context/UserContext';
 
 type RootStackParamList = {
   Login: undefined;
@@ -19,13 +19,13 @@ type RootStackParamList = {
 
 export default function LoginScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [correo_institucional, setCorreo] = useState('');
+  const [contrasenia, setContrasenia] = useState('');
   const [loading, setLoading] = useState(false);
-  const { setUser } = useUser(); // 👈 Obtener función para guardar el usuario
+  const { setUser } = useUser();
 
   const handleLogin = async () => {
-    if (!email || !password) {
+    if (!correo_institucional || !contrasenia) {
       Alert.alert('Error', 'Por favor completa todos los campos');
       return;
     }
@@ -34,12 +34,12 @@ export default function LoginScreen() {
 
     try {
       const res = await axios.post(`${API_URL}/api/auth/login`, {
-        email,
-        password,
+        correo_institucional,
+        contrasenia,
       });
 
-      setUser(res.data.user); // 👈 Guardar el usuario logueado
-      Alert.alert('Éxito', `Bienvenido, ${res.data.user.name}`);
+      setUser(res.data.usuario);
+      Alert.alert('¡Bienvenido!', `Hola ${res.data.usuario.nombre}`);
       navigation.navigate('Home');
     } catch (err: any) {
       console.error(err);
@@ -57,12 +57,12 @@ export default function LoginScreen() {
       >
         <Text style={styles.title}>Inicia sesión</Text>
 
-        <Text style={styles.label}>Correo</Text>
+        <Text style={styles.label}>Correo institucional</Text>
         <TextInput
           style={styles.input}
           placeholder="correo@uvg.edu.gt"
-          value={email}
-          onChangeText={setEmail}
+          value={correo_institucional}
+          onChangeText={setCorreo}
           placeholderTextColor="#999"
           autoCapitalize="none"
         />
@@ -71,8 +71,8 @@ export default function LoginScreen() {
         <TextInput
           style={styles.input}
           placeholder="*******"
-          value={password}
-          onChangeText={setPassword}
+          value={contrasenia}
+          onChangeText={setContrasenia}
           placeholderTextColor="#999"
           secureTextEntry
         />
@@ -91,13 +91,53 @@ export default function LoginScreen() {
   );
 }
 
+const PRIMARY_COLOR = '#4CAF50';
+
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#000' },
-  container: { flex: 1, padding: 24, justifyContent: 'center', backgroundColor: '#000' },
-  title: { fontSize: 32, color: '#fff', fontWeight: 'bold', textAlign: 'center', marginBottom: 30, textTransform: 'uppercase' },
-  label: { color: '#fff', marginBottom: 6, marginTop: 12, fontSize: 14 },
-  input: { backgroundColor: '#333', color: '#fff', borderRadius: 12, padding: 12, fontSize: 16, marginBottom: 8 },
-  button: { marginTop: 24, backgroundColor: '#fff', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-  buttonText: { color: '#000', fontSize: 16, fontWeight: 'bold', textTransform: 'uppercase' },
-  linkText: { color: '#ccc', fontSize: 14, textAlign: 'center', marginTop: 16, textDecorationLine: 'underline' },
+  safe: { flex: 1, backgroundColor: '#fff' },
+  container: { flex: 1, padding: 24, justifyContent: 'center' },
+  title: {
+    fontSize: 32,
+    color: '#333',
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 30,
+    textTransform: 'uppercase'
+  },
+  label: {
+    color: '#555',
+    marginBottom: 6,
+    marginTop: 12,
+    fontSize: 14
+  },
+  input: {
+    backgroundColor: '#f0f0f0',
+    color: '#333',
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#ddd'
+  },
+  button: {
+    marginTop: 24,
+    backgroundColor: PRIMARY_COLOR,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center'
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textTransform: 'uppercase'
+  },
+  linkText: {
+    color: PRIMARY_COLOR,
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 16,
+    textDecorationLine: 'underline'
+  },
 });

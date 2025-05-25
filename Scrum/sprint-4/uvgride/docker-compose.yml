@@ -9,6 +9,7 @@ services:
     depends_on:
       - database
     environment:
+      - JWT_SECRET=unsecretoseguro
       - NODE_ENV=development
       - DB_NAME=uvgride
       - DB_USER=postgres

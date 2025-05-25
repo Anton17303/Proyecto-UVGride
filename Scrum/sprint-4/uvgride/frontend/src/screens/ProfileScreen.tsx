@@ -7,7 +7,7 @@ import { useUser } from '../context/UserContext';
 
 export default function ProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { user } = useUser();
+  const { user, setUser } = useUser();
 
   const profileOptions = [
     { title: 'Términos y Condiciones', icon: '📑' },
@@ -35,6 +35,20 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleLogout = () => {
+    Alert.alert('Cerrar sesión', '¿Estás seguro que quieres salir?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Sí',
+        style: 'destructive',
+        onPress: () => {
+          setUser(null);
+          navigation.navigate('Login'); // Opcional: redirige a la pantalla de login
+        },
+      },
+    ]);
+  };
+
   if (!user) {
     return (
       <View style={styles.container}>
@@ -53,14 +67,19 @@ export default function ProfileScreen() {
             source={require('../assets/default-profile.jpg')}
             style={styles.profileImage}
           />
-          <Text style={styles.userName}>{user.name}</Text>
-          <View style={styles.ratingContainer}>
-            <Text style={styles.ratingText}>{user.age || '—'}</Text>
-            <Text style={styles.ratingIcon}>🎂</Text>
+          <Text style={styles.userName}>{`${user.nombre} ${user.apellido}`}</Text>
+          <Text style={styles.userEmail}>{user.correo_institucional}</Text>
+          <View style={styles.infoContainer}>
+            <Text style={styles.infoLabel}>Teléfono:</Text>
+            <Text style={styles.infoValue}>{user.telefono}</Text>
+          </View>
+          <View style={styles.infoContainer}>
+            <Text style={styles.infoLabel}>Tipo de usuario:</Text>
+            <Text style={styles.infoValue}>{user.tipo_usuario}</Text>
           </View>
         </View>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.editButton}
           onPress={() => navigation.navigate('EditProfile')}
         >
@@ -69,16 +88,24 @@ export default function ProfileScreen() {
 
         <View style={styles.optionsContainer}>
           {profileOptions.map((option, index) => (
-            <TouchableOpacity 
-              key={index} 
+            <TouchableOpacity
+              key={index}
               style={styles.optionItem}
-              onPress={() => handleOptionPress(option.title)} // ✅ llamada correcta
+              onPress={() => handleOptionPress(option.title)}
             >
               <Text style={styles.optionIcon}>{option.icon}</Text>
               <Text style={styles.optionText}>{option.title}</Text>
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* ✅ Botón para cerrar sesión */}
+        <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={handleLogout}
+        >
+          <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -121,18 +148,23 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 4,
   },
-  ratingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  ratingText: {
+  userEmail: {
     fontSize: 16,
     color: '#666',
-    marginRight: 5,
+    marginBottom: 12,
   },
-  ratingIcon: {
-    fontSize: 18,
+  infoContainer: {
+    flexDirection: 'row',
+    marginTop: 4,
+  },
+  infoLabel: {
+    fontSize: 14,
+    color: '#888',
+    marginRight: 4,
+  },
+  infoValue: {
+    fontSize: 14,
+    color: '#555',
   },
   editButton: {
     backgroundColor: PRIMARY_COLOR,
@@ -175,5 +207,18 @@ const styles = StyleSheet.create({
   optionText: {
     fontSize: 16,
     color: '#333',
+  },
+  logoutButton: {
+    backgroundColor: '#d9534f',
+    marginTop: 20,
+    marginHorizontal: 60,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  logoutButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
