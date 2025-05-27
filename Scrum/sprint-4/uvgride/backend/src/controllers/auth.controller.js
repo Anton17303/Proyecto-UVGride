@@ -61,19 +61,11 @@ exports.login = async (req, res) => {
     }
 
     // Generar token
-    const token = jwt.sign({ id_usuario: user.id_usuario }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ id_usuario: user.id_usuario, nombre: user.nombre, apellido: user.apellido, correo_institucional: user.correo_institucional, telefono: user.telefono, tipo_usuario: user.tipo_usuario }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
     res.json({
       message: 'Login exitoso',
       token,
-      usuario: {
-        id_usuario: user.id_usuario,
-        nombre: user.nombre,
-        apellido: user.apellido,
-        correo_institucional: user.correo_institucional,
-        telefono: user.telefono,
-        tipo_usuario: user.tipo_usuario
-      }
     });
   } catch (error) {
     console.error(error);
