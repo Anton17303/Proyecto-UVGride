@@ -10,38 +10,19 @@ app.use(express.json());
 
 // Rutas principales
 const authRoutes = require('./routes/auth.routes');
-app.use('/api/auth', authRoutes);
-
 const exampleRoutes = require('./routes/example.routes');
+const viajeRoutes = require('./routes/viaje.routes'); // ✅ Rutas de viajes
+
+app.use('/api/auth', authRoutes);
 app.use('/api/example', exampleRoutes);
-
-const userRoutes = require('./routes/user.routes');
-app.use('/api/users', userRoutes);
-
-const homeRoutes = require('./routes/home.routes');
-app.use('/api/home', homeRoutes);
-
-// ✅ Importa sequelize (ajusta la ruta según tu proyecto)
-const { sequelize } = require('./models');
+app.use('/api/viajes', viajeRoutes);
 
 // Endpoint raíz
 app.get('/', (req, res) => {
-    res.send('API funcionando');
-});
-
-// ✅ Endpoint para verificar la conexión a la base de datos
-app.get('/ping-db', async (req, res) => {
-    try {
-        await sequelize.authenticate();
-        console.log('✅ Conexión a la base de datos exitosa.');
-        res.json({ message: 'Conexión a la base de datos OK' });
-    } catch (error) {
-        console.error('❌ Error al conectar a la base de datos:', error);
-        res.status(500).json({ error: 'Error al conectar a la base de datos' });
-    }
+  res.send('API funcionando');
 });
 
 // 🔥 Iniciar servidor
 app.listen(port, () => {
-    console.log(`Servidor corriendo en http://localhost:${port}`);
+  console.log(`Servidor corriendo en http://localhost:${port}`);
 });

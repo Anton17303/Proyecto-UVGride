@@ -3,13 +3,12 @@ const Usuario = require('../models/Usuario');
 exports.getHomeData = async (req, res) => {
   try {
     const userId = req.user.id_usuario;
-    
-    // Datos del usuario logueado
+
+    // Solo selecciona los campos que existen
     const user = await Usuario.findByPk(userId, {
-      attributes: ['id_usuario', 'nombre', 'apellido', 'correo_institucional', 'foto_perfil', 'universidad']
+      attributes: ['id_usuario', 'nombre', 'apellido', 'correo_institucional', 'telefono', 'tipo_usuario']
     });
 
-    // Datos de ejemplo
     const nearbyTrips = [];
     const notifications = [];
     const recentActivity = [];

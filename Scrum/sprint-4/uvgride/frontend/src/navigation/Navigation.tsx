@@ -18,7 +18,6 @@ export default function Navigation() {
       <Stack.Screen name="Home" component={BottomTabs} />
       <Stack.Screen name="Travel" component={TravelScreen} />
       <Stack.Screen name="TripFormScreen" component={TripFormScreen} />
-      {/* Add more screens here as needed */}
     
     </Stack.Navigator>
   );

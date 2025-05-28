@@ -1,19 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import {
+  View, Text, StyleSheet, TouchableOpacity, Alert,
+} from 'react-native';
 import MapView, { Marker, Polyline, MapPressEvent } from 'react-native-maps';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { RouteProp } from '@react-navigation/core';
+import { RouteProp } from '@react-navigation/core';
+import axios from 'axios';
 import { RootStackParamList } from '../navigation/type';
 
-const OPENROUTESERVICE_API_KEY = 'Poner aquí tu API Key de OpenRouteService';
+const OPENROUTESERVICE_API_KEY = '5b3ce3597851110001cf62486825133970f449ebbc374649ee03b5eb';
 
 type TravelRouteProp = RouteProp<RootStackParamList, 'Travel'>;
 
 export default function TravelScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const route = useRoute<TravelRouteProp>();
-  const params = route.params;
+  const { params } = useRoute<TravelRouteProp>();
 
   const [region, setRegion] = useState({
     latitude: 14.604361,
@@ -21,24 +23,32 @@ export default function TravelScreen() {
     latitudeDelta: 0.01,
     longitudeDelta: 0.01,
   });
-
   const [originMarker, setOriginMarker] = useState<{ latitude: number; longitude: number } | null>(null);
   const [destinationMarker, setDestinationMarker] = useState<{ latitude: number; longitude: number } | null>(null);
   const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
 
   useEffect(() => {
-    // ✅ Si viene de TripFormScreen con destino, ajusta destino
-    if (params) {
-      const { latitude, longitude, destinationLatitude, destinationLongitude } = params;
-      setOriginMarker({ latitude, longitude });
-      setDestinationMarker({ latitude: destinationLatitude, longitude: destinationLongitude });
+    if (params && params.latitude && params.longitude && params.destinationLatitude && params.destinationLongitude) {
+      const {
+        latitude, longitude,
+        destinationLatitude, destinationLongitude,
+      } = params;
+
+      const origin = { latitude, longitude };
+      const destination = { latitude: destinationLatitude, longitude: destinationLongitude };
+
+      setOriginMarker(origin);
+      setDestinationMarker(destination);
       setRegion({
         latitude,
         longitude,
         latitudeDelta: 0.01,
         longitudeDelta: 0.01,
       });
-      fetchRoute(latitude, longitude, destinationLatitude, destinationLongitude);
+
+      fetchRoute(origin, destination);
+    } else {
+      console.log('No se recibieron parámetros válidos para la ruta');
     }
   }, [params]);
 
@@ -53,7 +63,6 @@ export default function TravelScreen() {
       return;
     }
 
-    // ✅ Navega a TripFormScreen con el origen
     navigation.navigate('TripFormScreen', {
       origin: 'Origen desde el mapa',
       latitude: originMarker.latitude,
@@ -61,62 +70,56 @@ export default function TravelScreen() {
     });
   };
 
-  const fetchRoute = async (latOrigin: number, lngOrigin: number, latDest: number, lngDest: number) => {
+  const fetchRoute = async (
+    origin: { latitude: number; longitude: number },
+    destination: { latitude: number; longitude: number },
+  ) => {
     try {
-      const url = 'https://api.openrouteservice.org/v2/directions/driving-car/geojson';
-      const body = {
-        coordinates: [
-          [lngOrigin, latOrigin],
-          [lngDest, latDest],
-        ],
-      };
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': OPENROUTESERVICE_API_KEY,
-          'Content-Type': 'application/json',
+      const response = await axios.post(
+        'https://api.openrouteservice.org/v2/directions/driving-car/geojson',
+        {
+          coordinates: [
+            [origin.longitude, origin.latitude],
+            [destination.longitude, destination.latitude],
+          ],
         },
-        body: JSON.stringify(body),
-      });
+        {
+          headers: {
+            Authorization: OPENROUTESERVICE_API_KEY,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
 
-      const data = await response.json();
-
+      const data = response.data;
       if (data.features && data.features.length > 0) {
         const coords = data.features[0].geometry.coordinates.map(
-          ([lng, lat]: [number, number]) => ({
-            latitude: lat,
-            longitude: lng,
-          }),
+          ([lng, lat]: [number, number]) => ({ latitude: lat, longitude: lng }),
         );
         setRouteCoords(coords);
       } else {
         Alert.alert('Error', 'No se pudo obtener la ruta');
       }
     } catch (error) {
-      console.error(error);
+      console.error('Error al obtener la ruta:', error);
       Alert.alert('Error', 'No se pudo obtener la ruta');
     }
   };
 
   const zoomIn = () => {
-    if (region.latitudeDelta > 0.001) {
-      setRegion(prev => ({
-        ...prev,
-        latitudeDelta: prev.latitudeDelta / 2,
-        longitudeDelta: prev.longitudeDelta / 2,
-      }));
-    }
+    setRegion(prev => ({
+      ...prev,
+      latitudeDelta: prev.latitudeDelta / 2,
+      longitudeDelta: prev.longitudeDelta / 2,
+    }));
   };
 
   const zoomOut = () => {
-    if (region.latitudeDelta < 1) {
-      setRegion(prev => ({
-        ...prev,
-        latitudeDelta: prev.latitudeDelta * 2,
-        longitudeDelta: prev.longitudeDelta * 2,
-      }));
-    }
+    setRegion(prev => ({
+      ...prev,
+      latitudeDelta: prev.latitudeDelta * 2,
+      longitudeDelta: prev.longitudeDelta * 2,
+    }));
   };
 
   return (
@@ -128,9 +131,7 @@ export default function TravelScreen() {
         onPress={handleMapPress}
       >
         {originMarker && <Marker coordinate={originMarker} title="Origen" />}
-        {destinationMarker && (
-          <Marker coordinate={destinationMarker} title="Destino" pinColor="red" />
-        )}
+        {destinationMarker && <Marker coordinate={destinationMarker} title="Destino" pinColor="red" />}
         {routeCoords.length > 0 && (
           <Polyline coordinates={routeCoords} strokeColor="#4CAF50" strokeWidth={4} />
         )}
@@ -171,7 +172,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
-  buttonText: { color: 'white', fontWeight: 'bold' },
+  buttonText: { color: '#fff', fontWeight: 'bold' },
   zoomContainer: {
     position: 'absolute',
     top: 100,

@@ -6,7 +6,7 @@ import ProfileScreen from "../screens/ProfileScreen";
 import TravelScreen from "../screens/TravelScreen";
 
 export type BottomTabParamList = {
-  HomeTab: undefined; // 👈 Cambio aquí
+  HomeTab: undefined;
   Profile: undefined;
   Travel: undefined;
 };
@@ -25,7 +25,6 @@ export default function BottomTabs() {
           let iconName: keyof typeof Ionicons.glyphMap = "home-outline";
 
           if (route.name === "HomeTab") {
-            // 👈 Ajustado
             iconName = "home-outline";
           } else if (route.name === "Profile") {
             iconName = "person-outline";

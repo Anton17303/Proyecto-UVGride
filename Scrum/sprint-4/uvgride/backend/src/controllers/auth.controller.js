@@ -40,7 +40,6 @@ exports.register = async (req, res) => {
   }
 };
 
-// ✅ Controlador de login
 exports.login = async (req, res) => {
   const { correo_institucional, contrasenia } = req.body;
 

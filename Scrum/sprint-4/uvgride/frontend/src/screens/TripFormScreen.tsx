@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -7,56 +7,89 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
-} from 'react-native';
-import { useRoute, useNavigation } from '@react-navigation/native';
-import type { RouteProp } from '@react-navigation/core';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/type';
+} from "react-native";
+import axios from "axios";
+import {
+  useRoute,
+  useNavigation,
+  CompositeNavigationProp,
+} from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import { API_URL } from "../services/api";
+import { RootStackParamList } from "../type";
+import { BottomTabParamList } from "../navigation/BottomTabs";
 
-const OPENROUTESERVICE_API_KEY = 'Poner aquí tu API Key de OpenRouteService';
+const OPENROUTESERVICE_API_KEY = "5b3ce3597851110001cf62486825133970f449ebbc374649ee03b5eb";
 
-type TripFormRouteProp = RouteProp<RootStackParamList, 'TripFormScreen'>;
-type TripFormNavigationProp = NativeStackNavigationProp<RootStackParamList, 'TripFormScreen'>;
+type TripFormNavigationProp = CompositeNavigationProp<
+  NativeStackNavigationProp<RootStackParamList, "TripFormScreen">,
+  BottomTabNavigationProp<BottomTabParamList>
+>;
 
 export default function TripFormScreen() {
-  const route = useRoute<TripFormRouteProp>();
+  const route = useRoute<{
+    params: { origin: string; latitude: number; longitude: number };
+  }>();
   const navigation = useNavigation<TripFormNavigationProp>();
   const { origin, latitude, longitude } = route.params;
 
-  const [destination, setDestination] = useState('');
+  const [destination, setDestination] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleCreateTrip = async () => {
-    if (destination.trim().length < 3) {
-      Alert.alert('Error', 'El destino debe tener al menos 3 caracteres');
+    if (!destination.trim()) {
+      Alert.alert("Error", "Por favor ingresa un destino válido");
       return;
     }
 
     setLoading(true);
+
     try {
-      // ✅ Geocode con OpenRouteService para obtener coordenadas reales del destino
-      const url = `https://api.openrouteservice.org/geocode/search?api_key=${OPENROUTESERVICE_API_KEY}&text=${encodeURIComponent(destination)}`;
-      const response = await fetch(url);
-      const data = await response.json();
+      const geoUrl = `https://api.openrouteservice.org/geocode/search?api_key=${OPENROUTESERVICE_API_KEY}&text=${encodeURIComponent(
+        destination
+      )}`;
+      const { data: geoData } = await axios.get(geoUrl);
 
-      if (data.features && data.features.length > 0) {
-        const [lng, lat] = data.features[0].geometry.coordinates;
+      if (geoData.features && geoData.features.length > 0) {
+        const [lng, lat] = geoData.features[0].geometry.coordinates;
 
-        // ✅ Redirige a la pantalla Travel con los datos completos (origen y destino)
-        navigation.navigate('Travel', {
-          origin,
-          latitude,
-          longitude,
-          destination,
-          destinationLatitude: lat,
-          destinationLongitude: lng,
-        });
+        const backendResponse = await axios.post(
+          `${API_URL}/api/viajes/crear`,
+          {
+            origen: origin,
+            destino: destination,
+            lat_origen: latitude,
+            lon_origen: longitude,
+            lat_destino: lat,
+            lon_destino: lng,
+            costo_total: 10.0,
+          }
+        );
+
+        if (backendResponse.data && backendResponse.data.viaje) {
+          Alert.alert("¡Éxito!", "¡Viaje creado correctamente!");
+          navigation.navigate("Home", {
+            screen: "Travel",
+            params: {
+              latitude,
+              longitude,
+              destinationLatitude: lat,
+              destinationLongitude: lng,
+            },
+          });
+        } else {
+          Alert.alert("Error", "No se pudo guardar el viaje en el servidor");
+        }
       } else {
-        Alert.alert('Error', 'No se pudo encontrar el destino.');
+        Alert.alert("Error", "No se pudo encontrar el destino");
       }
-    } catch (err) {
-      console.error(err);
-      Alert.alert('Error', 'No se pudo procesar el destino.');
+    } catch (err: any) {
+      console.error("Error al crear el viaje:", err);
+      Alert.alert(
+        "Error",
+        err.response?.data?.error || "No se pudo procesar el viaje"
+      );
     } finally {
       setLoading(false);
     }
@@ -79,6 +112,7 @@ export default function TripFormScreen() {
         value={destination}
         onChangeText={setDestination}
         autoCapitalize="sentences"
+        placeholderTextColor="#999"
       />
 
       <TouchableOpacity
@@ -96,26 +130,28 @@ export default function TripFormScreen() {
   );
 }
 
+const PRIMARY_COLOR = "#4CAF50";
+
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#fff' },
-  label: { fontSize: 16, fontWeight: 'bold', marginTop: 20, color: '#333' },
-  value: { fontSize: 16, color: '#555', marginTop: 5 },
+  container: { flex: 1, padding: 20, backgroundColor: "#fff" },
+  label: { fontSize: 16, fontWeight: "bold", marginTop: 20, color: "#333" },
+  value: { fontSize: 16, color: "#555", marginTop: 5 },
   input: {
     marginTop: 10,
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#ccc',
+    borderColor: "#ccc",
     fontSize: 16,
-    color: '#333',
-    backgroundColor: '#f9f9f9',
+    color: "#333",
+    backgroundColor: "#f9f9f9",
   },
   button: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: PRIMARY_COLOR,
     marginTop: 30,
     paddingVertical: 14,
     borderRadius: 10,
-    alignItems: 'center',
+    alignItems: "center",
   },
-  buttonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  buttonText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
 });
