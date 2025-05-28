@@ -1,84 +1,101 @@
-// ✅ TravelScreen.tsx corregido con zoom, pines y ruta desde TripFormScreen
-import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Alert,
-} from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import MapView, { Marker, Polyline, MapPressEvent } from 'react-native-maps';
-import * as Location from 'expo-location';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/core';
 import { RootStackParamList } from '../navigation/type';
 
+const OPENROUTESERVICE_API_KEY = 'Poner aquí tu API Key de OpenRouteService';
+
+type TravelRouteProp = RouteProp<RootStackParamList, 'Travel'>;
+
 export default function TravelScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const route = useRoute<RouteProp<RootStackParamList, 'Travel'>>();
+  const route = useRoute<TravelRouteProp>();
+  const params = route.params;
 
   const [region, setRegion] = useState({
     latitude: 14.604361,
     longitude: -90.490041,
-    latitudeDelta: 0.005,
-    longitudeDelta: 0.005,
+    latitudeDelta: 0.01,
+    longitudeDelta: 0.01,
   });
 
-  const [marker, setMarker] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [placeName, setPlaceName] = useState<string>('');
-  const [destinationCoords, setDestinationCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [originMarker, setOriginMarker] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [destinationMarker, setDestinationMarker] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
 
   useEffect(() => {
-    if (
-      route.params &&
-      route.params.origin &&
-      route.params.destination &&
-      route.params.latitude &&
-      route.params.longitude
-    ) {
-      const { origin, destination, latitude, longitude } = route.params;
-      setMarker({ latitude, longitude });
-      setPlaceName(origin);
-      traceDestination(destination);
+    // ✅ Si viene de TripFormScreen con destino, ajusta destino
+    if (params) {
+      const { latitude, longitude, destinationLatitude, destinationLongitude } = params;
+      setOriginMarker({ latitude, longitude });
+      setDestinationMarker({ latitude: destinationLatitude, longitude: destinationLongitude });
+      setRegion({
+        latitude,
+        longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      });
+      fetchRoute(latitude, longitude, destinationLatitude, destinationLongitude);
     }
-  }, [route.params]);
+  }, [params]);
 
-  const traceDestination = async (destination: string) => {
-    try {
-      const results = await Location.geocodeAsync(destination);
-      if (results.length > 0) {
-        const { latitude, longitude } = results[0];
-        setDestinationCoords({ latitude, longitude });
-        setRegion(prev => ({
-          ...prev,
-          latitude,
-          longitude,
-        }));
-      } else {
-        Alert.alert('No se encontró el destino');
-      }
-    } catch (err) {
-      console.error(err);
-      Alert.alert('Error al buscar el destino');
-    }
+  const handleMapPress = (event: MapPressEvent) => {
+    const { latitude, longitude } = event.nativeEvent.coordinate;
+    setOriginMarker({ latitude, longitude });
   };
 
-  const handleMapPress = async (event: MapPressEvent) => {
-    const { latitude, longitude } = event.nativeEvent.coordinate;
-    setMarker({ latitude, longitude });
+  const goToTripForm = () => {
+    if (!originMarker) {
+      Alert.alert('Selecciona un punto válido en el mapa');
+      return;
+    }
 
+    // ✅ Navega a TripFormScreen con el origen
+    navigation.navigate('TripFormScreen', {
+      origin: 'Origen desde el mapa',
+      latitude: originMarker.latitude,
+      longitude: originMarker.longitude,
+    });
+  };
+
+  const fetchRoute = async (latOrigin: number, lngOrigin: number, latDest: number, lngDest: number) => {
     try {
-      const [place] = await Location.reverseGeocodeAsync({ latitude, longitude });
-      if (place) {
-        const name = `${place.name || 'Sin nombre'}, ${place.city || ''}, ${place.region || ''}`;
-        setPlaceName(name);
+      const url = 'https://api.openrouteservice.org/v2/directions/driving-car/geojson';
+      const body = {
+        coordinates: [
+          [lngOrigin, latOrigin],
+          [lngDest, latDest],
+        ],
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': OPENROUTESERVICE_API_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+
+      if (data.features && data.features.length > 0) {
+        const coords = data.features[0].geometry.coordinates.map(
+          ([lng, lat]: [number, number]) => ({
+            latitude: lat,
+            longitude: lng,
+          }),
+        );
+        setRouteCoords(coords);
       } else {
-        setPlaceName('Lugar desconocido');
+        Alert.alert('Error', 'No se pudo obtener la ruta');
       }
     } catch (error) {
-      console.error('Error al obtener nombre del lugar:', error);
-      setPlaceName('Error al obtener nombre');
+      console.error(error);
+      Alert.alert('Error', 'No se pudo obtener la ruta');
     }
   };
 
@@ -102,19 +119,6 @@ export default function TravelScreen() {
     }
   };
 
-  const goToTripForm = () => {
-    if (!marker || !placeName.trim() || placeName === 'Error al obtener nombre') {
-      Alert.alert('Selecciona un punto válido del mapa');
-      return;
-    }
-
-    navigation.navigate('TripFormScreen', {
-      origin: placeName,
-      latitude: marker.latitude,
-      longitude: marker.longitude,
-    });
-  };
-
   return (
     <View style={styles.container}>
       <MapView
@@ -123,26 +127,18 @@ export default function TravelScreen() {
         onRegionChangeComplete={setRegion}
         onPress={handleMapPress}
       >
-        {marker && (
-          <Marker coordinate={marker} title={placeName} description="Origen" />
+        {originMarker && <Marker coordinate={originMarker} title="Origen" />}
+        {destinationMarker && (
+          <Marker coordinate={destinationMarker} title="Destino" pinColor="red" />
         )}
-        {destinationCoords && (
-          <>
-            <Marker coordinate={destinationCoords} title="Destino" pinColor="red" />
-            {marker && (
-              <Polyline
-                coordinates={[marker, destinationCoords]}
-                strokeColor="#4CAF50"
-                strokeWidth={4}
-              />
-            )}
-          </>
+        {routeCoords.length > 0 && (
+          <Polyline coordinates={routeCoords} strokeColor="#4CAF50" strokeWidth={4} />
         )}
         <Marker
           coordinate={{ latitude: 14.604361, longitude: -90.490041 }}
-          title={'UVG'}
-          description={'Universidad del Valle de Guatemala'}
-          pinColor={'green'}
+          title="UVG"
+          description="Universidad del Valle de Guatemala"
+          pinColor="green"
         />
       </MapView>
 
@@ -156,7 +152,7 @@ export default function TravelScreen() {
       </View>
 
       <TouchableOpacity style={styles.startButton} onPress={goToTripForm}>
-        <Text style={styles.buttonText}>Iniciar viaje</Text>
+        <Text style={styles.buttonText}>Seleccionar destino</Text>
       </TouchableOpacity>
     </View>
   );

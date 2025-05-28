@@ -4,7 +4,14 @@ export type RootStackParamList = {
   Home: undefined;
   Profile: undefined;
   Settings: undefined;
-  Travel: undefined;
+  Travel: {
+    origin: string;
+    latitude: number;
+    longitude: number;
+    destination: string;
+    destinationLatitude: number;
+    destinationLongitude: number;
+  };
   TripFormScreen: {
     origin: string;
     latitude: number;
