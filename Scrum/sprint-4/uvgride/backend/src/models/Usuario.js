@@ -31,7 +31,21 @@ const Usuario = sequelize.define('usuario', {
   tipo_usuario: {
     type: DataTypes.STRING,
     allowNull: false
-  }
+  },
+  foto_perfil: {
+  type: DataTypes.STRING,
+  allowNull: true,
+  defaultValue: 'default-profile.jpg'
+},
+carrera: {
+  type: DataTypes.STRING,
+  allowNull: true
+},
+universidad: {
+  type: DataTypes.STRING,
+  allowNull: true,
+  defaultValue: 'Universidad del Valle de Guatemala'
+}
 }, {
   tableName: 'usuario',
   timestamps: false

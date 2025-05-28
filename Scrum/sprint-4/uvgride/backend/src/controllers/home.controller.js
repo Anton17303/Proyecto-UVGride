@@ -1,20 +1,23 @@
-const User = require('../models/Usuario');
+const Usuario = require('../models/Usuario');
 
 exports.getHomeData = async (req, res) => {
   try {
-    const userId = req.user.id; // Asumiendo que tienes autenticación
+    const userId = req.user.id_usuario;
     
-    // Datos de ejemplo para la pantalla de inicio
-    const user = await User.findByPk(userId, {
-      attributes: ['id', 'name', 'email', 'profileImage']
+    // Datos del usuario logueado
+    const user = await Usuario.findByPk(userId, {
+      attributes: ['id_usuario', 'nombre', 'apellido', 'correo_institucional', 'foto_perfil', 'universidad']
     });
 
-    const nearbyTrips = []; // Aquí iría la lógica para obtener viajes cercanos
-    const recentActivity = []; // Actividad reciente
+    // Datos de ejemplo
+    const nearbyTrips = [];
+    const notifications = [];
+    const recentActivity = [];
 
     res.json({
       user,
       nearbyTrips,
+      notifications,
       recentActivity,
       stats: {
         completedTrips: 0,
@@ -23,6 +26,7 @@ exports.getHomeData = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener datos de inicio' });
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener datos de inicio' });
   }
 };

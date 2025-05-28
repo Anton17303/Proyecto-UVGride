@@ -15,6 +15,12 @@ app.use('/api/auth', authRoutes);
 const exampleRoutes = require('./routes/example.routes');
 app.use('/api/example', exampleRoutes);
 
+const userRoutes = require('./routes/user.routes');
+app.use('/api/users', userRoutes);
+
+const homeRoutes = require('./routes/home.routes');
+app.use('/api/home', homeRoutes);
+
 // ✅ Importa sequelize (ajusta la ruta según tu proyecto)
 const { sequelize } = require('./models');
 
