@@ -4,12 +4,10 @@
 ## 📌 Integrantes  
 - **Adrián Ricardo González Muralles** - 23152  
 - **Jose Pablo Ordoñez Barrios** – 231329  
-- **Manuel Armando Ulin Pérez** - 221017  
 - **Marcos Rodrigo Ambrocio Larios** - 231140  
 - **José Alejandro Antón Escobar** - 221041  
-- **Rene Sebastian Espinal Zamora** - 228676  
 
-📚 **Curso:** Ingeniería de Software 1  
+📚 **Curso:** Ingeniería de Software 2  
 📌 **Sección:** 10  
 📍 **Ubicación:** Guatemala, 2025  
 
@@ -27,4 +25,4 @@ El repositorio se organiza en las siguientes carpetas:
 📁 **Avances 2** - Contiene los avances correspondientes al segundo corte del proyecto.  
 📁 **Corte 1** - Documento final de la primera entrega del proyecto.  
 📁 **Corte 2** - Documento final de la segunda entrega del proyecto.  
-📁 **Scrum** - Próximamente... (seguimiento y planificación ágil del proyecto).  
+📁 **Scrum** - Contiene la aplicación del proyecto funcional con las metas propuestas.  
