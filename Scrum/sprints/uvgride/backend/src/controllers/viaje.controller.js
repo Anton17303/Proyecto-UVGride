@@ -1,4 +1,5 @@
 const Viaje = require('../models/Viaje');
+const { Op } = require('sequelize');
 
 // ✅ Crear un viaje
 exports.crearViaje = async (req, res) => {
@@ -42,6 +43,7 @@ exports.crearViaje = async (req, res) => {
   }
 };
 
+// ✅ Obtener todos los viajes (uso general)
 exports.obtenerViajes = async (req, res) => {
   try {
     const viajes = await Viaje.findAll({
@@ -54,6 +56,7 @@ exports.obtenerViajes = async (req, res) => {
   }
 };
 
+// ✅ Obtener viaje por ID
 exports.obtenerViajePorId = async (req, res) => {
   const { id } = req.params;
 
@@ -75,6 +78,7 @@ exports.obtenerViajePorId = async (req, res) => {
   }
 };
 
+// ✅ Actualizar viaje
 exports.actualizarViaje = async (req, res) => {
   const { id } = req.params;
 
@@ -85,7 +89,6 @@ exports.actualizarViaje = async (req, res) => {
   try {
     let datosActualizacion = { ...req.body };
 
-    // Si se actualizan las coordenadas, recalcular la distancia
     if (datosActualizacion.lat_origen && datosActualizacion.lat_destino) {
       const distancia = calcularDistancia(
         parseFloat(datosActualizacion.lat_origen),
@@ -120,6 +123,7 @@ exports.actualizarViaje = async (req, res) => {
   }
 };
 
+// ✅ Eliminar viaje
 exports.eliminarViaje = async (req, res) => {
   const { id } = req.params;
 
@@ -144,20 +148,41 @@ exports.eliminarViaje = async (req, res) => {
   }
 };
 
-function calcularDistancia(lat1, lon1, lat2, lon2) {
-  const R = 6371; // Radio de la Tierra en kilómetros
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  const distancia = R * c;
-  return Math.round(distancia * 100) / 100; // Redondear a 2 decimales
-}
+// ✅ Obtener todos los viajes (ruta alternativa)
+exports.obtenerTodosLosViajes = async (req, res) => {
+  try {
+    const viajes = await Viaje.findAll({
+      order: [['fecha_creacion', 'DESC']]
+    });
+    return res.json({ viajes });
+  } catch (error) {
+    console.error('❌ Error al obtener todos los viajes:', error);
+    return res.status(500).json({ error: 'Error interno al obtener todos los viajes' });
+  }
+};
 
-// ✅ Buscar viajes cercanos (función adicional)
+// ✅ Obtener viajes por usuario
+exports.obtenerViajesPorUsuario = async (req, res) => {
+  const { userId } = req.params;
+
+  if (!userId) {
+    return res.status(400).json({ error: 'ID de usuario no proporcionado' });
+  }
+
+  try {
+    const viajes = await Viaje.findAll({
+      where: { id_usuario: userId },
+      order: [['fecha_creacion', 'DESC']]
+    });
+
+    return res.json({ viajes });
+  } catch (error) {
+    console.error('❌ Error al obtener viajes por usuario:', error);
+    return res.status(500).json({ error: 'Error interno al obtener viajes por usuario' });
+  }
+};
+
+// ✅ Buscar viajes cercanos
 exports.buscarViagesCercanos = async (req, res) => {
   try {
     const { lat, lon, radio = 10 } = req.query;
@@ -170,22 +195,15 @@ exports.buscarViagesCercanos = async (req, res) => {
     const longitude = parseFloat(lon);
     const radioKm = parseFloat(radio);
 
-    // Calcular los límites del área de búsqueda
     const latMin = latitude - (radioKm / 111);
     const latMax = latitude + (radioKm / 111);
     const lonMin = longitude - (radioKm / (111 * Math.cos(latitude * Math.PI / 180)));
     const lonMax = longitude + (radioKm / (111 * Math.cos(latitude * Math.PI / 180)));
 
-    const { Op } = require('sequelize');
-    
     const viajes = await Viaje.findAll({
       where: {
-        lat_origen: {
-          [Op.between]: [latMin, latMax]
-        },
-        lon_origen: {
-          [Op.between]: [lonMin, lonMax]
-        },
+        lat_origen: { [Op.between]: [latMin, latMax] },
+        lon_origen: { [Op.between]: [lonMin, lonMax] },
         estado: 'pendiente'
       },
       order: [['fecha_creacion', 'DESC']]
@@ -198,3 +216,17 @@ exports.buscarViagesCercanos = async (req, res) => {
     return res.status(500).json({ error: 'Error interno al buscar viajes cercanos' });
   }
 };
+
+// ✅ Utilidad: calcular distancia entre coordenadas
+function calcularDistancia(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const distancia = R * c;
+  return Math.round(distancia * 100) / 100;
+}
