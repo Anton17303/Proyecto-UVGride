@@ -46,26 +46,6 @@ const Viaje = sequelize.define('viaje_maestro', {
     allowNull: false,
     defaultValue: 'pendiente',
   },
-   distancia_km: {
-    type: DataTypes.DECIMAL(8, 2),
-    allowNull: true,
-    validate: {
-      min: {
-        args: [0],
-        msg: 'La distancia no puede ser negativa'
-      }
-    }
-  },
-  tiempo_estimado: {
-    type: DataTypes.INTEGER, // Tiempo en minutos
-    allowNull: true,
-    validate: {
-      min: {
-        args: [0],
-        msg: 'El tiempo estimado no puede ser negativo'
-      }
-    }
-  },
   fecha_creacion: {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW

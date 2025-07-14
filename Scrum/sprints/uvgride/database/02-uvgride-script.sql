@@ -43,7 +43,17 @@ CREATE TABLE viaje_maestro (
   lon_destino DECIMAL(9,6),
   hora_solicitud TIMESTAMP NOT NULL DEFAULT NOW(),
   costo_total DECIMAL(10,2) NOT NULL,
-  estado_viaje VARCHAR(255) NOT NULL DEFAULT 'pendiente'
+  estado_viaje VARCHAR(255) NOT NULL DEFAULT 'pendiente',
+  fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  fecha_inicio TIMESTAMP,
+  fecha_fin TIMESTAMP,
+  distancia_km DECIMAL(8,2),
+  tiempo_estimado INTEGER,
+  usuario_id INTEGER,
+  conductor_id INTEGER,
+  notas TEXT,
+  calificacion INTEGER
 );
 
 -- Calificaciones maestro
@@ -174,8 +184,3 @@ CREATE TABLE seguro_vehiculo (
   cobertura TEXT NOT NULL,
   FOREIGN KEY (id_vehiculo) REFERENCES vehiculo(id_vehiculo)
 );
-
--- Ajustes: permitir nulos en hora_inicio y hora_finalizacion
-ALTER TABLE viaje_maestro 
-  ALTER COLUMN hora_inicio DROP NOT NULL,
-  ALTER COLUMN hora_finalizacion DROP NOT NULL;

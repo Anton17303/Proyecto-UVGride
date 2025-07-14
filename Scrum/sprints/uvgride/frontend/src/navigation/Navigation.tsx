@@ -7,7 +7,8 @@ import RegisterScreen from '../screens/RegisterScreen';
 import BottomTabs from './BottomTabs';
 import TravelScreen from '../screens/TravelScreen';
 import TripFormScreen from '../screens/TripFormScreen';
-import FavoriteScreen from '../screens/FavoriteScreen'
+import FavoriteScreen from '../screens/FavoriteScreen';
+import AddFavoriteScreen from '../screens/AddFavoriteScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -20,6 +21,7 @@ export default function Navigation() {
       <Stack.Screen name="Travel" component={TravelScreen} />
       <Stack.Screen name="TripFormScreen" component={TripFormScreen} />
       <Stack.Screen name="FavoriteScreen" component={FavoriteScreen}/>
+      <Stack.Screen name="AddFavoriteScreen" component={AddFavoriteScreen} />
     
     </Stack.Navigator>
   );

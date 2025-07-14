@@ -4,11 +4,12 @@ import { Ionicons } from "@expo/vector-icons";
 import HomeScreen from "../screens/HomeScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import TravelScreen from "../screens/TravelScreen";
+import TravelStack from './TravelStack';
 
 export type BottomTabParamList = {
-  HomeTab: undefined;
-  Profile: undefined;
-  Travel: undefined;
+  Inicio: undefined;
+  Perfil: undefined;
+  Viaje: undefined;
 };
 
 const Tab = createBottomTabNavigator<BottomTabParamList>();
@@ -24,11 +25,11 @@ export default function BottomTabs() {
         tabBarIcon: ({ color, size }) => {
           let iconName: keyof typeof Ionicons.glyphMap = "home-outline";
 
-          if (route.name === "HomeTab") {
+          if (route.name === "Inicio") {
             iconName = "home-outline";
-          } else if (route.name === "Profile") {
+          } else if (route.name === "Perfil") {
             iconName = "person-outline";
-          } else if (route.name === "Travel") {
+          } else if (route.name === "Viaje") {
             iconName = "airplane-outline";
           }
 
@@ -36,9 +37,9 @@ export default function BottomTabs() {
         },
       })}
     >
-      <Tab.Screen name="HomeTab" component={HomeScreen} />
-      <Tab.Screen name="Travel" component={TravelScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen name="Inicio" component={HomeScreen} />
+      <Tab.Screen name="Viaje" component={TravelStack} />
+      <Tab.Screen name="Perfil" component={ProfileScreen} />
     </Tab.Navigator>
   );
 }

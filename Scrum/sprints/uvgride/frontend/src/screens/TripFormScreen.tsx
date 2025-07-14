@@ -12,27 +12,28 @@ import axios from "axios";
 import {
   useRoute,
   useNavigation,
-  CompositeNavigationProp,
 } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { API_URL } from "../services/api";
-import { RootStackParamList } from "../type";
-import { BottomTabParamList } from "../navigation/BottomTabs";
+import { TravelStackParamList } from "../navigation/TravelStack"; // Asegúrate que este tipo exista
 
-const OPENROUTESERVICE_API_KEY = "5b3ce3597851110001cf62486825133970f449ebbc374649ee03b5eb";
+type TripFormScreenRouteParams = {
+  origin: string;
+  latitude: number;
+  longitude: number;
+};
 
-type TripFormNavigationProp = CompositeNavigationProp<
-  NativeStackNavigationProp<RootStackParamList, "TripFormScreen">,
-  BottomTabNavigationProp<BottomTabParamList>
+type TripFormNavigationProp = NativeStackNavigationProp<
+  TravelStackParamList,
+  "TripFormScreen"
 >;
 
 export default function TripFormScreen() {
-  const route = useRoute<{
-    params: { origin: string; latitude: number; longitude: number };
-  }>();
+  const route = useRoute();
   const navigation = useNavigation<TripFormNavigationProp>();
-  const { origin, latitude, longitude } = route.params;
+
+  const { origin, latitude, longitude } =
+    (route.params as TripFormScreenRouteParams) || {};
 
   const [destination, setDestination] = useState("");
   const [loading, setLoading] = useState(false);
@@ -46,9 +47,7 @@ export default function TripFormScreen() {
     setLoading(true);
 
     try {
-      const geoUrl = `https://api.openrouteservice.org/geocode/search?api_key=${OPENROUTESERVICE_API_KEY}&text=${encodeURIComponent(
-        destination
-      )}`;
+      const geoUrl = `https://api.openrouteservice.org/geocode/search?api_key=5b3ce3597851110001cf62486825133970f449ebbc374649ee03b5eb&text=${encodeURIComponent(destination)}`;
       const { data: geoData } = await axios.get(geoUrl);
 
       if (geoData.features && geoData.features.length > 0) {
@@ -69,14 +68,12 @@ export default function TripFormScreen() {
 
         if (backendResponse.data && backendResponse.data.viaje) {
           Alert.alert("¡Éxito!", "¡Viaje creado correctamente!");
-          navigation.navigate("Home", {
-            screen: "Travel",
-            params: {
-              latitude,
-              longitude,
-              destinationLatitude: lat,
-              destinationLongitude: lng,
-            },
+
+          navigation.navigate("TravelScreen", {
+            latitude,
+            longitude,
+            destinationLatitude: lat,
+            destinationLongitude: lng,
           });
         } else {
           Alert.alert("Error", "No se pudo guardar el viaje en el servidor");
