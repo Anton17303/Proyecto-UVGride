@@ -4,6 +4,7 @@ export type RootStackParamList = {
   Home: undefined;
   Profile: undefined;
   Settings: undefined;
+  Favorite: undefined;
   Travel: {
     origin: string;
     latitude: number;

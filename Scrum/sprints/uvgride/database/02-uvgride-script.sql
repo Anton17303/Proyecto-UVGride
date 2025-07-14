@@ -140,6 +140,19 @@ CREATE TABLE notificacion (
   FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
 );
 
+-- Lugares favoritos
+CREATE TABLE lugar_favorito (
+  id_lugar_favorito SERIAL PRIMARY KEY,
+  id_usuario INT NOT NULL,
+  nombre_lugar VARCHAR(255) NOT NULL,
+  descripcion TEXT,
+  latitud DECIMAL(9,6),
+  longitud DECIMAL(9,6),
+  imagen_url TEXT,
+  fecha_agregado TIMESTAMP NOT NULL DEFAULT NOW(),
+  FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
+);
+
 -- Bitácora
 CREATE TABLE bitacora (
   id_bitacora SERIAL PRIMARY KEY,

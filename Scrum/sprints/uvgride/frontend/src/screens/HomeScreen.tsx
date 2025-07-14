@@ -10,19 +10,12 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.text}>Pantalla Home 🏠</Text>
-      
-      <TouchableOpacity 
-        style={styles.button}
-        onPress={() => navigation.navigate('Travel')}
-      >
-        <Text style={styles.buttonText}>Ir a Perfil</Text>
-      </TouchableOpacity>
 
       <TouchableOpacity 
         style={styles.button}
-        onPress={() => navigation.navigate('Settings')}
+        onPress={() => navigation.navigate('FavoriteScreen')}
       >
-        <Text style={styles.buttonText}>Ir a Configuración</Text>
+        <Text style={styles.buttonText}>Ir a Lugares Favoritos</Text>
       </TouchableOpacity>
     </View>
   );
@@ -32,22 +25,23 @@ const styles = StyleSheet.create({
   container: { 
     flex: 1, 
     justifyContent: 'center', 
-    alignItems: 'center' 
+    alignItems: 'center', 
+    backgroundColor: '#fff' 
   },
   text: { 
     fontSize: 24, 
     fontWeight: 'bold', 
-    marginBottom: 20 
+    marginBottom: 30 
   },
   button: {
     backgroundColor: '#4CAF50',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-    marginVertical: 10
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12
   },
   buttonText: { 
     color: 'white', 
-    fontSize: 16 
+    fontSize: 16, 
+    fontWeight: 'bold' 
   }
 });
