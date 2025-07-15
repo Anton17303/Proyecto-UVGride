@@ -1,5 +1,6 @@
 {
   "dependencies": {
-    "@rnmapbox/maps": "^10.1.38"
+    "@rnmapbox/maps": "^10.1.38",
+    "react-native-color-picker": "^0.6.0"
   }
 }

@@ -19,7 +19,7 @@ export default function ProfileScreen() {
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Encabezado de perfil */}
-        <View style={styles.header}>
+        <View style={styles.header}>a
           <Image
             source={{ uri: 'https://i.pravatar.cc/100' }} // imagen temporal de usuario
             style={styles.avatar}

@@ -1,7 +1,14 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
-  StyleSheet, Alert, KeyboardAvoidingView, Platform, SafeAreaView,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
 } from 'react-native';
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
@@ -22,7 +29,7 @@ export default function LoginScreen() {
   const [correo_institucional, setCorreo] = useState('');
   const [contrasenia, setContrasenia] = useState('');
   const [loading, setLoading] = useState(false);
-  const { setUser } = useUser();
+  const { setUserFromBackend } = useUser();
 
   const handleLogin = async () => {
     if (!correo_institucional || !contrasenia) {
@@ -38,7 +45,8 @@ export default function LoginScreen() {
         contrasenia,
       });
 
-      setUser(res.data.usuario);
+      setUserFromBackend(res.data.usuario); // ✅ Corrección aquí
+
       Alert.alert('¡Bienvenido!', `Hola ${res.data.usuario.nombre}`);
       navigation.navigate('Home');
     } catch (err: any) {
@@ -102,13 +110,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 30,
-    textTransform: 'uppercase'
+    textTransform: 'uppercase',
   },
   label: {
     color: '#555',
     marginBottom: 6,
     marginTop: 12,
-    fontSize: 14
+    fontSize: 14,
   },
   input: {
     backgroundColor: '#f0f0f0',
@@ -118,26 +126,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#ddd'
+    borderColor: '#ddd',
   },
   button: {
     marginTop: 24,
     backgroundColor: PRIMARY_COLOR,
     paddingVertical: 14,
     borderRadius: 12,
-    alignItems: 'center'
+    alignItems: 'center',
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
-    textTransform: 'uppercase'
+    textTransform: 'uppercase',
   },
   linkText: {
     color: PRIMARY_COLOR,
     fontSize: 14,
     textAlign: 'center',
     marginTop: 16,
-    textDecorationLine: 'underline'
+    textDecorationLine: 'underline',
   },
 });

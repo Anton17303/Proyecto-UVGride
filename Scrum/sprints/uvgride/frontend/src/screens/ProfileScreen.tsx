@@ -1,5 +1,13 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  ScrollView,
+  Alert,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
@@ -17,22 +25,7 @@ export default function ProfileScreen() {
   ];
 
   const handleOptionPress = (option: string) => {
-    switch (option) {
-      case 'Términos y Condiciones':
-        Alert.alert('Términos y Condiciones', 'Aquí se mostrarán los términos del servicio.');
-        break;
-      case 'Idioma':
-        Alert.alert('Idioma', 'Aquí podrás seleccionar tu idioma preferido.');
-        break;
-      case 'Información':
-        Alert.alert('Información', 'Esta sección mostrará información general sobre la app.');
-        break;
-      case 'Política de Privacidad':
-        Alert.alert('Política de Privacidad', 'Aquí se incluirá la política de privacidad.');
-        break;
-      default:
-        Alert.alert('Opción no implementada');
-    }
+    Alert.alert(option, `Aquí se mostrará la información de: ${option}`);
   };
 
   const handleLogout = () => {
@@ -43,7 +36,7 @@ export default function ProfileScreen() {
         style: 'destructive',
         onPress: () => {
           setUser(null);
-          navigation.navigate('Login'); // Opcional: redirige a la pantalla de login
+          navigation.navigate('Login');
         },
       },
     ]);
@@ -67,16 +60,22 @@ export default function ProfileScreen() {
             source={require('../assets/default-profile.jpg')}
             style={styles.profileImage}
           />
-          <Text style={styles.userName}>{`${user.nombre} ${user.apellido}`}</Text>
-          <Text style={styles.userEmail}>{user.correo_institucional}</Text>
-          <View style={styles.infoContainer}>
-            <Text style={styles.infoLabel}>Teléfono:</Text>
-            <Text style={styles.infoValue}>{user.telefono}</Text>
-          </View>
-          <View style={styles.infoContainer}>
-            <Text style={styles.infoLabel}>Tipo de usuario:</Text>
-            <Text style={styles.infoValue}>{user.tipo_usuario}</Text>
-          </View>
+          <Text style={styles.userName}>{user.name}</Text>
+          <Text style={styles.userEmail}>{user.email}</Text>
+
+          {user.telefono && (
+            <View style={styles.infoContainer}>
+              <Text style={styles.infoLabel}>Teléfono:</Text>
+              <Text style={styles.infoValue}>{user.telefono}</Text>
+            </View>
+          )}
+
+          {user.tipo_usuario && (
+            <View style={styles.infoContainer}>
+              <Text style={styles.infoLabel}>Tipo de usuario:</Text>
+              <Text style={styles.infoValue}>{user.tipo_usuario}</Text>
+            </View>
+          )}
         </View>
 
         <TouchableOpacity
@@ -99,11 +98,7 @@ export default function ProfileScreen() {
           ))}
         </View>
 
-        {/* ✅ Botón para cerrar sesión */}
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={handleLogout}
-        >
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -114,13 +109,8 @@ export default function ProfileScreen() {
 const PRIMARY_COLOR = '#4CAF50';
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f0f2f5',
-  },
-  scrollContainer: {
-    paddingBottom: 40,
-  },
+  container: { flex: 1, backgroundColor: '#f0f2f5' },
+  scrollContainer: { paddingBottom: 40 },
   profileCard: {
     backgroundColor: '#ffffff',
     alignItems: 'center',

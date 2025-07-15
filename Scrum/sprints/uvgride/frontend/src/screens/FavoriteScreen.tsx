@@ -1,125 +1,192 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
-    View, Text, FlatList, StyleSheet, TouchableOpacity, SafeAreaView
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  TouchableOpacity,
+  SafeAreaView,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import axios from 'axios';
+import { API_URL } from '../services/api';
 import { useUser } from '../context/UserContext';
-// import axios from 'axios'; ← cuando tengas el backend
-// import { API_URL } from '../services/api';
 
 type LugarFavorito = {
-    id_lugar_favorito: number;
-    nombre_lugar: string;
-    descripcion?: string;
-    color_hex?: string;
+  id_lugar_favorito: number;
+  nombre_lugar: string;
+  descripcion?: string;
+  color_hex?: string;
 };
 
 export default function FavoriteScreen() {
-    const navigation = useNavigation();
-    const { user } = useUser();
-    const [favoritos, setFavoritos] = useState<LugarFavorito[]>([]);
+  const navigation = useNavigation();
+  const { user } = useUser();
+  const [favoritos, setFavoritos] = useState<LugarFavorito[]>([]);
+  const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        cargarFavoritos();
-    }, []);
+  const cargarFavoritos = async () => {
+    if (!user?.id) return;
 
-    const cargarFavoritos = async () => {
-        // const res = await axios.get(`${API_URL}/api/favoritos/${user.id}`);
-        // setFavoritos(res.data);
+    try {
+      const response = await axios.get(`${API_URL}/api/favoritos/usuario/${user.id}`);
+      setFavoritos(response.data.favoritos || []);
+    } catch (err) {
+      console.error('Error al cargar favoritos:', err);
+      Alert.alert('Error', 'No se pudieron cargar los lugares favoritos');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        // Mock temporal:
-        setFavoritos([
-            {
-                id_lugar_favorito: 1,
-                nombre_lugar: 'Antigua Guatemala',
-                descripcion: 'Una ciudad colonial hermosa',
-                color_hex: '#FF5733'
-            },
-            {
-                id_lugar_favorito: 2,
-                nombre_lugar: 'Lago de Atitlán',
-                descripcion: 'Perfecto para descansar',
-                color_hex: '#33FF57'
+  const eliminarFavorito = async (id: number) => {
+    Alert.alert(
+      'Eliminar favorito',
+      '¿Estás seguro de que deseas eliminar este lugar?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await axios.delete(`${API_URL}/api/favoritos/${id}`);
+              setFavoritos((prev) => prev.filter((fav) => fav.id_lugar_favorito !== id));
+              Alert.alert('Eliminado', 'Lugar favorito eliminado correctamente');
+            } catch (err) {
+              console.error('Error al eliminar favorito:', err);
+              Alert.alert('Error', 'No se pudo eliminar el lugar');
             }
-        ]);
-    };
-
-    const renderItem = ({ item }: { item: LugarFavorito }) => (
-        <View style={styles.card}>
-            <Text style={[styles.name, { color: item.color_hex || '#333' }]}>
-                {item.nombre_lugar}
-            </Text>
-            {item.descripcion && <Text style={styles.description}>{item.descripcion}</Text>}
-        </View>
+          },
+        },
+      ]
     );
+  };
 
-    return (
-        <SafeAreaView style={styles.container}>
-            <Text style={styles.title}>Lugares Favoritos</Text>
+  useFocusEffect(
+    useCallback(() => {
+      cargarFavoritos();
+    }, [user?.id])
+  );
 
-            <FlatList
-                data={favoritos}
-                keyExtractor={(item) => item.id_lugar_favorito.toString()}
-                renderItem={renderItem}
-                contentContainerStyle={{ paddingBottom: 16 }}
-            />
+  const renderItem = ({ item }: { item: LugarFavorito }) => (
+    <View style={[styles.card, { borderLeftColor: item.color_hex || '#4CAF50' }]}>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.name, { color: item.color_hex || '#333' }]}>
+          {item.nombre_lugar}
+        </Text>
+        {item.descripcion && (
+          <Text style={styles.description}>{item.descripcion}</Text>
+        )}
+      </View>
+      <TouchableOpacity onPress={() => eliminarFavorito(item.id_lugar_favorito)}>
+        <Text style={styles.deleteButton}>🗑</Text>
+      </TouchableOpacity>
+    </View>
+  );
 
-            <TouchableOpacity
-                style={styles.addButton}
-                onPress={() => navigation.navigate('AddFavoriteScreen')}
-            >
-                <Text style={styles.addButtonText}>+ Agregar nuevo</Text>
-            </TouchableOpacity>
+  return (
+    <SafeAreaView style={styles.container}>
+      <Text style={styles.title}>Lugares Favoritos</Text>
 
-            <TouchableOpacity
-                style={styles.backButton}
-                onPress={() => navigation.navigate('Home')}
-            >
-                <Text style={styles.backButtonText}>← Volver al menú</Text>
-            </TouchableOpacity>
-        </SafeAreaView>
-    );
+      {loading ? (
+        <ActivityIndicator size="large" color="#4CAF50" style={{ marginTop: 20 }} />
+      ) : favoritos.length === 0 ? (
+        <Text style={styles.emptyText}>No tienes lugares favoritos aún.</Text>
+      ) : (
+        <FlatList
+          data={favoritos}
+          keyExtractor={(item) => item.id_lugar_favorito.toString()}
+          renderItem={renderItem}
+          contentContainerStyle={{ paddingBottom: 16 }}
+        />
+      )}
+
+      <TouchableOpacity
+        style={styles.addButton}
+        onPress={() => navigation.navigate('AddFavoriteScreen')}
+      >
+        <Text style={styles.addButtonText}>+ Agregar nuevo</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={() => navigation.navigate('Home')}
+      >
+        <Text style={styles.backButtonText}>← Volver al menú</Text>
+      </TouchableOpacity>
+    </SafeAreaView>
+  );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, padding: 16, backgroundColor: '#fff' },
-    title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        marginBottom: 16,
-        textAlign: 'center',
-    },
-    card: {
-        backgroundColor: '#f2f2f2',
-        padding: 16,
-        borderRadius: 12,
-        marginBottom: 12,
-    },
-    name: { fontSize: 18, fontWeight: 'bold' },
-    description: { fontSize: 14, color: '#555', marginVertical: 4 },
-    coords: { fontSize: 12, color: '#777' },
-    addButton: {
-        backgroundColor: '#4CAF50',
-        padding: 12,
-        borderRadius: 12,
-        alignItems: 'center',
-        marginHorizontal: 40,
-        marginTop: 12,
-    },
-    addButtonText: {
-        color: '#fff',
-        fontSize: 15,
-        fontWeight: 'bold',
-    },
-    backButton: {
-        marginTop: 10,
-        padding: 10,
-        alignItems: 'center',
-    },
-    backButtonText: {
-        color: '#4CAF50',
-        fontSize: 14,
-        fontWeight: 'bold',
-        textDecorationLine: 'underline',
-    },
+  container: { flex: 1, padding: 16, backgroundColor: '#fff' },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    textAlign: 'center',
+    color: '#000',
+  },
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 14,
+    marginBottom: 14,
+    marginHorizontal: 8,
+    borderLeftWidth: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  name: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  description: {
+    fontSize: 14,
+    color: '#555',
+    marginTop: 4,
+  },
+  deleteButton: {
+    fontSize: 20,
+    color: '#d9534f',
+    marginLeft: 12,
+  },
+  addButton: {
+    backgroundColor: '#4CAF50',
+    padding: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginHorizontal: 40,
+    marginTop: 12,
+  },
+  addButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  backButton: {
+    marginTop: 10,
+    padding: 10,
+    alignItems: 'center',
+  },
+  backButtonText: {
+    color: '#4CAF50',
+    fontSize: 14,
+    fontWeight: 'bold',
+    textDecorationLine: 'underline',
+  },
+  emptyText: {
+    textAlign: 'center',
+    color: '#777',
+    fontSize: 16,
+    marginTop: 30,
+  },
 });

@@ -17,6 +17,7 @@ CREATE TABLE conductor (
   licencia_conducir VARCHAR(255) NOT NULL,
   estado_disponibilidad VARCHAR(255) NOT NULL,
   FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
+    ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- Vehículos
@@ -29,10 +30,10 @@ CREATE TABLE vehiculo (
   color VARCHAR(255) NOT NULL,
   capacidad_pasajeros INT NOT NULL,
   FOREIGN KEY (id_conductor) REFERENCES conductor(id_conductor)
+    ON DELETE CASCADE ON UPDATE CASCADE
 );
 
-
-
+-- Viajes
 CREATE TABLE viaje_maestro (
   id_viaje_maestro SERIAL PRIMARY KEY,
   origen VARCHAR(255) NOT NULL,
@@ -53,7 +54,11 @@ CREATE TABLE viaje_maestro (
   usuario_id INTEGER,
   conductor_id INTEGER,
   notas TEXT,
-  calificacion INTEGER
+  calificacion INTEGER,
+  FOREIGN KEY (usuario_id) REFERENCES usuario(id_usuario)
+    ON DELETE SET NULL ON UPDATE CASCADE,
+  FOREIGN KEY (conductor_id) REFERENCES conductor(id_conductor)
+    ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 -- Calificaciones maestro
@@ -62,8 +67,10 @@ CREATE TABLE calificacion_maestro (
   id_viaje_maestro INT NOT NULL,
   id_usuario INT NOT NULL,
   puntuacion INT NOT NULL,
-  FOREIGN KEY (id_viaje_maestro) REFERENCES viaje_maestro(id_viaje_maestro),
+  FOREIGN KEY (id_viaje_maestro) REFERENCES viaje_maestro(id_viaje_maestro)
+    ON DELETE CASCADE,
   FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
+    ON DELETE CASCADE
 );
 
 -- Calificaciones detalle
@@ -73,6 +80,7 @@ CREATE TABLE calificacion_detalle (
   criterio VARCHAR(255) NOT NULL,
   puntuacion INT NOT NULL,
   FOREIGN KEY (id_calificacion_maestro) REFERENCES calificacion_maestro(id_calificacion_maestro)
+    ON DELETE CASCADE
 );
 
 -- Tarifas
@@ -89,6 +97,7 @@ CREATE TABLE tarifa_detalle (
   costo_por_km DECIMAL(10,2) NOT NULL,
   costo_por_minuto DECIMAL(10,2) NOT NULL,
   FOREIGN KEY (id_tarifa_maestro) REFERENCES tarifa_maestro(id_tarifa_maestro)
+    ON DELETE CASCADE
 );
 
 -- Métodos de pago
@@ -99,6 +108,7 @@ CREATE TABLE metodo_pago (
   detalle_pago VARCHAR(255) NOT NULL,
   activo BOOLEAN NOT NULL,
   FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
+    ON DELETE CASCADE
 );
 
 -- Transacciones
@@ -109,10 +119,13 @@ CREATE TABLE transaccion (
   id_metodo_pago INT NOT NULL,
   monto DECIMAL(10,2) NOT NULL,
   estado_pago VARCHAR(255) NOT NULL,
-  fecha_pago TIMESTAMP NOT NULL,
-  FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario),
-  FOREIGN KEY (id_viaje_maestro) REFERENCES viaje_maestro(id_viaje_maestro),
+  fecha_pago TIMESTAMP NOT NULL DEFAULT NOW(),
+  FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
+    ON DELETE CASCADE,
+  FOREIGN KEY (id_viaje_maestro) REFERENCES viaje_maestro(id_viaje_maestro)
+    ON DELETE CASCADE,
   FOREIGN KEY (id_metodo_pago) REFERENCES metodo_pago(id_metodo_pago)
+    ON DELETE CASCADE
 );
 
 -- Historial de viajes
@@ -122,8 +135,10 @@ CREATE TABLE historial_viajes (
   id_viaje_maestro INT NOT NULL,
   fecha TIMESTAMP NOT NULL,
   estado VARCHAR(255) NOT NULL,
-  FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario),
+  FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
+    ON DELETE CASCADE,
   FOREIGN KEY (id_viaje_maestro) REFERENCES viaje_maestro(id_viaje_maestro)
+    ON DELETE CASCADE
 );
 
 -- Reportes
@@ -134,9 +149,11 @@ CREATE TABLE reporte (
   tipo_problema VARCHAR(255) NOT NULL,
   descripcion TEXT NOT NULL,
   estado_reporte VARCHAR(255) NOT NULL,
-  fecha_reporte TIMESTAMP NOT NULL,
-  FOREIGN KEY (id_viaje_maestro) REFERENCES viaje_maestro(id_viaje_maestro),
+  fecha_reporte TIMESTAMP NOT NULL DEFAULT NOW(),
+  FOREIGN KEY (id_viaje_maestro) REFERENCES viaje_maestro(id_viaje_maestro)
+    ON DELETE CASCADE,
   FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
+    ON DELETE CASCADE
 );
 
 -- Notificaciones
@@ -146,21 +163,21 @@ CREATE TABLE notificacion (
   mensaje TEXT NOT NULL,
   tipo VARCHAR(255) NOT NULL,
   estado VARCHAR(255) NOT NULL,
-  fecha_envio TIMESTAMP NOT NULL,
+  fecha_envio TIMESTAMP NOT NULL DEFAULT NOW(),
   FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
+    ON DELETE CASCADE
 );
 
--- Lugares favoritos
+-- Lugares favoritos (solo nombre, descripción y color)
 CREATE TABLE lugar_favorito (
   id_lugar_favorito SERIAL PRIMARY KEY,
   id_usuario INT NOT NULL,
   nombre_lugar VARCHAR(255) NOT NULL,
   descripcion TEXT,
-  latitud DECIMAL(9,6),
-  longitud DECIMAL(9,6),
-  imagen_url TEXT,
+  color_hex VARCHAR(7) NOT NULL,
   fecha_agregado TIMESTAMP NOT NULL DEFAULT NOW(),
   FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
+    ON DELETE CASCADE
 );
 
 -- Bitácora
@@ -172,6 +189,7 @@ CREATE TABLE bitacora (
   tabla_afectada VARCHAR(255) NOT NULL,
   id_registro_afectado INT NOT NULL,
   FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
+    ON DELETE CASCADE
 );
 
 -- Seguro de vehículo
@@ -183,4 +201,5 @@ CREATE TABLE seguro_vehiculo (
   fecha_vencimiento TIMESTAMP NOT NULL,
   cobertura TEXT NOT NULL,
   FOREIGN KEY (id_vehiculo) REFERENCES vehiculo(id_vehiculo)
+    ON DELETE CASCADE
 );

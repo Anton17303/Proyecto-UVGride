@@ -1,43 +1,54 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, SafeAreaView
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  ScrollView,
+  SafeAreaView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-// import axios from 'axios';
-// import { API_URL } from '../services/api';
+import axios from 'axios';
+import { API_URL } from '../services/api';
 import { useUser } from '../context/UserContext';
+
+const COLORES = ['#ff6961', '#77dd77', '#fdfd96', '#84b6f4', '#fdcae1'];
 
 export default function AddFavoriteScreen() {
   const { user } = useUser();
   const navigation = useNavigation();
   const [nombre, setNombre] = useState('');
   const [descripcion, setDescripcion] = useState('');
-  const [color, setColor] = useState('');
+  const [color, setColor] = useState(COLORES[0]);
 
   const handleGuardar = async () => {
-    if (!nombre || !color) {
+    if (!nombre.trim() || !color.trim()) {
       Alert.alert('Error', 'El nombre y el color son obligatorios');
       return;
     }
 
-    // const nuevoLugar = {
-    //   id_usuario: user.id,
-    //   nombre_lugar: nombre,
-    //   descripcion,
-    //   color_hex: color
-    // };
+    const nuevoFavorito = {
+      id_usuario: user?.id,
+      nombre_lugar: nombre.trim(),
+      descripcion: descripcion.trim() || null,
+      color_hex: color.trim(),
+    };
 
-    // try {
-    //   await axios.post(`${API_URL}/api/favoritos`, nuevoLugar);
-    //   Alert.alert('Éxito', 'Lugar agregado a favoritos');
-    //   navigation.goBack();
-    // } catch (err) {
-    //   console.error(err);
-    //   Alert.alert('Error', 'No se pudo guardar el lugar');
-    // }
+    try {
+      const response = await axios.post(`${API_URL}/api/favoritos`, nuevoFavorito);
 
-    Alert.alert('Simulado', `Lugar agregado con color ${color}`);
-    navigation.goBack();
+      if (response.status === 201 || response.data?.success) {
+        Alert.alert('Éxito', 'Lugar agregado a favoritos');
+        navigation.goBack();
+      } else {
+        throw new Error('No se pudo guardar el lugar');
+      }
+    } catch (err: any) {
+      console.error('❌ Error al guardar favorito:', err?.response?.data || err.message);
+      Alert.alert('Error', err?.response?.data?.error || 'No se pudo guardar el lugar');
+    }
   };
 
   return (
@@ -63,13 +74,18 @@ export default function AddFavoriteScreen() {
         />
 
         <Text style={styles.label}>Color personalizado *</Text>
-        <TextInput
-          style={styles.input}
-          value={color}
-          onChangeText={setColor}
-          placeholder="Ej. #4CAF50"
-          autoCapitalize="none"
-        />
+        <View style={styles.colorRow}>
+          {COLORES.map((c) => (
+            <TouchableOpacity
+              key={c}
+              style={[
+                styles.colorCircle,
+                { backgroundColor: c, borderWidth: color === c ? 3 : 1 },
+              ]}
+              onPress={() => setColor(c)}
+            />
+          ))}
+        </View>
 
         <TouchableOpacity style={styles.button} onPress={handleGuardar}>
           <Text style={styles.buttonText}>Guardar Lugar</Text>
@@ -84,10 +100,7 @@ export default function AddFavoriteScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
+  safeArea: { flex: 1, backgroundColor: '#fff' },
   container: {
     flexGrow: 1,
     paddingHorizontal: 16,
@@ -103,7 +116,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     marginBottom: 6,
-    color: '#555'
+    color: '#555',
   },
   input: {
     backgroundColor: '#f2f2f2',
@@ -112,25 +125,36 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#ddd'
+    borderColor: '#ddd',
+  },
+  colorRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  colorCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderColor: '#444',
   },
   button: {
     backgroundColor: '#4CAF50',
     padding: 14,
     borderRadius: 12,
     alignItems: 'center',
-    marginTop: 8
+    marginTop: 8,
   },
   buttonText: {
     color: '#fff',
     fontWeight: 'bold',
-    fontSize: 16
+    fontSize: 16,
   },
   backText: {
     color: '#4CAF50',
     fontSize: 14,
     textAlign: 'center',
     marginTop: 20,
-    textDecorationLine: 'underline'
-  }
+    textDecorationLine: 'underline',
+  },
 });
