@@ -1,4 +1,4 @@
-const { getHomeData } = require('../controllers/homeController');
+const { getHomeData } = require('../src/homeController');
 const Usuario = require('../models/Usuario');
 
 jest.mock('../models/Usuario');
