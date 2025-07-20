@@ -12,9 +12,10 @@ exports.crearViaje = async (req, res) => {
       lat_destino,
       lon_destino,
       costo_total,
+      id_usuario,
     } = req.body;
 
-    if (!origen?.trim() || !destino?.trim() || !costo_total) {
+    if (!origen?.trim() || !destino?.trim() || !costo_total || !id_usuario) {
       return res.status(400).json({ error: 'Faltan datos obligatorios' });
     }
 
@@ -31,6 +32,10 @@ exports.crearViaje = async (req, res) => {
       lat_destino,
       lon_destino,
       costo_total,
+      usuario_id: id_usuario, // Aseguramos que el ID del usuario esté presente
+      estado_viaje: 'pendiente',
+      fecha_creacion: new Date(),
+      fecha_inicio: new Date()
     });
 
     return res.status(201).json({
@@ -40,6 +45,29 @@ exports.crearViaje = async (req, res) => {
   } catch (error) {
     console.error('❌ Error al crear el viaje:', error);
     return res.status(500).json({ error: 'Error interno al crear el viaje' });
+  }
+};
+
+// ✅ Obtener historial de viajes por usuario
+exports.obtenerViajesPorUsuario = async (req, res) => {
+  const { userId } = req.params;
+
+  if (!userId) {
+    return res.status(400).json({ error: 'ID de usuario no proporcionado' });
+  }
+
+  try {
+    const viajes = await Viaje.findAll({
+      where: { usuario_id: userId },
+      order: [['fecha_inicio', 'DESC']],
+      limit: 10,
+      attributes: ['id_viaje_maestro', 'origen', 'destino', 'fecha_inicio', 'estado_viaje', 'costo_total']
+    });
+
+    return res.json({ viajes });
+  } catch (error) {
+    console.error('❌ Error al obtener viajes por usuario:', error);
+    return res.status(500).json({ error: 'Error interno al obtener viajes por usuario' });
   }
 };
 
@@ -148,40 +176,6 @@ exports.eliminarViaje = async (req, res) => {
   }
 };
 
-// ✅ Obtener todos los viajes (ruta alternativa)
-exports.obtenerTodosLosViajes = async (req, res) => {
-  try {
-    const viajes = await Viaje.findAll({
-      order: [['fecha_creacion', 'DESC']]
-    });
-    return res.json({ viajes });
-  } catch (error) {
-    console.error('❌ Error al obtener todos los viajes:', error);
-    return res.status(500).json({ error: 'Error interno al obtener todos los viajes' });
-  }
-};
-
-// ✅ Obtener viajes por usuario
-exports.obtenerViajesPorUsuario = async (req, res) => {
-  const { userId } = req.params;
-
-  if (!userId) {
-    return res.status(400).json({ error: 'ID de usuario no proporcionado' });
-  }
-
-  try {
-    const viajes = await Viaje.findAll({
-      where: { id_usuario: userId },
-      order: [['fecha_creacion', 'DESC']]
-    });
-
-    return res.json({ viajes });
-  } catch (error) {
-    console.error('❌ Error al obtener viajes por usuario:', error);
-    return res.status(500).json({ error: 'Error interno al obtener viajes por usuario' });
-  }
-};
-
 // ✅ Buscar viajes cercanos
 exports.buscarViagesCercanos = async (req, res) => {
   try {
@@ -204,7 +198,7 @@ exports.buscarViagesCercanos = async (req, res) => {
       where: {
         lat_origen: { [Op.between]: [latMin, latMax] },
         lon_origen: { [Op.between]: [lonMin, lonMax] },
-        estado: 'pendiente'
+        estado_viaje: 'pendiente'
       },
       order: [['fecha_creacion', 'DESC']]
     });
@@ -222,11 +216,11 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const distancia = R * c;
   return Math.round(distancia * 100) / 100;
 }

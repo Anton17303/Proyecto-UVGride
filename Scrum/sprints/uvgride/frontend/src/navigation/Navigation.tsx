@@ -19,7 +19,6 @@ export default function Navigation() {
       <Stack.Screen name="Register" component={RegisterScreen} />
       <Stack.Screen name="Home" component={BottomTabs} />
       <Stack.Screen name="Travel" component={TravelScreen} />
-      <Stack.Screen name="TripFormScreen" component={TripFormScreen} />
       <Stack.Screen name="FavoriteScreen" component={FavoriteScreen}/>
       <Stack.Screen name="AddFavoriteScreen" component={AddFavoriteScreen} />
     

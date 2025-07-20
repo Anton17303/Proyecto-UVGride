@@ -4,8 +4,8 @@ const viajeController = require('../controllers/viaje.controller');
 
 // Middleware para validar datos del viaje
 const validateViajeData = (req, res, next) => {
-  const { origen, destino, lat_origen, lon_origen, lat_destino, lon_destino } = req.body;
-  
+  const { origen, destino, lat_origen, lon_origen, lat_destino, lon_destino, id_usuario } = req.body;
+
   if (!origen || !destino) {
     return res.status(400).json({
       error: 'Origen y destino son requeridos'
@@ -15,6 +15,12 @@ const validateViajeData = (req, res, next) => {
   if (!lat_origen || !lon_origen || !lat_destino || !lon_destino) {
     return res.status(400).json({
       error: 'Las coordenadas de origen y destino son requeridas'
+    });
+  }
+
+  if (!id_usuario) {
+    return res.status(400).json({
+      error: 'El ID del usuario es requerido'
     });
   }
 
@@ -40,14 +46,12 @@ const validateViajeData = (req, res, next) => {
 };
 
 // Rutas
-router.post('/crear', viajeController.crearViaje);
+router.post('/crear', validateViajeData, viajeController.crearViaje);
 router.get('/usuario/:userId', viajeController.obtenerViajesPorUsuario);
-router.get('/', viajeController.obtenerViajes); // o usar obtenerTodosLosViajes si preferís
+router.get('/', viajeController.obtenerViajes);
 router.delete('/:id', viajeController.eliminarViaje);
 router.get('/:id', viajeController.obtenerViajePorId);
 router.put('/:id', validateViajeData, viajeController.actualizarViaje);
 
-// Si preferís usar esta ruta en lugar de la anterior:
-// router.get('/', viajeController.obtenerTodosLosViajes);
 
 module.exports = router;

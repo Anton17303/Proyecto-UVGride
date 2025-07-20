@@ -16,11 +16,8 @@ type UserContextType = {
   setUserFromBackend: (data: any) => void;
 };
 
-const UserContext = createContext<UserContextType>({
-  user: null,
-  setUser: () => {},
-  setUserFromBackend: () => {},
-});
+// ❌ Ya no uses un objeto inicial que simula el contexto
+const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -55,4 +52,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-export const useUser = () => useContext(UserContext);
+// ✅ Hook que valida si el contexto está disponible
+export const useUser = () => {
+  const context = useContext(UserContext);
+  if (!context) {
+    throw new Error('useUser debe usarse dentro de un <UserProvider>');
+  }
+  return context;
+};

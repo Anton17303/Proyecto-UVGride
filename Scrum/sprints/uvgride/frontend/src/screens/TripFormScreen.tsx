@@ -10,30 +10,24 @@ import {
 } from "react-native";
 import axios from "axios";
 import {
-  useRoute,
   useNavigation,
+  useRoute,
+  RouteProp,
 } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { API_URL } from "../services/api";
-import { TravelStackParamList } from "../navigation/TravelStack"; // Asegúrate que este tipo exista
+import { TravelStackParamList } from "../navigation/TravelStack";
+import { useUser } from "../context/UserContext"; // ✅ Usa el hook corregido
 
-type TripFormScreenRouteParams = {
-  origin: string;
-  latitude: number;
-  longitude: number;
-};
-
-type TripFormNavigationProp = NativeStackNavigationProp<
-  TravelStackParamList,
-  "TripFormScreen"
->;
+type TripFormScreenRouteProp = RouteProp<TravelStackParamList, "TripFormScreen">;
+type TripFormNavigationProp = NativeStackNavigationProp<TravelStackParamList, "TripFormScreen">;
 
 export default function TripFormScreen() {
-  const route = useRoute();
+  const route = useRoute<TripFormScreenRouteProp>();
   const navigation = useNavigation<TripFormNavigationProp>();
+  const { user } = useUser();
 
-  const { origin, latitude, longitude } =
-    (route.params as TripFormScreenRouteParams) || {};
+  const { origin, latitude, longitude } = route.params;
 
   const [destination, setDestination] = useState("");
   const [loading, setLoading] = useState(false);
@@ -44,31 +38,44 @@ export default function TripFormScreen() {
       return;
     }
 
+    if (!user?.id) {
+      Alert.alert("Error", "Usuario no autenticado");
+      console.log("❌ No se encontró ID de usuario:", user);
+      return;
+    }
+
     setLoading(true);
+    console.log("🧭 Creando viaje desde:", origin, latitude, longitude);
+    console.log("🎯 Hacia destino:", destination);
 
     try {
       const geoUrl = `https://api.openrouteservice.org/geocode/search?api_key=5b3ce3597851110001cf62486825133970f449ebbc374649ee03b5eb&text=${encodeURIComponent(destination)}`;
+      console.log("🌐 Solicitando coordenadas:", geoUrl);
       const { data: geoData } = await axios.get(geoUrl);
 
       if (geoData.features && geoData.features.length > 0) {
         const [lng, lat] = geoData.features[0].geometry.coordinates;
+        console.log("📌 Coordenadas destino:", { lat, lng });
 
-        const backendResponse = await axios.post(
-          `${API_URL}/api/viajes/crear`,
-          {
-            origen: origin,
-            destino: destination,
-            lat_origen: latitude,
-            lon_origen: longitude,
-            lat_destino: lat,
-            lon_destino: lng,
-            costo_total: 10.0,
-          }
-        );
+        const tripData = {
+          origen: origin,
+          destino: destination,
+          lat_origen: latitude,
+          lon_origen: longitude,
+          lat_destino: lat,
+          lon_destino: lng,
+          costo_total: 10.0,
+          id_usuario: user.id,
+        };
 
-        if (backendResponse.data && backendResponse.data.viaje) {
+        console.log("🚀 Enviando datos al backend:", tripData);
+
+        const backendResponse = await axios.post(`${API_URL}/api/viajes/crear`, tripData);
+
+        console.log("✅ Respuesta del backend:", backendResponse.data);
+
+        if (backendResponse.data?.viaje) {
           Alert.alert("¡Éxito!", "¡Viaje creado correctamente!");
-
           navigation.navigate("TravelScreen", {
             latitude,
             longitude,
@@ -79,14 +86,13 @@ export default function TripFormScreen() {
           Alert.alert("Error", "No se pudo guardar el viaje en el servidor");
         }
       } else {
+        console.warn("⚠️ No se encontraron resultados de geolocalización:", geoData);
         Alert.alert("Error", "No se pudo encontrar el destino");
       }
     } catch (err: any) {
-      console.error("Error al crear el viaje:", err);
-      Alert.alert(
-        "Error",
-        err.response?.data?.error || "No se pudo procesar el viaje"
-      );
+      console.error("❌ Error al crear el viaje:", err);
+      console.log("🧾 Detalles del error:", err.response?.data);
+      Alert.alert("Error", err.response?.data?.error || "No se pudo procesar el viaje");
     } finally {
       setLoading(false);
     }

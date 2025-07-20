@@ -6,11 +6,11 @@ import { UserProvider } from './src/context/UserContext';
 
 export default function App() {
   return (
-    <UserProvider>
-      <NavigationContainer>
+    <NavigationContainer>
+      <UserProvider>
         <Navigation />
         <StatusBar style="light" />
-      </NavigationContainer>
-    </UserProvider>
+      </UserProvider>
+    </NavigationContainer>
   );
 }
