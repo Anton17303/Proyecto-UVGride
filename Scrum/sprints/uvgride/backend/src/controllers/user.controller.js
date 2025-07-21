@@ -24,6 +24,9 @@ exports.updateUserProfile = async (req, res) => {
   try {
     const userId = req.params.id;
     const updates = req.body;
+    const { preferencia_tema } = req.body;
+
+    await Usuario.update({ preferencia_tema }, { where: { id_usuario: userId } });
     
     // Verificar que el usuario que hace la solicitud es el dueño del perfil
     if (req.user.id_usuario !== parseInt(userId)) {
