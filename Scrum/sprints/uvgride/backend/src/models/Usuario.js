@@ -34,6 +34,11 @@ const Usuario = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
+    preferencia_tema: {
+      type: DataTypes.STRING,
+      defaultValue: 'light',
+      allowNull: false,
+    },
   },
   {
     tableName: "usuario",
