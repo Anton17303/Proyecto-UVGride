@@ -12,10 +12,43 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { useUser } from '../context/UserContext';
+import { useTheme } from '../context/ThemeContext';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import { Switch } from 'react-native';
 
 export default function ProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user, setUser } = useUser();
+  const { theme, toggleTheme, isDarkMode } = useTheme();
+
+  const dynamicStyles = StyleSheet.create({
+    container: { 
+      flex: 1, 
+      backgroundColor: isDarkMode ? '#121212' : '#f0f2f5' 
+    },
+    scrollContainer: { 
+      paddingBottom: 40 
+    },
+    profileCard: {
+      backgroundColor: isDarkMode ? '#1E1E1E' : '#ffffff',
+      alignItems: 'center',
+      paddingVertical: 32,
+      marginHorizontal: 20,
+      marginTop: 60,
+      borderRadius: 16,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: isDarkMode ? 0.1 : 0.08,
+      shadowRadius: 6,
+      elevation: 4,
+    },
+    text: {
+      color: isDarkMode ? '#FFFFFF' : '#333333',
+    },
+    button: {
+      backgroundColor: isDarkMode ? '#333' : '#4CAF50',
+    },
+  });
 
   const profileOptions = [
     { title: 'Términos y Condiciones', icon: '📑' },
@@ -44,8 +77,8 @@ export default function ProfileScreen() {
 
   if (!user) {
     return (
-      <View style={styles.container}>
-        <Text style={{ marginTop: 50, textAlign: 'center', fontSize: 16 }}>
+      <View style={dynamicStyles.container}>
+        <Text style={{ marginTop: 50, textAlign: 'center', color: isDarkMode ? '#FFF' : '#000' }}>
           No hay usuario logueado.
         </Text>
       </View>
@@ -53,52 +86,78 @@ export default function ProfileScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <View style={styles.profileCard}>
+    <View style={dynamicStyles.container}>
+      <ScrollView contentContainerStyle={dynamicStyles.scrollContainer}>
+        <View style={dynamicStyles.profileCard}>
           <Image
             source={require('../assets/default-profile.jpg')}
             style={styles.profileImage}
           />
-          <Text style={styles.userName}>{user.name}</Text>
-          <Text style={styles.userEmail}>{user.email}</Text>
+          <Text style={[styles.userName, dynamicStyles.text]}>{user.name}</Text>
+          <Text style={[styles.userEmail, { color: isDarkMode ? '#AAA' : '#666' }]}>{user.email}</Text>
+
+          <View style={styles.themeToggleContainer}>
+            <Ionicons 
+              name={isDarkMode ? 'moon' : 'sunny'} 
+              size={20} 
+              color={isDarkMode ? '#FFF' : '#FFD700'} 
+            />
+            <Switch
+              value={isDarkMode}
+              onValueChange={toggleTheme}
+              trackColor={{ false: '#767577', true: '#4CAF50' }}
+              thumbColor={isDarkMode ? '#FFF' : '#f4f3f4'}
+              style={{ marginHorizontal: 8 }}
+            />
+            <Text style={dynamicStyles.text}>
+              {isDarkMode ? 'Modo Oscuro' : 'Modo Claro'}
+            </Text>
+          </View>
 
           {user.telefono && (
             <View style={styles.infoContainer}>
-              <Text style={styles.infoLabel}>Teléfono:</Text>
-              <Text style={styles.infoValue}>{user.telefono}</Text>
+              <Text style={[styles.infoLabel, { color: isDarkMode ? '#AAA' : '#888' }]}>Teléfono:</Text>
+              <Text style={[styles.infoValue, dynamicStyles.text]}>{user.telefono}</Text>
             </View>
           )}
 
           {user.tipo_usuario && (
             <View style={styles.infoContainer}>
-              <Text style={styles.infoLabel}>Tipo de usuario:</Text>
-              <Text style={styles.infoValue}>{user.tipo_usuario}</Text>
+              <Text style={[styles.infoLabel, { color: isDarkMode ? '#AAA' : '#888' }]}>Tipo de usuario:</Text>
+              <Text style={[styles.infoValue, dynamicStyles.text]}>{user.tipo_usuario}</Text>
             </View>
           )}
         </View>
 
         <TouchableOpacity
-          style={styles.editButton}
+          style={[styles.editButton, dynamicStyles.button]}
           onPress={() => navigation.navigate('EditProfile')}
         >
           <Text style={styles.editButtonText}>Editar Perfil</Text>
         </TouchableOpacity>
 
-        <View style={styles.optionsContainer}>
+        <View style={[styles.optionsContainer, { 
+          backgroundColor: isDarkMode ? '#1E1E1E' : '#FFF',
+          shadowOpacity: isDarkMode ? 0.1 : 0.06,
+        }]}>
           {profileOptions.map((option, index) => (
             <TouchableOpacity
               key={index}
               style={styles.optionItem}
               onPress={() => handleOptionPress(option.title)}
             >
-              <Text style={styles.optionIcon}>{option.icon}</Text>
-              <Text style={styles.optionText}>{option.title}</Text>
+              <Ionicons name={option.icon} 
+                size={22} 
+                color={isDarkMode ? '#4CAF50' : '#333'} 
+                style={{ marginRight: 12 }}/>
+              <Text style={dynamicStyles.optionText}>{option.title}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+        <TouchableOpacity style={[styles.logoutButton, { 
+            backgroundColor: isDarkMode ? '#333' : '#d9534f' 
+          }]} onPress={handleLogout}>
           <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
         </TouchableOpacity>
       </ScrollView>
