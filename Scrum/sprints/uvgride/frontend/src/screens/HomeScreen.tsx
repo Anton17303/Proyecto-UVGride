@@ -12,10 +12,15 @@ import axios from 'axios';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { API_URL } from '../services/api';
 import { useUser } from '../context/UserContext';
+import { useTheme } from '../context/ThemeContext';
+import { lightColors, darkColors } from '../constants/colors';
 
 export default function HomeScreen() {
   const navigation = useNavigation();
   const { user } = useUser();
+  const { theme } = useTheme();
+  const colors = theme === 'light' ? lightColors : darkColors;
+
   const [trips, setTrips] = useState([]);
 
   const fetchTrips = async () => {
@@ -28,7 +33,6 @@ export default function HomeScreen() {
     }
   };
 
-  // 👇 Se vuelve a ejecutar cada vez que esta pantalla entra en foco
   useFocusEffect(
     useCallback(() => {
       fetchTrips();
@@ -59,20 +63,20 @@ export default function HomeScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={styles.container}>
-        <Text style={styles.title}>
+        <Text style={[styles.title, { color: colors.text }]}>
           Bienvenido de nuevo: {user?.name || 'Usuario'}
         </Text>
 
         <TouchableOpacity
-          style={styles.button}
+          style={[styles.button, { backgroundColor: colors.primary }]}
           onPress={() => navigation.navigate('FavoriteScreen')}
         >
-          <Text style={styles.buttonText}>Ir a Lugares Favoritos</Text>
+          <Text style={{ color: colors.text }}>Ir a Lugares Favoritos</Text>
         </TouchableOpacity>
 
-        <Text style={styles.sectionTitle}>Últimos viajes</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Últimos viajes</Text>
 
         <FlatList
           data={trips}
@@ -80,18 +84,20 @@ export default function HomeScreen() {
           renderItem={({ item }) => (
             <TouchableOpacity
               onPress={() => handleRepeatTrip(item)}
-              style={styles.tripItem}
+              style={[styles.tripItem, { backgroundColor: colors.card }]}
             >
-              <Text style={styles.tripText}>
+              <Text style={[styles.tripText, { color: colors.text }]}>
                 {item.origen} → {item.destino}
               </Text>
-              <Text style={styles.tripDate}>
+              <Text style={[styles.tripDate, { color: colors.text }]}>
                 {formatFecha(item.fecha_inicio)}
               </Text>
             </TouchableOpacity>
           )}
           ListEmptyComponent={
-            <Text style={{ marginTop: 10 }}>No tienes viajes aún.</Text>
+            <Text style={{ marginTop: 10, color: colors.text }}>
+              No tienes viajes aún.
+            </Text>
           }
         />
       </View>
@@ -112,17 +118,11 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   button: {
-    backgroundColor: '#4CAF50',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,
     alignSelf: 'center',
     marginBottom: 30,
-  },
-  buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
   },
   sectionTitle: {
     fontSize: 18,
@@ -130,7 +130,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   tripItem: {
-    backgroundColor: '#f2f2f2',
     padding: 12,
     borderRadius: 8,
     marginBottom: 10,
@@ -141,6 +140,5 @@ const styles = StyleSheet.create({
   },
   tripDate: {
     fontSize: 12,
-    color: '#555',
   },
 });

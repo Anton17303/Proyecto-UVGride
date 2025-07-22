@@ -7,54 +7,26 @@ import {
   Image,
   ScrollView,
   Alert,
+  Switch,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+
 import { RootStackParamList } from '../navigation/types';
 import { useUser } from '../context/UserContext';
 import { useTheme } from '../context/ThemeContext';
-import Ionicons from 'react-native-vector-icons/Ionicons';
-import { Switch } from 'react-native';
 
 export default function ProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user, setUser } = useUser();
   const { theme, toggleTheme, isDarkMode } = useTheme();
 
-  const dynamicStyles = StyleSheet.create({
-    container: { 
-      flex: 1, 
-      backgroundColor: isDarkMode ? '#121212' : '#f0f2f5' 
-    },
-    scrollContainer: { 
-      paddingBottom: 40 
-    },
-    profileCard: {
-      backgroundColor: isDarkMode ? '#1E1E1E' : '#ffffff',
-      alignItems: 'center',
-      paddingVertical: 32,
-      marginHorizontal: 20,
-      marginTop: 60,
-      borderRadius: 16,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: isDarkMode ? 0.1 : 0.08,
-      shadowRadius: 6,
-      elevation: 4,
-    },
-    text: {
-      color: isDarkMode ? '#FFFFFF' : '#333333',
-    },
-    button: {
-      backgroundColor: isDarkMode ? '#333' : '#4CAF50',
-    },
-  });
-
   const profileOptions = [
-    { title: 'Términos y Condiciones', icon: '📑' },
-    { title: 'Idioma', icon: '🌐' },
-    { title: 'Información', icon: 'ℹ️' },
-    { title: 'Política de Privacidad', icon: '🔒' },
+    { title: 'Términos y Condiciones', icon: 'document-text-outline' },
+    { title: 'Idioma', icon: 'language-outline' },
+    { title: 'Información', icon: 'information-circle-outline' },
+    { title: 'Política de Privacidad', icon: 'lock-closed-outline' },
   ];
 
   const handleOptionPress = (option: string) => {
@@ -77,7 +49,7 @@ export default function ProfileScreen() {
 
   if (!user) {
     return (
-      <View style={dynamicStyles.container}>
+      <View style={[styles.container, { backgroundColor: isDarkMode ? '#121212' : '#f0f2f5' }]}>
         <Text style={{ marginTop: 50, textAlign: 'center', color: isDarkMode ? '#FFF' : '#000' }}>
           No hay usuario logueado.
         </Text>
@@ -86,21 +58,21 @@ export default function ProfileScreen() {
   }
 
   return (
-    <View style={dynamicStyles.container}>
-      <ScrollView contentContainerStyle={dynamicStyles.scrollContainer}>
-        <View style={dynamicStyles.profileCard}>
+    <View style={[styles.container, { backgroundColor: isDarkMode ? '#121212' : '#f0f2f5' }]}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+        <View style={[styles.profileCard, { backgroundColor: isDarkMode ? '#1E1E1E' : '#fff' }]}>
           <Image
             source={require('../assets/default-profile.jpg')}
-            style={styles.profileImage}
+            style={[styles.profileImage, { borderColor: '#4CAF50' }]}
           />
-          <Text style={[styles.userName, dynamicStyles.text]}>{user.name}</Text>
+          <Text style={[styles.userName, { color: isDarkMode ? '#FFF' : '#333' }]}>{user.name}</Text>
           <Text style={[styles.userEmail, { color: isDarkMode ? '#AAA' : '#666' }]}>{user.email}</Text>
 
           <View style={styles.themeToggleContainer}>
-            <Ionicons 
-              name={isDarkMode ? 'moon' : 'sunny'} 
-              size={20} 
-              color={isDarkMode ? '#FFF' : '#FFD700'} 
+            <Ionicons
+              name={isDarkMode ? 'moon' : 'sunny'}
+              size={20}
+              color={isDarkMode ? '#FFF' : '#FFD700'}
             />
             <Switch
               value={isDarkMode}
@@ -109,7 +81,7 @@ export default function ProfileScreen() {
               thumbColor={isDarkMode ? '#FFF' : '#f4f3f4'}
               style={{ marginHorizontal: 8 }}
             />
-            <Text style={dynamicStyles.text}>
+            <Text style={{ color: isDarkMode ? '#FFF' : '#333' }}>
               {isDarkMode ? 'Modo Oscuro' : 'Modo Claro'}
             </Text>
           </View>
@@ -117,47 +89,66 @@ export default function ProfileScreen() {
           {user.telefono && (
             <View style={styles.infoContainer}>
               <Text style={[styles.infoLabel, { color: isDarkMode ? '#AAA' : '#888' }]}>Teléfono:</Text>
-              <Text style={[styles.infoValue, dynamicStyles.text]}>{user.telefono}</Text>
+              <Text style={[styles.infoValue, { color: isDarkMode ? '#FFF' : '#333' }]}>
+                {user.telefono}
+              </Text>
             </View>
           )}
 
           {user.tipo_usuario && (
             <View style={styles.infoContainer}>
-              <Text style={[styles.infoLabel, { color: isDarkMode ? '#AAA' : '#888' }]}>Tipo de usuario:</Text>
-              <Text style={[styles.infoValue, dynamicStyles.text]}>{user.tipo_usuario}</Text>
+              <Text style={[styles.infoLabel, { color: isDarkMode ? '#AAA' : '#888' }]}>
+                Tipo de usuario:
+              </Text>
+              <Text style={[styles.infoValue, { color: isDarkMode ? '#FFF' : '#333' }]}>
+                {user.tipo_usuario}
+              </Text>
             </View>
           )}
         </View>
 
         <TouchableOpacity
-          style={[styles.editButton, dynamicStyles.button]}
+          style={[styles.editButton, { backgroundColor: '#4CAF50' }]}
           onPress={() => navigation.navigate('EditProfile')}
         >
           <Text style={styles.editButtonText}>Editar Perfil</Text>
         </TouchableOpacity>
 
-        <View style={[styles.optionsContainer, { 
-          backgroundColor: isDarkMode ? '#1E1E1E' : '#FFF',
-          shadowOpacity: isDarkMode ? 0.1 : 0.06,
-        }]}>
+        <View
+          style={[
+            styles.optionsContainer,
+            {
+              backgroundColor: isDarkMode ? '#1E1E1E' : '#FFF',
+              shadowOpacity: isDarkMode ? 0.1 : 0.06,
+            },
+          ]}
+        >
           {profileOptions.map((option, index) => (
             <TouchableOpacity
               key={index}
               style={styles.optionItem}
               onPress={() => handleOptionPress(option.title)}
             >
-              <Ionicons name={option.icon} 
-                size={22} 
-                color={isDarkMode ? '#4CAF50' : '#333'} 
-                style={{ marginRight: 12 }}/>
-              <Text style={dynamicStyles.optionText}>{option.title}</Text>
+              <Ionicons
+                name={option.icon as any}
+                size={22}
+                color={isDarkMode ? '#4CAF50' : '#333'}
+                style={{ marginRight: 12 }}
+              />
+              <Text style={{ fontSize: 16, color: isDarkMode ? '#FFF' : '#333' }}>
+                {option.title}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        <TouchableOpacity style={[styles.logoutButton, { 
-            backgroundColor: isDarkMode ? '#333' : '#d9534f' 
-          }]} onPress={handleLogout}>
+        <TouchableOpacity
+          style={[
+            styles.logoutButton,
+            { backgroundColor: isDarkMode ? '#333' : '#d9534f' },
+          ]}
+          onPress={handleLogout}
+        >
           <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -165,13 +156,9 @@ export default function ProfileScreen() {
   );
 }
 
-const PRIMARY_COLOR = '#4CAF50';
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f0f2f5' },
-  scrollContainer: { paddingBottom: 40 },
+  container: { flex: 1 },
   profileCard: {
-    backgroundColor: '#ffffff',
     alignItems: 'center',
     paddingVertical: 32,
     marginHorizontal: 20,
@@ -179,7 +166,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
     shadowRadius: 6,
     elevation: 4,
   },
@@ -188,19 +174,21 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 60,
     borderWidth: 2,
-    borderColor: PRIMARY_COLOR,
     marginBottom: 16,
   },
   userName: {
     fontSize: 24,
     fontWeight: '600',
-    color: '#333',
     marginBottom: 4,
   },
   userEmail: {
     fontSize: 16,
-    color: '#666',
     marginBottom: 12,
+  },
+  themeToggleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   infoContainer: {
     flexDirection: 'row',
@@ -208,15 +196,12 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 14,
-    color: '#888',
     marginRight: 4,
   },
   infoValue: {
     fontSize: 14,
-    color: '#555',
   },
   editButton: {
-    backgroundColor: PRIMARY_COLOR,
     marginTop: 20,
     marginHorizontal: 60,
     paddingVertical: 12,
@@ -229,7 +214,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   optionsContainer: {
-    backgroundColor: '#ffffff',
     borderRadius: 12,
     marginTop: 30,
     marginHorizontal: 20,
@@ -237,7 +221,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
     shadowRadius: 3,
     elevation: 2,
   },
@@ -249,16 +232,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
-  optionIcon: {
-    fontSize: 22,
-    marginRight: 12,
-  },
-  optionText: {
-    fontSize: 16,
-    color: '#333',
-  },
   logoutButton: {
-    backgroundColor: '#d9534f',
     marginTop: 20,
     marginHorizontal: 60,
     paddingVertical: 12,

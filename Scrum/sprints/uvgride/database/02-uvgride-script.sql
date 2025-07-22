@@ -7,7 +7,8 @@ CREATE TABLE usuario (
   contrasenia VARCHAR(255) NOT NULL,
   telefono VARCHAR(20) NOT NULL,
   tipo_usuario VARCHAR(255) NOT NULL,
-  activo BOOLEAN NOT NULL DEFAULT TRUE
+  activo BOOLEAN NOT NULL DEFAULT TRUE,
+  preferencia_tema VARCHAR(10) DEFAULT 'light'
 );
 
 -- Conductores

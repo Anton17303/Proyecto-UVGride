@@ -1,11 +1,10 @@
 import React from 'react';
 import Navigation from './src/navigation/Navigation';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { UserProvider } from './src/context/UserContext';
-import { ThemeProvider } from './context/ThemeContext';
-import { useTheme } from './context/ThemeContext';
-import { lightColors, darkColors } from './constants/colors';
+import { ThemeProvider, useTheme } from './src/context/ThemeContext';
+import { lightColors, darkColors } from './src/constants/colors';
 
 export default function App() {
   return (
@@ -17,24 +16,27 @@ export default function App() {
 
 function MainApp() {
   const { theme } = useTheme();
-  const colors = theme === 'light' ? lightColors : darkColors;
+  const isDark = theme === 'dark';
+  const colors = isDark ? darkColors : lightColors;
+
+  const navigationTheme = {
+    ...(isDark ? DarkTheme : DefaultTheme),
+    colors: {
+      ...(isDark ? DarkTheme.colors : DefaultTheme.colors),
+      background: colors.background,
+      text: colors.text,
+      primary: colors.primary,
+      card: colors.card,
+      border: colors.border,
+      notification: colors.notification,
+    },
+  };
 
   return (
-    <NavigationContainer
-    theme={{
-        colors: {
-          background: colors.background,
-          text: colors.text,
-          primary: colors.primary,
-          card: colors.card,
-          border: colors.border,
-        },
-      }}
-    >
-
+    <NavigationContainer theme={navigationTheme}>
       <UserProvider>
         <Navigation />
-        <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
       </UserProvider>
     </NavigationContainer>
   );
