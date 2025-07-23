@@ -15,6 +15,8 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { API_URL } from '../services/api';
 import { useUser } from '../context/UserContext';
+import { useTheme } from '../context/ThemeContext';
+import { lightColors, darkColors } from '../constants/colors';
 
 type RootStackParamList = {
   Login: undefined;
@@ -31,6 +33,9 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const { setUserFromBackend } = useUser();
 
+  const { theme } = useTheme();
+  const colors = theme === 'light' ? lightColors : darkColors;
+
   const handleLogin = async () => {
     if (!correo_institucional || !contrasenia) {
       Alert.alert('Error', 'Por favor completa todos los campos');
@@ -45,8 +50,7 @@ export default function LoginScreen() {
         contrasenia,
       });
 
-      setUserFromBackend(res.data.usuario); // ✅ Corrección aquí
-
+      setUserFromBackend(res.data.usuario);
       Alert.alert('¡Bienvenido!', `Hola ${res.data.usuario.nombre}`);
       navigation.navigate('Home');
     } catch (err: any) {
@@ -58,16 +62,16 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <Text style={styles.title}>Inicia sesión</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Inicia sesión</Text>
 
-        <Text style={styles.label}>Correo institucional</Text>
+        <Text style={[styles.label, { color: colors.text }]}>Correo institucional</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
           placeholder="correo@uvg.edu.gt"
           value={correo_institucional}
           onChangeText={setCorreo}
@@ -75,9 +79,9 @@ export default function LoginScreen() {
           autoCapitalize="none"
         />
 
-        <Text style={styles.label}>Contraseña</Text>
+        <Text style={[styles.label, { color: colors.text }]}>Contraseña</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
           placeholder="*******"
           value={contrasenia}
           onChangeText={setContrasenia}
@@ -85,52 +89,46 @@ export default function LoginScreen() {
           secureTextEntry
         />
 
-        <TouchableOpacity style={styles.button} onPress={handleLogin}>
+        <TouchableOpacity style={[styles.button, { backgroundColor: colors.primary }]} onPress={handleLogin}>
           <Text style={styles.buttonText}>
             {loading ? 'Cargando...' : 'Iniciar sesión'}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-          <Text style={styles.linkText}>¿No tienes cuenta? Regístrate</Text>
+          <Text style={[styles.linkText, { color: colors.primary }]}>
+            ¿No tienes cuenta? Regístrate
+          </Text>
         </TouchableOpacity>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-const PRIMARY_COLOR = '#4CAF50';
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#fff' },
+  safe: { flex: 1 },
   container: { flex: 1, padding: 24, justifyContent: 'center' },
   title: {
     fontSize: 32,
-    color: '#333',
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 30,
     textTransform: 'uppercase',
   },
   label: {
-    color: '#555',
     marginBottom: 6,
     marginTop: 12,
     fontSize: 14,
   },
   input: {
-    backgroundColor: '#f0f0f0',
-    color: '#333',
     borderRadius: 12,
     padding: 12,
     fontSize: 16,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#ddd',
   },
   button: {
     marginTop: 24,
-    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
@@ -142,7 +140,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   linkText: {
-    color: PRIMARY_COLOR,
     fontSize: 14,
     textAlign: 'center',
     marginTop: 16,

@@ -17,7 +17,9 @@ import {
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { API_URL } from "../services/api";
 import { TravelStackParamList } from "../navigation/TravelStack";
-import { useUser } from "../context/UserContext"; // ✅ Usa el hook corregido
+import { useUser } from "../context/UserContext";
+import { useTheme } from "../context/ThemeContext";
+import { lightColors, darkColors } from "../constants/colors";
 
 type TripFormScreenRouteProp = RouteProp<TravelStackParamList, "TripFormScreen">;
 type TripFormNavigationProp = NativeStackNavigationProp<TravelStackParamList, "TripFormScreen">;
@@ -26,6 +28,8 @@ export default function TripFormScreen() {
   const route = useRoute<TripFormScreenRouteProp>();
   const navigation = useNavigation<TripFormNavigationProp>();
   const { user } = useUser();
+  const { theme } = useTheme();
+  const colors = theme === 'light' ? lightColors : darkColors;
 
   const { origin, latitude, longitude } = route.params;
 
@@ -40,22 +44,17 @@ export default function TripFormScreen() {
 
     if (!user?.id) {
       Alert.alert("Error", "Usuario no autenticado");
-      console.log("❌ No se encontró ID de usuario:", user);
       return;
     }
 
     setLoading(true);
-    console.log("🧭 Creando viaje desde:", origin, latitude, longitude);
-    console.log("🎯 Hacia destino:", destination);
 
     try {
       const geoUrl = `https://api.openrouteservice.org/geocode/search?api_key=5b3ce3597851110001cf62486825133970f449ebbc374649ee03b5eb&text=${encodeURIComponent(destination)}`;
-      console.log("🌐 Solicitando coordenadas:", geoUrl);
       const { data: geoData } = await axios.get(geoUrl);
 
-      if (geoData.features && geoData.features.length > 0) {
+      if (geoData.features?.length > 0) {
         const [lng, lat] = geoData.features[0].geometry.coordinates;
-        console.log("📌 Coordenadas destino:", { lat, lng });
 
         const tripData = {
           origen: origin,
@@ -68,11 +67,7 @@ export default function TripFormScreen() {
           id_usuario: user.id,
         };
 
-        console.log("🚀 Enviando datos al backend:", tripData);
-
         const backendResponse = await axios.post(`${API_URL}/api/viajes/crear`, tripData);
-
-        console.log("✅ Respuesta del backend:", backendResponse.data);
 
         if (backendResponse.data?.viaje) {
           Alert.alert("¡Éxito!", "¡Viaje creado correctamente!");
@@ -86,12 +81,9 @@ export default function TripFormScreen() {
           Alert.alert("Error", "No se pudo guardar el viaje en el servidor");
         }
       } else {
-        console.warn("⚠️ No se encontraron resultados de geolocalización:", geoData);
         Alert.alert("Error", "No se pudo encontrar el destino");
       }
     } catch (err: any) {
-      console.error("❌ Error al crear el viaje:", err);
-      console.log("🧾 Detalles del error:", err.response?.data);
       Alert.alert("Error", err.response?.data?.error || "No se pudo procesar el viaje");
     } finally {
       setLoading(false);
@@ -99,27 +91,38 @@ export default function TripFormScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.label}>Origen</Text>
-      <Text style={styles.value}>{origin}</Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <Text style={[styles.label, { color: colors.text }]}>Origen</Text>
+      <Text style={[styles.value, { color: colors.text }]}>{origin}</Text>
 
-      <Text style={styles.label}>Coordenadas</Text>
-      <Text style={styles.value}>
+      <Text style={[styles.label, { color: colors.text }]}>Coordenadas</Text>
+      <Text style={[styles.value, { color: colors.text }]}>
         Lat: {latitude.toFixed(6)} / Lon: {longitude.toFixed(6)}
       </Text>
 
-      <Text style={styles.label}>Destino</Text>
+      <Text style={[styles.label, { color: colors.text }]}>Destino</Text>
       <TextInput
-        style={styles.input}
+        style={[
+          styles.input,
+          {
+            color: colors.text,
+            backgroundColor: colors.inputBackground,
+            borderColor: colors.border,
+          },
+        ]}
         placeholder="Ingresa un destino"
         value={destination}
         onChangeText={setDestination}
         autoCapitalize="sentences"
-        placeholderTextColor="#999"
+        placeholderTextColor={colors.placeholder}
       />
 
       <TouchableOpacity
-        style={[styles.button, loading && { opacity: 0.7 }]}
+        style={[
+          styles.button,
+          { backgroundColor: colors.primary },
+          loading && { opacity: 0.7 },
+        ]}
         onPress={handleCreateTrip}
         disabled={loading}
       >
@@ -133,28 +136,26 @@ export default function TripFormScreen() {
   );
 }
 
-const PRIMARY_COLOR = "#4CAF50";
-
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: "#fff" },
-  label: { fontSize: 16, fontWeight: "bold", marginTop: 20, color: "#333" },
-  value: { fontSize: 16, color: "#555", marginTop: 5 },
+  container: { flex: 1, padding: 20 },
+  label: { fontSize: 16, fontWeight: "bold", marginTop: 20 },
+  value: { fontSize: 16, marginTop: 5 },
   input: {
     marginTop: 10,
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#ccc",
     fontSize: 16,
-    color: "#333",
-    backgroundColor: "#f9f9f9",
   },
   button: {
-    backgroundColor: PRIMARY_COLOR,
     marginTop: 30,
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: "center",
   },
-  buttonText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+  buttonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
 });

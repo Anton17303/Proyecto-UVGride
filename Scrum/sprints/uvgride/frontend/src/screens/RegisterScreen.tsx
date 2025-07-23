@@ -8,16 +8,20 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { API_URL } from '../services/api';
 import { RootStackParamList } from '../type';
+import { useTheme } from '../context/ThemeContext';
+import { lightColors, darkColors } from '../constants/colors';
 
 export default function RegisterScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-
   const [nombre, setNombre] = useState('');
   const [apellido, setApellido] = useState('');
   const [correo_institucional, setCorreo] = useState('');
   const [contrasenia, setContrasenia] = useState('');
   const [telefono, setTelefono] = useState('');
   const [tipo_usuario, setTipoUsuario] = useState('');
+
+  const { theme } = useTheme();
+  const colors = theme === 'light' ? lightColors : darkColors;
 
   const handleRegister = async () => {
     if (!nombre || !apellido || !correo_institucional || !contrasenia || !telefono || !tipo_usuario) {
@@ -44,34 +48,34 @@ export default function RegisterScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <Text style={styles.title}>Crea una cuenta</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Crea una cuenta</Text>
 
-        <Text style={styles.label}>Nombre</Text>
+        <Text style={[styles.label, { color: colors.text }]}>Nombre</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
           value={nombre}
           onChangeText={setNombre}
           placeholder="Nombre"
           placeholderTextColor="#999"
         />
 
-        <Text style={styles.label}>Apellido</Text>
+        <Text style={[styles.label, { color: colors.text }]}>Apellido</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
           value={apellido}
           onChangeText={setApellido}
           placeholder="Apellido"
           placeholderTextColor="#999"
         />
 
-        <Text style={styles.label}>Correo institucional</Text>
+        <Text style={[styles.label, { color: colors.text }]}>Correo institucional</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
           value={correo_institucional}
           onChangeText={setCorreo}
           placeholder="correo@uvg.edu.gt"
@@ -79,9 +83,9 @@ export default function RegisterScreen() {
           placeholderTextColor="#999"
         />
 
-        <Text style={styles.label}>Contraseña</Text>
+        <Text style={[styles.label, { color: colors.text }]}>Contraseña</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
           value={contrasenia}
           onChangeText={setContrasenia}
           secureTextEntry
@@ -89,9 +93,9 @@ export default function RegisterScreen() {
           placeholderTextColor="#999"
         />
 
-        <Text style={styles.label}>Teléfono</Text>
+        <Text style={[styles.label, { color: colors.text }]}>Teléfono</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
           value={telefono}
           onChangeText={setTelefono}
           placeholder="12345678"
@@ -99,16 +103,19 @@ export default function RegisterScreen() {
           placeholderTextColor="#999"
         />
 
-        <Text style={styles.label}>Tipo de usuario</Text>
+        <Text style={[styles.label, { color: colors.text }]}>Tipo de usuario</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
           value={tipo_usuario}
           onChangeText={setTipoUsuario}
           placeholder="estudiante, docente, etc."
           placeholderTextColor="#999"
         />
 
-        <TouchableOpacity style={styles.button} onPress={handleRegister}>
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: colors.primary }]}
+          onPress={handleRegister}
+        >
           <Text style={styles.buttonText}>Registrarse</Text>
         </TouchableOpacity>
 
@@ -116,62 +123,55 @@ export default function RegisterScreen() {
           style={styles.loginLink}
           onPress={() => navigation.navigate('Login')}
         >
-          <Text style={styles.loginText}>¿Ya tienes cuenta? Inicia sesión</Text>
+          <Text style={[styles.loginText, { color: colors.primary }]}>
+            ¿Ya tienes cuenta? Inicia sesión
+          </Text>
         </TouchableOpacity>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-const PRIMARY_COLOR = '#4CAF50';
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#fff' },
+  safe: { flex: 1 },
   container: { flex: 1, padding: 24, justifyContent: 'center' },
   title: {
     fontSize: 32,
-    color: '#333',
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 8,
-    textTransform: 'uppercase'
+    textTransform: 'uppercase',
   },
   label: {
-    color: '#555',
     marginBottom: 6,
     marginTop: 12,
-    fontSize: 14
+    fontSize: 14,
   },
   input: {
-    backgroundColor: '#f0f0f0',
-    color: '#333',
     borderRadius: 12,
     padding: 12,
     fontSize: 16,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#ddd'
   },
   button: {
     marginTop: 24,
-    backgroundColor: PRIMARY_COLOR,
     paddingVertical: 14,
     borderRadius: 12,
-    alignItems: 'center'
+    alignItems: 'center',
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
-    textTransform: 'uppercase'
+    textTransform: 'uppercase',
   },
   loginLink: {
     marginTop: 16,
     alignItems: 'center',
   },
   loginText: {
-    color: PRIMARY_COLOR,
     textDecorationLine: 'underline',
-    fontSize: 14
+    fontSize: 14,
   },
 });

@@ -13,6 +13,8 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import axios from 'axios';
 import { API_URL } from '../services/api';
 import { useUser } from '../context/UserContext';
+import { useTheme } from '../context/ThemeContext';
+import { lightColors, darkColors } from '../constants/colors';
 
 type LugarFavorito = {
   id_lugar_favorito: number;
@@ -24,6 +26,9 @@ type LugarFavorito = {
 export default function FavoriteScreen() {
   const navigation = useNavigation();
   const { user } = useUser();
+  const { theme, isDarkMode } = useTheme();
+  const colors = theme === 'light' ? lightColors : darkColors;
+
   const [favoritos, setFavoritos] = useState<LugarFavorito[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -72,13 +77,13 @@ export default function FavoriteScreen() {
   );
 
   const renderItem = ({ item }: { item: LugarFavorito }) => (
-    <View style={[styles.card, { borderLeftColor: item.color_hex || '#4CAF50' }]}>
+    <View style={[styles.card, { backgroundColor: colors.card, borderLeftColor: item.color_hex || colors.primary }]}>
       <View style={{ flex: 1 }}>
-        <Text style={[styles.name, { color: item.color_hex || '#333' }]}>
+        <Text style={[styles.name, { color: item.color_hex || colors.text }]}>
           {item.nombre_lugar}
         </Text>
         {item.descripcion && (
-          <Text style={styles.description}>{item.descripcion}</Text>
+          <Text style={[styles.description, { color: colors.text }]}>{item.descripcion}</Text>
         )}
       </View>
       <TouchableOpacity onPress={() => eliminarFavorito(item.id_lugar_favorito)}>
@@ -88,13 +93,13 @@ export default function FavoriteScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Lugares Favoritos</Text>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <Text style={[styles.title, { color: colors.text }]}>Lugares Favoritos</Text>
 
       {loading ? (
-        <ActivityIndicator size="large" color="#4CAF50" style={{ marginTop: 20 }} />
+        <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 20 }} />
       ) : favoritos.length === 0 ? (
-        <Text style={styles.emptyText}>No tienes lugares favoritos aún.</Text>
+        <Text style={[styles.emptyText, { color: colors.text }]}>No tienes lugares favoritos aún.</Text>
       ) : (
         <FlatList
           data={favoritos}
@@ -105,7 +110,7 @@ export default function FavoriteScreen() {
       )}
 
       <TouchableOpacity
-        style={styles.addButton}
+        style={[styles.addButton, { backgroundColor: colors.primary }]}
         onPress={() => navigation.navigate('AddFavoriteScreen')}
       >
         <Text style={styles.addButtonText}>+ Agregar nuevo</Text>
@@ -115,25 +120,23 @@ export default function FavoriteScreen() {
         style={styles.backButton}
         onPress={() => navigation.navigate('Home')}
       >
-        <Text style={styles.backButtonText}>← Volver al menú</Text>
+        <Text style={[styles.backButtonText, { color: colors.primary }]}>← Volver al menú</Text>
       </TouchableOpacity>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#fff' },
+  container: { flex: 1, padding: 16 },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 16,
     textAlign: 'center',
-    color: '#000',
   },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
     padding: 16,
     borderRadius: 14,
     marginBottom: 14,
@@ -151,7 +154,6 @@ const styles = StyleSheet.create({
   },
   description: {
     fontSize: 14,
-    color: '#555',
     marginTop: 4,
   },
   deleteButton: {
@@ -160,7 +162,6 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   addButton: {
-    backgroundColor: '#4CAF50',
     padding: 12,
     borderRadius: 12,
     alignItems: 'center',
@@ -178,14 +179,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   backButtonText: {
-    color: '#4CAF50',
     fontSize: 14,
     fontWeight: 'bold',
     textDecorationLine: 'underline',
   },
   emptyText: {
     textAlign: 'center',
-    color: '#777',
     fontSize: 16,
     marginTop: 30,
   },

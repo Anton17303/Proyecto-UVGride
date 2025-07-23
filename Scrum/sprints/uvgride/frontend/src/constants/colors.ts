@@ -3,8 +3,10 @@ export const lightColors = {
   text: '#000000',
   card: '#F5F5F5',
   border: '#DDDDDD',
-  primary: '#4CAF50', // verde
+  primary: '#4CAF50',
   notification: '#FF3B30',
+  inputBackground: '#f9f9f9',
+  placeholder: '#999999'
 };
 
 export const darkColors = {
@@ -12,6 +14,9 @@ export const darkColors = {
   text: '#FFFFFF',
   card: '#1E1E1E',
   border: '#333333',
-  primary: '#4CAF50', // reemplazado morado por verde
+  primary: '#4CAF50',
   notification: '#FF453A',
+  inputBackground: '#1E1E1E',
+  placeholder: '#aaaaaa'
+
 };

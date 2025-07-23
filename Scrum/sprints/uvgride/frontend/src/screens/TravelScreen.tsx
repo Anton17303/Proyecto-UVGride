@@ -8,6 +8,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/core';
 import axios from 'axios';
 import { RootStackParamList } from '../navigation/type';
+import { useTheme } from '../context/ThemeContext';
+import { lightColors, darkColors } from '../constants/colors';
 
 const OPENROUTESERVICE_API_KEY = '5b3ce3597851110001cf62486825133970f449ebbc374649ee03b5eb';
 
@@ -16,6 +18,8 @@ type TravelRouteProp = RouteProp<RootStackParamList, 'Travel'>;
 export default function TravelScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { params } = useRoute<TravelRouteProp>();
+  const { theme } = useTheme();
+  const colors = theme === 'light' ? lightColors : darkColors;
 
   const [region, setRegion] = useState({
     latitude: 14.604361,
@@ -28,27 +32,15 @@ export default function TravelScreen() {
   const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
 
   useEffect(() => {
-    if (params && params.latitude && params.longitude && params.destinationLatitude && params.destinationLongitude) {
-      const {
-        latitude, longitude,
-        destinationLatitude, destinationLongitude,
-      } = params;
-
-      const origin = { latitude, longitude };
-      const destination = { latitude: destinationLatitude, longitude: destinationLongitude };
+    if (params?.latitude && params?.longitude && params?.destinationLatitude && params?.destinationLongitude) {
+      const origin = { latitude: params.latitude, longitude: params.longitude };
+      const destination = { latitude: params.destinationLatitude, longitude: params.destinationLongitude };
 
       setOriginMarker(origin);
       setDestinationMarker(destination);
-      setRegion({
-        latitude,
-        longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      });
+      setRegion({ ...origin, latitudeDelta: 0.01, longitudeDelta: 0.01 });
 
       fetchRoute(origin, destination);
-    } else {
-      console.log('No se recibieron parámetros válidos para la ruta');
     }
   }, [params]);
 
@@ -92,7 +84,7 @@ export default function TravelScreen() {
       );
 
       const data = response.data;
-      if (data.features && data.features.length > 0) {
+      if (data.features?.length > 0) {
         const coords = data.features[0].geometry.coordinates.map(
           ([lng, lat]: [number, number]) => ({ latitude: lat, longitude: lng }),
         );
@@ -133,7 +125,7 @@ export default function TravelScreen() {
         {originMarker && <Marker coordinate={originMarker} title="Origen" />}
         {destinationMarker && <Marker coordinate={destinationMarker} title="Destino" pinColor="red" />}
         {routeCoords.length > 0 && (
-          <Polyline coordinates={routeCoords} strokeColor="#4CAF50" strokeWidth={4} />
+          <Polyline coordinates={routeCoords} strokeColor={colors.primary} strokeWidth={4} />
         )}
         <Marker
           coordinate={{ latitude: 14.604361, longitude: -90.490041 }}
@@ -143,16 +135,19 @@ export default function TravelScreen() {
         />
       </MapView>
 
-      <View style={styles.zoomContainer}>
+      <View style={[styles.zoomContainer, { backgroundColor: colors.card }]}>
         <TouchableOpacity style={styles.zoomButton} onPress={zoomIn}>
-          <Text style={styles.zoomText}>＋</Text>
+          <Text style={[styles.zoomText, { color: colors.text }]}>＋</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.zoomButton} onPress={zoomOut}>
-          <Text style={styles.zoomText}>−</Text>
+          <Text style={[styles.zoomText, { color: colors.text }]}>−</Text>
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity style={styles.startButton} onPress={goToTripForm}>
+      <TouchableOpacity
+        style={[styles.startButton, { backgroundColor: colors.primary }]}
+        onPress={goToTripForm}
+      >
         <Text style={styles.buttonText}>Seleccionar destino</Text>
       </TouchableOpacity>
     </View>
@@ -167,7 +162,6 @@ const styles = StyleSheet.create({
     bottom: 40,
     left: 20,
     right: 20,
-    backgroundColor: '#4CAF50',
     padding: 15,
     borderRadius: 8,
     alignItems: 'center',
@@ -177,7 +171,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 100,
     right: 20,
-    backgroundColor: 'rgba(255,255,255,0.8)',
     borderRadius: 8,
     padding: 5,
     zIndex: 10,

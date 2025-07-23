@@ -69,13 +69,6 @@ export default function HomeScreen() {
           Bienvenido de nuevo: {user?.name || 'Usuario'}
         </Text>
 
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: colors.primary }]}
-          onPress={() => navigation.navigate('FavoriteScreen')}
-        >
-          <Text style={{ color: colors.text }}>Ir a Lugares Favoritos</Text>
-        </TouchableOpacity>
-
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Últimos viajes</Text>
 
         <FlatList
@@ -100,6 +93,13 @@ export default function HomeScreen() {
             </Text>
           }
         />
+
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: colors.primary }]}
+          onPress={() => navigation.navigate('FavoriteScreen')}
+        >
+          <Text style={styles.favoriteText}>Ir a Lugares Favoritos</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -141,4 +141,9 @@ const styles = StyleSheet.create({
   tripDate: {
     fontSize: 12,
   },
+  favoriteText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600'
+  }
 });

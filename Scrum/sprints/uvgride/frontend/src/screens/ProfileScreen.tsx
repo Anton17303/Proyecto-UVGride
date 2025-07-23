@@ -16,11 +16,13 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { RootStackParamList } from '../navigation/types';
 import { useUser } from '../context/UserContext';
 import { useTheme } from '../context/ThemeContext';
+import { lightColors, darkColors } from '../constants/colors';
 
 export default function ProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { user, setUser } = useUser();
-  const { theme, toggleTheme, isDarkMode } = useTheme();
+  const { theme, toggleTheme } = useTheme();
+  const colors = theme === 'light' ? lightColors : darkColors;
 
   const profileOptions = [
     { title: 'Términos y Condiciones', icon: 'document-text-outline' },
@@ -49,8 +51,8 @@ export default function ProfileScreen() {
 
   if (!user) {
     return (
-      <View style={[styles.container, { backgroundColor: isDarkMode ? '#121212' : '#f0f2f5' }]}>
-        <Text style={{ marginTop: 50, textAlign: 'center', color: isDarkMode ? '#FFF' : '#000' }}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Text style={[styles.fallbackText, { color: colors.text }]}>
           No hay usuario logueado.
         </Text>
       </View>
@@ -58,71 +60,57 @@ export default function ProfileScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: isDarkMode ? '#121212' : '#f0f2f5' }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-        <View style={[styles.profileCard, { backgroundColor: isDarkMode ? '#1E1E1E' : '#fff' }]}>
+        <View style={[styles.profileCard, { backgroundColor: colors.card }]}>
           <Image
             source={require('../assets/default-profile.jpg')}
-            style={[styles.profileImage, { borderColor: '#4CAF50' }]}
+            style={[styles.profileImage, { borderColor: colors.primary }]}
           />
-          <Text style={[styles.userName, { color: isDarkMode ? '#FFF' : '#333' }]}>{user.name}</Text>
-          <Text style={[styles.userEmail, { color: isDarkMode ? '#AAA' : '#666' }]}>{user.email}</Text>
+          <Text style={[styles.userName, { color: colors.text }]}>{user.name}</Text>
+          <Text style={[styles.userEmail, { color: colors.text }]}>{user.email}</Text>
 
           <View style={styles.themeToggleContainer}>
             <Ionicons
-              name={isDarkMode ? 'moon' : 'sunny'}
+              name={theme === 'dark' ? 'moon' : 'sunny'}
               size={20}
-              color={isDarkMode ? '#FFF' : '#FFD700'}
+              color={theme === 'dark' ? colors.text : '#FFD700'}
             />
             <Switch
-              value={isDarkMode}
+              value={theme === 'dark'}
               onValueChange={toggleTheme}
-              trackColor={{ false: '#767577', true: '#4CAF50' }}
-              thumbColor={isDarkMode ? '#FFF' : '#f4f3f4'}
+              trackColor={{ false: '#767577', true: colors.primary }}
+              thumbColor={theme === 'dark' ? '#FFF' : '#f4f3f4'}
               style={{ marginHorizontal: 8 }}
             />
-            <Text style={{ color: isDarkMode ? '#FFF' : '#333' }}>
-              {isDarkMode ? 'Modo Oscuro' : 'Modo Claro'}
+            <Text style={{ color: colors.text }}>
+              {theme === 'dark' ? 'Modo Oscuro' : 'Modo Claro'}
             </Text>
           </View>
 
           {user.telefono && (
             <View style={styles.infoContainer}>
-              <Text style={[styles.infoLabel, { color: isDarkMode ? '#AAA' : '#888' }]}>Teléfono:</Text>
-              <Text style={[styles.infoValue, { color: isDarkMode ? '#FFF' : '#333' }]}>
-                {user.telefono}
-              </Text>
+              <Text style={[styles.infoLabel, { color: colors.text }]}>Teléfono:</Text>
+              <Text style={[styles.infoValue, { color: colors.text }]}>{user.telefono}</Text>
             </View>
           )}
 
           {user.tipo_usuario && (
             <View style={styles.infoContainer}>
-              <Text style={[styles.infoLabel, { color: isDarkMode ? '#AAA' : '#888' }]}>
-                Tipo de usuario:
-              </Text>
-              <Text style={[styles.infoValue, { color: isDarkMode ? '#FFF' : '#333' }]}>
-                {user.tipo_usuario}
-              </Text>
+              <Text style={[styles.infoLabel, { color: colors.text }]}>Tipo de usuario:</Text>
+              <Text style={[styles.infoValue, { color: colors.text }]}>{user.tipo_usuario}</Text>
             </View>
           )}
         </View>
 
         <TouchableOpacity
-          style={[styles.editButton, { backgroundColor: '#4CAF50' }]}
+          style={[styles.editButton, { backgroundColor: colors.primary }]}
           onPress={() => navigation.navigate('EditProfile')}
         >
           <Text style={styles.editButtonText}>Editar Perfil</Text>
         </TouchableOpacity>
 
-        <View
-          style={[
-            styles.optionsContainer,
-            {
-              backgroundColor: isDarkMode ? '#1E1E1E' : '#FFF',
-              shadowOpacity: isDarkMode ? 0.1 : 0.06,
-            },
-          ]}
-        >
+        <View style={[styles.optionsContainer, { backgroundColor: colors.card }]}>
           {profileOptions.map((option, index) => (
             <TouchableOpacity
               key={index}
@@ -132,10 +120,10 @@ export default function ProfileScreen() {
               <Ionicons
                 name={option.icon as any}
                 size={22}
-                color={isDarkMode ? '#4CAF50' : '#333'}
+                color={colors.primary}
                 style={{ marginRight: 12 }}
               />
-              <Text style={{ fontSize: 16, color: isDarkMode ? '#FFF' : '#333' }}>
+              <Text style={{ fontSize: 16, color: colors.text }}>
                 {option.title}
               </Text>
             </TouchableOpacity>
@@ -143,10 +131,7 @@ export default function ProfileScreen() {
         </View>
 
         <TouchableOpacity
-          style={[
-            styles.logoutButton,
-            { backgroundColor: isDarkMode ? '#333' : '#d9534f' },
-          ]}
+          style={[styles.logoutButton, { backgroundColor: theme === 'dark' ? '#333' : '#d9534f' }]}
           onPress={handleLogout}
         >
           <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
@@ -158,6 +143,11 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  fallbackText: {
+    marginTop: 50,
+    textAlign: 'center',
+    fontSize: 16,
+  },
   profileCard: {
     alignItems: 'center',
     paddingVertical: 32,
