@@ -54,3 +54,68 @@ export default function DriverTripScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  map: { flex: 1 },
+  card: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    padding: 20,
+    elevation: 10,
+    width: width,
+  },
+  tripHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  uberType: {
+    fontWeight: 'bold',
+    fontSize: 18,
+    color: '#222',
+  },
+  price: {
+    fontWeight: 'bold',
+    fontSize: 22,
+    color: '#1e8c3a',
+  },
+  rating: {
+    color: '#666',
+    marginVertical: 6,
+    fontSize: 15,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginVertical: 2,
+  },
+  time: {
+    fontWeight: 'bold',
+    color: '#222',
+    fontSize: 15,
+  },
+  address: {
+    color: '#666',
+    fontSize: 14,
+    maxWidth: '60%',
+    textAlign: 'right',
+  },
+  acceptButton: {
+    marginTop: 18,
+    backgroundColor: '#1e8c3a',
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  acceptText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 18,
+  },
+});
