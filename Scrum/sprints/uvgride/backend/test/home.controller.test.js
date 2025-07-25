@@ -1,7 +1,7 @@
-const { getHomeData } = require('../src/homeController');
-const Usuario = require('../models/Usuario');
+const { getHomeData } = require('../src/controllers/home.controller');
+const Usuario = require('../src/models/Usuario');
 
-jest.mock('../models/Usuario');
+jest.mock('../src/models/Usuario');
 
 describe('getHomeData', () => {
   const mockRequest = () => ({
