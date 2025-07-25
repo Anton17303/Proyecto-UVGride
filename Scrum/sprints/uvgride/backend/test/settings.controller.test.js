@@ -1,74 +1,59 @@
-const {
-  getSettings,
-  updateSettings,
-  _resetSettings
-} = require('../src/controllers/settingsController');
+const Categoria = require('../src/models/Categoria');
+const { getHomeData } = require('../src/controllers/categoria.controller');
 
-describe('settingsController', () => {
+jest.mock('../src/models/Categoria', () => ({
+  findAll: jest.fn()
+}));
+
+describe('getHomeData', () => {
   let req, res;
 
   beforeEach(() => {
-    req = { body: {} };
-    res = {
-      json: jest.fn(),
-      status: jest.fn(() => res),
+    req = {
+      user: {
+        nombre: 'Ana',
+        apellido: 'López',
+        correo_institucional: 'ana@uvg.edu.gt'
+      }
     };
 
-    _resetSettings(); // restaurar valores originales antes de cada prueba
+    res = {
+      json: jest.fn(),
+      status: jest.fn(() => res)
+    };
+
     jest.clearAllMocks();
   });
 
-  // 🔹 GET /api/settings
-  it('debe retornar la configuración actual', () => {
-    getSettings(req, res);
+  it('debe devolver las categorías y los datos del usuario', async () => {
+    const mockCategorias = [
+      { id: 1, nombre: 'Tecnología' },
+      { id: 2, nombre: 'Arte' }
+    ];
 
+    Categoria.findAll.mockResolvedValue(mockCategorias);
+
+    await getHomeData(req, res);
+
+    expect(Categoria.findAll).toHaveBeenCalled();
     expect(res.json).toHaveBeenCalledWith({
-      language: 'es',
-      notifications: true,
-      darkMode: false
+      usuario: {
+        nombre: 'Ana',
+        apellido: 'López',
+        correo: 'ana@uvg.edu.gt'
+      },
+      categorias: mockCategorias
     });
   });
 
-  // 🔹 PUT /api/settings (actualización válida)
-  it('debe actualizar correctamente la configuración', () => {
-    req.body = {
-      darkMode: true,
-      language: 'en'
-    };
+  it('debe devolver error 500 si ocurre una excepción', async () => {
+    Categoria.findAll.mockRejectedValue(new Error('DB Error'));
 
-    updateSettings(req, res);
+    await getHomeData(req, res);
 
+    expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({
-      message: 'Configuración actualizada correctamente',
-      settings: {
-        language: 'en',
-        notifications: true,
-        darkMode: true
-      }
-    });
-  });
-
-  // 🔹 PUT /api/settings (body no es objeto)
-  it('debe devolver error 400 si el body no es un objeto', () => {
-    req.body = null;
-
-    updateSettings(req, res);
-
-    expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith({
-      error: 'Formato inválido de configuración'
-    });
-  });
-
-  // 🔹 PUT /api/settings (body es string)
-  it('debe devolver error 400 si el body es un string', () => {
-    req.body = "no es un objeto";
-
-    updateSettings(req, res);
-
-    expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith({
-      error: 'Formato inválido de configuración'
+      error: 'Error al obtener datos de inicio'
     });
   });
 });
