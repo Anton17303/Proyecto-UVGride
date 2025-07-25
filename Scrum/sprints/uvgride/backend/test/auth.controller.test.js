@@ -1,7 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { register, login } = require('../controllers/authController');
-const Usuario = require('../models/Usuario');
+const { register, login } = require('../src/controllers/auth.controller');
+const Usuario = require('../src/models/Usuario');
 
 // Mock de la respuesta de Express
 const mockResponse = () => {
