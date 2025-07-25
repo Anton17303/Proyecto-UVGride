@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
-import { ThemeContext, useTheme } from './ThemeContext'; 
+import { ThemeContext, useTheme } from '../src/context/ThemeContext'; 
 import userEvent from '@testing-library/user-event';
 
 // Componente de prueba para consumir el contexto
