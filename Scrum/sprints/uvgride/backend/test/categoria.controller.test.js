@@ -1,7 +1,9 @@
-const { getHomeData } = require('../src/controllers/categoria.controller');
 const Categoria = require('../src/models/Categoria');
+const { getHomeData } = require('../src/controllers/categoria.controller');
 
-jest.mock('../src/models/Categoria');
+jest.mock('../src/models/Categoria', () => ({
+  findAll: jest.fn()
+}));
 
 describe('getHomeData', () => {
   let req, res;
