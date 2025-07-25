@@ -1,10 +1,10 @@
-// controllers/settings.controller.js
-
 let settings = {
   language: 'es',
   notifications: true,
   darkMode: false,
 };
+
+const defaultSettings = { ...settings }; // Copia para restaurar
 
 // GET /api/settings
 exports.getSettings = (req, res) => {
@@ -22,4 +22,9 @@ exports.updateSettings = (req, res) => {
   settings = { ...settings, ...updates };
 
   res.json({ message: 'Configuración actualizada correctamente', settings });
+};
+
+// 👇 Exporta una función para resetear las configuraciones (usada en test)
+exports._resetSettings = () => {
+  settings = { ...defaultSettings };
 };

@@ -14,7 +14,7 @@ const mockResponse = () => {
 // Mock de JWT y bcrypt
 jest.mock('jsonwebtoken');
 jest.mock('bcryptjs');
-jest.mock('../models/Usuario');
+jest.mock('../src/models/Usuario');
 
 describe('Auth Controller', () => {
   afterEach(() => {
