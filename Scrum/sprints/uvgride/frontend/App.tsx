@@ -1,5 +1,5 @@
 import React from 'react';
-import Navigation from './src/navigation/Navigation';
+import RootStack from './src/navigation/RootStack';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { UserProvider } from './src/context/UserContext';
@@ -35,7 +35,7 @@ function MainApp() {
   return (
     <NavigationContainer theme={navigationTheme}>
       <UserProvider>
-        <Navigation />
+        <RootStack />
         <StatusBar style={isDark ? 'light' : 'dark'} />
       </UserProvider>
     </NavigationContainer>

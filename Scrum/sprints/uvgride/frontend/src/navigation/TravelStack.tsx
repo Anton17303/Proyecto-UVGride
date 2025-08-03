@@ -21,7 +21,9 @@ const Stack = createNativeStackNavigator<TravelStackParamList>();
 
 export default function TravelStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator
+    initialRouteName="TravelScreen"
+    screenOptions={{ headerShown: false }}>
       <Stack.Screen name="TravelScreen" component={TravelScreen} />
       <Stack.Screen name="TripFormScreen" component={TripFormScreen} />
     </Stack.Navigator>

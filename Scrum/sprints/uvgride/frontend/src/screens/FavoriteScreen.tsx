@@ -9,7 +9,10 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import {
+  useFocusEffect,
+  useNavigation,
+} from '@react-navigation/native';
 import axios from 'axios';
 import { API_URL } from '../services/api';
 import { useUser } from '../context/UserContext';
@@ -24,9 +27,9 @@ type LugarFavorito = {
 };
 
 export default function FavoriteScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>(); // 👈 usamos tipo 'any' para permitir navegación anidada
   const { user } = useUser();
-  const { theme, isDarkMode } = useTheme();
+  const { theme } = useTheme();
   const colors = theme === 'light' ? lightColors : darkColors;
 
   const [favoritos, setFavoritos] = useState<LugarFavorito[]>([]);
@@ -76,8 +79,32 @@ export default function FavoriteScreen() {
     }, [user?.id])
   );
 
+  const handleStartTrip = (lugar: LugarFavorito) => {
+    navigation.navigate('Tabs', {
+      screen: 'Viaje',
+      params: {
+        screen: 'TripFormScreen',
+        params: {
+          origin: 'Ubicación actual',
+          latitude: null,
+          longitude: null,
+          destinationName: lugar.nombre_lugar,
+        },
+      },
+    });
+  };
+
   const renderItem = ({ item }: { item: LugarFavorito }) => (
-    <View style={[styles.card, { backgroundColor: colors.card, borderLeftColor: item.color_hex || colors.primary }]}>
+    <TouchableOpacity
+      onPress={() => handleStartTrip(item)}
+      style={[
+        styles.card,
+        {
+          backgroundColor: colors.card,
+          borderLeftColor: item.color_hex || colors.primary,
+        },
+      ]}
+    >
       <View style={{ flex: 1 }}>
         <Text style={[styles.name, { color: item.color_hex || colors.text }]}>
           {item.nombre_lugar}
@@ -89,7 +116,7 @@ export default function FavoriteScreen() {
       <TouchableOpacity onPress={() => eliminarFavorito(item.id_lugar_favorito)}>
         <Text style={styles.deleteButton}>🗑</Text>
       </TouchableOpacity>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
@@ -99,7 +126,9 @@ export default function FavoriteScreen() {
       {loading ? (
         <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 20 }} />
       ) : favoritos.length === 0 ? (
-        <Text style={[styles.emptyText, { color: colors.text }]}>No tienes lugares favoritos aún.</Text>
+        <Text style={[styles.emptyText, { color: colors.text }]}>
+          No tienes lugares favoritos aún.
+        </Text>
       ) : (
         <FlatList
           data={favoritos}
@@ -118,9 +147,11 @@ export default function FavoriteScreen() {
 
       <TouchableOpacity
         style={styles.backButton}
-        onPress={() => navigation.navigate('Home')}
+        onPress={() => navigation.navigate('Inicio')}
       >
-        <Text style={[styles.backButtonText, { color: colors.primary }]}>← Volver al menú</Text>
+        <Text style={[styles.backButtonText, { color: colors.primary }]}>
+          ← Volver al menú
+        </Text>
       </TouchableOpacity>
     </SafeAreaView>
   );

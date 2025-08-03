@@ -3,8 +3,8 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import HomeScreen from "../screens/HomeScreen";
 import ProfileScreen from "../screens/ProfileScreen";
-import TravelScreen from "../screens/TravelScreen";
-import TravelStack from './TravelStack';
+import TravelStack from "./TravelStack";
+import { CommonActions } from "@react-navigation/native";
 
 export type BottomTabParamList = {
   Inicio: undefined;
@@ -38,7 +38,23 @@ export default function BottomTabs() {
       })}
     >
       <Tab.Screen name="Inicio" component={HomeScreen} />
-      <Tab.Screen name="Viaje" component={TravelStack} />
+      <Tab.Screen
+        name="Viaje"
+        component={TravelStack}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            e.preventDefault();
+            navigation.dispatch(
+              CommonActions.navigate({
+                name: "Viaje",
+                params: {
+                  screen: "TravelScreen",
+                },
+              })
+            );
+          },
+        })}
+      />
       <Tab.Screen name="Perfil" component={ProfileScreen} />
     </Tab.Navigator>
   );
