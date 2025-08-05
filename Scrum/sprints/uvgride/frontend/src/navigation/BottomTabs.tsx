@@ -4,19 +4,28 @@ import { Ionicons } from "@expo/vector-icons";
 import HomeScreen from "../screens/HomeScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import TravelStack from "./TravelStack";
+import DriverTripScreen from "../screens/DriverTripScreen";
 import { CommonActions } from "@react-navigation/native";
+import { useUser } from "../context/UserContext";
 
 export type BottomTabParamList = {
   Inicio: undefined;
-  Perfil: undefined;
   Viaje: undefined;
+  Perfil: undefined;
+  Conductores?: undefined;
 };
 
 const Tab = createBottomTabNavigator<BottomTabParamList>();
 
 export default function BottomTabs() {
+  const { user } = useUser();
+
+  // 👇 Corrige aquí: compara con "conductor" en minúsculas
+  const esConductor = user?.tipo_usuario?.toLowerCase() === "conductor";
+
   return (
     <Tab.Navigator
+      key={user?.id} // 👈 fuerza re-render si el usuario cambia
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarShowLabel: true,
@@ -25,19 +34,17 @@ export default function BottomTabs() {
         tabBarIcon: ({ color, size }) => {
           let iconName: keyof typeof Ionicons.glyphMap = "home-outline";
 
-          if (route.name === "Inicio") {
-            iconName = "home-outline";
-          } else if (route.name === "Perfil") {
-            iconName = "person-outline";
-          } else if (route.name === "Viaje") {
-            iconName = "airplane-outline";
-          }
+          if (route.name === "Inicio") iconName = "home-outline";
+          else if (route.name === "Viaje") iconName = "airplane-outline";
+          else if (route.name === "Perfil") iconName = "person-outline";
+          else if (route.name === "Conductores") iconName = "car-outline";
 
           return <Ionicons name={iconName} size={size} color={color} />;
         },
       })}
     >
       <Tab.Screen name="Inicio" component={HomeScreen} />
+
       <Tab.Screen
         name="Viaje"
         component={TravelStack}
@@ -47,14 +54,18 @@ export default function BottomTabs() {
             navigation.dispatch(
               CommonActions.navigate({
                 name: "Viaje",
-                params: {
-                  screen: "TravelScreen",
-                },
+                params: { screen: "TravelScreen" },
               })
             );
           },
         })}
       />
+
+      {/* ✅ Solo aparece si el usuario es conductor */}
+      {esConductor && (
+        <Tab.Screen name="Conductores" component={DriverTripScreen} />
+      )}
+
       <Tab.Screen name="Perfil" component={ProfileScreen} />
     </Tab.Navigator>
   );

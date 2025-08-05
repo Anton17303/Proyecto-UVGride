@@ -9,7 +9,7 @@ import TravelScreen from '../screens/TravelScreen';
 import TripFormScreen from '../screens/TripFormScreen';
 import { useUser } from '../context/UserContext';
 
-// Define aquí el tipo exacto del stack
+// Define el tipo de rutas del stack
 export type RootStackParamList = {
   Home: undefined;
   Login: undefined;
@@ -40,7 +40,12 @@ export default function RootStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {user ? (
         <>
-          <Stack.Screen name="Home" component={BottomTabs} />
+          {/* 👇 Esto fuerza que BottomTabs se re-renderice cuando cambia el usuario */}
+          <Stack.Screen
+            name="Home"
+            component={BottomTabs}
+            key={user?.id} // 👈 esto es importante
+          />
           <Stack.Screen name="Favorite" component={FavoriteScreen} />
           <Stack.Screen name="AddFavorite" component={AddFavoriteScreen} />
           <Stack.Screen name="Travel" component={TravelScreen} />

@@ -28,9 +28,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    const { id_usuario, nombre, correo_institucional } = data;
+    const { id_usuario, nombre, correo_institucional, tipo_usuario } = data;
 
-    if (!id_usuario || !nombre || !correo_institucional) {
+    if (!id_usuario || !nombre || !correo_institucional || !tipo_usuario) {
       console.error('❌ Faltan datos obligatorios del usuario:', data);
       return;
     }
@@ -39,6 +39,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       id: id_usuario,
       name: nombre,
       email: correo_institucional,
+      tipo_usuario: data.tipo_usuario?.toLowerCase(),
     };
 
     console.log('✅ Usuario mapeado correctamente:', mappedUser);
