@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -9,14 +9,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
-} from 'react-native';
-import axios from 'axios';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { API_URL } from '../services/api';
-import { useUser } from '../context/UserContext';
-import { useTheme } from '../context/ThemeContext';
-import { lightColors, darkColors } from '../constants/colors';
+} from "react-native";
+import axios from "axios";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { API_URL } from "../services/api";
+import { useUser } from "../context/UserContext";
+import { useTheme } from "../context/ThemeContext";
+import { lightColors, darkColors } from "../constants/colors";
 
 type RootStackParamList = {
   Login: undefined;
@@ -27,18 +27,19 @@ type RootStackParamList = {
 };
 
 export default function LoginScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const [correo_institucional, setCorreo] = useState('');
-  const [contrasenia, setContrasenia] = useState('');
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const [correo_institucional, setCorreo] = useState("");
+  const [contrasenia, setContrasenia] = useState("");
   const [loading, setLoading] = useState(false);
   const { setUserFromBackend } = useUser();
 
   const { theme } = useTheme();
-  const colors = theme === 'light' ? lightColors : darkColors;
+  const colors = theme === "light" ? lightColors : darkColors;
 
   const handleLogin = async () => {
     if (!correo_institucional || !contrasenia) {
-      Alert.alert('Error', 'Por favor completa todos los campos');
+      Alert.alert("Error", "Por favor completa todos los campos");
       return;
     }
 
@@ -51,11 +52,17 @@ export default function LoginScreen() {
       });
 
       setUserFromBackend(res.data.usuario);
-      Alert.alert('¡Bienvenido!', `Hola ${res.data.usuario.nombre}`);
-      navigation.navigate('Home');
+      Alert.alert("¡Bienvenido!", `Hola ${res.data.usuario.nombre}`);
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Tabs" }],
+      });
     } catch (err: any) {
       console.error(err);
-      Alert.alert('Error', err.response?.data?.error || 'Error al iniciar sesión');
+      Alert.alert(
+        "Error",
+        err.response?.data?.error || "Error al iniciar sesión"
+      );
     } finally {
       setLoading(false);
     }
@@ -65,13 +72,24 @@ export default function LoginScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <Text style={[styles.title, { color: colors.text }]}>Inicia sesión</Text>
+        <Text style={[styles.title, { color: colors.text }]}>
+          Inicia sesión
+        </Text>
 
-        <Text style={[styles.label, { color: colors.text }]}>Correo institucional</Text>
+        <Text style={[styles.label, { color: colors.text }]}>
+          Correo institucional
+        </Text>
         <TextInput
-          style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
+          style={[
+            styles.input,
+            {
+              backgroundColor: colors.card,
+              color: colors.text,
+              borderColor: colors.border,
+            },
+          ]}
           placeholder="correo@uvg.edu.gt"
           value={correo_institucional}
           onChangeText={setCorreo}
@@ -81,7 +99,14 @@ export default function LoginScreen() {
 
         <Text style={[styles.label, { color: colors.text }]}>Contraseña</Text>
         <TextInput
-          style={[styles.input, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
+          style={[
+            styles.input,
+            {
+              backgroundColor: colors.card,
+              color: colors.text,
+              borderColor: colors.border,
+            },
+          ]}
           placeholder="*******"
           value={contrasenia}
           onChangeText={setContrasenia}
@@ -89,13 +114,16 @@ export default function LoginScreen() {
           secureTextEntry
         />
 
-        <TouchableOpacity style={[styles.button, { backgroundColor: colors.primary }]} onPress={handleLogin}>
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: colors.primary }]}
+          onPress={handleLogin}
+        >
           <Text style={styles.buttonText}>
-            {loading ? 'Cargando...' : 'Iniciar sesión'}
+            {loading ? "Cargando..." : "Iniciar sesión"}
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+        <TouchableOpacity onPress={() => navigation.navigate("Register")}>
           <Text style={[styles.linkText, { color: colors.primary }]}>
             ¿No tienes cuenta? Regístrate
           </Text>
@@ -107,13 +135,13 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  container: { flex: 1, padding: 24, justifyContent: 'center' },
+  container: { flex: 1, padding: 24, justifyContent: "center" },
   title: {
     fontSize: 32,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    fontWeight: "bold",
+    textAlign: "center",
     marginBottom: 30,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
   },
   label: {
     marginBottom: 6,
@@ -131,18 +159,18 @@ const styles = StyleSheet.create({
     marginTop: 24,
     paddingVertical: 14,
     borderRadius: 12,
-    alignItems: 'center',
+    alignItems: "center",
   },
   buttonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
+    fontWeight: "bold",
+    textTransform: "uppercase",
   },
   linkText: {
     fontSize: 14,
-    textAlign: 'center',
+    textAlign: "center",
     marginTop: 16,
-    textDecorationLine: 'underline',
+    textDecorationLine: "underline",
   },
 });
