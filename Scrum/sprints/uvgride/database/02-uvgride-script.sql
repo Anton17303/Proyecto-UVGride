@@ -6,31 +6,23 @@ CREATE TABLE usuario (
   correo_institucional VARCHAR(255) UNIQUE NOT NULL,
   contrasenia VARCHAR(255) NOT NULL,
   telefono VARCHAR(20) NOT NULL,
-  tipo_usuario VARCHAR(255) NOT NULL,
+  tipo_usuario VARCHAR(255) NOT NULL, -- "Pasajero" o "Conductor"
+  licencia_conducir VARCHAR(255),     -- Solo si es conductor
+  estado_disponibilidad VARCHAR(255), -- Solo si es conductor
   activo BOOLEAN NOT NULL DEFAULT TRUE,
   preferencia_tema VARCHAR(10) DEFAULT 'light'
 );
 
--- Conductores
-CREATE TABLE conductor (
-  id_conductor SERIAL PRIMARY KEY,
-  id_usuario INT NOT NULL,
-  licencia_conducir VARCHAR(255) NOT NULL,
-  estado_disponibilidad VARCHAR(255) NOT NULL,
-  FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
-    ON DELETE CASCADE ON UPDATE CASCADE
-);
-
--- Vehículos
+-- Vehículos (ahora referencian directamente a 'usuario')
 CREATE TABLE vehiculo (
   id_vehiculo SERIAL PRIMARY KEY,
-  id_conductor INT NOT NULL,
+  id_usuario INT NOT NULL,
   marca VARCHAR(255) NOT NULL,
   modelo VARCHAR(255) NOT NULL,
   placa VARCHAR(255) NOT NULL,
   color VARCHAR(255) NOT NULL,
   capacidad_pasajeros INT NOT NULL,
-  FOREIGN KEY (id_conductor) REFERENCES conductor(id_conductor)
+  FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
     ON DELETE CASCADE ON UPDATE CASCADE
 );
 
@@ -58,7 +50,7 @@ CREATE TABLE viaje_maestro (
   calificacion INTEGER,
   FOREIGN KEY (usuario_id) REFERENCES usuario(id_usuario)
     ON DELETE SET NULL ON UPDATE CASCADE,
-  FOREIGN KEY (conductor_id) REFERENCES conductor(id_conductor)
+  FOREIGN KEY (conductor_id) REFERENCES usuario(id_usuario)
     ON DELETE SET NULL ON UPDATE CASCADE
 );
 
@@ -169,7 +161,7 @@ CREATE TABLE notificacion (
     ON DELETE CASCADE
 );
 
--- Lugares favoritos (solo nombre, descripción y color)
+-- Lugares favoritos
 CREATE TABLE lugar_favorito (
   id_lugar_favorito SERIAL PRIMARY KEY,
   id_usuario INT NOT NULL,
