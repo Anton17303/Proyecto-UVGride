@@ -59,6 +59,8 @@ export default function ProfileScreen() {
     );
   }
 
+  const esConductor = user.tipo_usuario?.toLowerCase() === 'conductor';
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
@@ -109,6 +111,15 @@ export default function ProfileScreen() {
         >
           <Text style={styles.editButtonText}>Editar Perfil</Text>
         </TouchableOpacity>
+
+        {esConductor && (
+          <TouchableOpacity
+            style={[styles.editButton, { backgroundColor: colors.primary, marginTop: 12 }]}
+            onPress={() => navigation.navigate('VehicleForm')}
+          >
+            <Text style={styles.editButtonText}>Registrar Vehículo</Text>
+          </TouchableOpacity>
+        )}
 
         <View style={[styles.optionsContainer, { backgroundColor: colors.card }]}>
           {profileOptions.map((option, index) => (

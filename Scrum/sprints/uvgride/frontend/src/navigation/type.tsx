@@ -6,6 +6,7 @@ export type RootStackParamList = {
   Settings: undefined;
   Favorite: undefined;
   AddFavorite: undefined;
+  VehicleForm: undefined;
   Travel: {
     origin: string;
     latitude: number;
@@ -18,5 +19,6 @@ export type RootStackParamList = {
     origin: string;
     latitude: number;
     longitude: number;
+    destinationName?: string;
   };
 };

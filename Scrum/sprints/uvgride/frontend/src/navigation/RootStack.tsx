@@ -5,6 +5,7 @@ import FavoriteScreen from '../screens/FavoriteScreen';
 import AddFavoriteScreen from '../screens/AddFavoriteScreen';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
+import VehicleFormScreen from '../screens/VehicleFormScreen';
 import TravelScreen from '../screens/TravelScreen';
 import TripFormScreen from '../screens/TripFormScreen';
 import { useUser } from '../context/UserContext';
@@ -16,6 +17,7 @@ export type RootStackParamList = {
   Register: undefined;
   Favorite: undefined;
   AddFavorite: undefined;
+  VehicleForm: undefined;
   Travel: {
     origin: string;
     latitude: number;
@@ -28,6 +30,7 @@ export type RootStackParamList = {
     origin: string;
     latitude: number;
     longitude: number;
+    destinationName?: string;
   };
 };
 
@@ -50,6 +53,7 @@ export default function RootStack() {
           <Stack.Screen name="AddFavorite" component={AddFavoriteScreen} />
           <Stack.Screen name="Travel" component={TravelScreen} />
           <Stack.Screen name="TripFormScreen" component={TripFormScreen} />
+          <Stack.Screen name="VehicleForm" component={VehicleFormScreen} />
         </>
       ) : (
         <>

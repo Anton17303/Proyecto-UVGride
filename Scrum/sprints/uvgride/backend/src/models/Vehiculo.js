@@ -1,5 +1,5 @@
 const { DataTypes } = require('sequelize');
-const sequelize = require('../database/02-uvgride-script');
+const { sequelize } = require("./index");
 const Usuario = require('./Usuario');
 
 const Vehiculo = sequelize.define('Vehiculo', {
