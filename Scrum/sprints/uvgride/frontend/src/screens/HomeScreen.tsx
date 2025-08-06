@@ -103,7 +103,7 @@ export default function HomeScreen() {
 
         <TouchableOpacity
           style={[styles.button, { backgroundColor: colors.primary }]}
-          onPress={() => navigation.navigate('FavoriteScreen')}
+          onPress={() => navigation.navigate('Favorite')}
         >
           <Text style={styles.favoriteText}>Ir a Lugares Favoritos</Text>
         </TouchableOpacity>
