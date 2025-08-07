@@ -13,7 +13,7 @@ CREATE TABLE usuario (
   preferencia_tema VARCHAR(10) DEFAULT 'light'
 );
 
--- Vehículos (ahora referencian directamente a 'usuario')
+-- Vehículos
 CREATE TABLE vehiculo (
   id_vehiculo SERIAL PRIMARY KEY,
   id_usuario INT NOT NULL,
@@ -26,7 +26,7 @@ CREATE TABLE vehiculo (
     ON DELETE CASCADE ON UPDATE CASCADE
 );
 
--- Viajes
+-- Viajes (normales y programados en una sola tabla)
 CREATE TABLE viaje_maestro (
   id_viaje_maestro SERIAL PRIMARY KEY,
   origen VARCHAR(255) NOT NULL,
@@ -36,14 +36,16 @@ CREATE TABLE viaje_maestro (
   lat_destino DECIMAL(9,6),
   lon_destino DECIMAL(9,6),
   hora_solicitud TIMESTAMP NOT NULL DEFAULT NOW(),
-  costo_total DECIMAL(10,2) NOT NULL,
-  estado_viaje VARCHAR(255) NOT NULL DEFAULT 'pendiente',
-  fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  fecha_inicio TIMESTAMP,
+  fecha_inicio TIMESTAMP, -- Se usa si es programado
   fecha_fin TIMESTAMP,
+  costo_total DECIMAL(10,2) NOT NULL,
   distancia_km DECIMAL(8,2),
   tiempo_estimado INTEGER,
+  estado_viaje VARCHAR(255) NOT NULL DEFAULT 'pendiente',
+  es_programado BOOLEAN DEFAULT FALSE, -- 👈 Nuevo campo
+  recordatorio_enviado BOOLEAN DEFAULT FALSE, -- 👈 Opcional
+  fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   usuario_id INTEGER,
   conductor_id INTEGER,
   notas TEXT,

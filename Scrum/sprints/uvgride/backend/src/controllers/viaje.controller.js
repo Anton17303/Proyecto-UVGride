@@ -1,7 +1,7 @@
 const Viaje = require('../models/Viaje');
 const { Op } = require('sequelize');
 
-// ✅ Crear un viaje
+// ✅ Crear un viaje (normal o programado)
 exports.crearViaje = async (req, res) => {
   try {
     let {
@@ -13,34 +13,33 @@ exports.crearViaje = async (req, res) => {
       lon_destino,
       costo_total,
       id_usuario,
+      es_programado = false,
+      fecha_programada, // opcional para programado
     } = req.body;
 
     if (!origen?.trim() || !destino?.trim() || !costo_total || !id_usuario) {
       return res.status(400).json({ error: 'Faltan datos obligatorios' });
     }
 
-    lat_origen = lat_origen ? parseFloat(lat_origen) : null;
-    lon_origen = lon_origen ? parseFloat(lon_origen) : null;
-    lat_destino = lat_destino ? parseFloat(lat_destino) : null;
-    lon_destino = lon_destino ? parseFloat(lon_destino) : null;
-
-    const nuevoViaje = await Viaje.create({
+    const viaje = await Viaje.create({
       origen: origen.trim(),
       destino: destino.trim(),
-      lat_origen,
-      lon_origen,
-      lat_destino,
-      lon_destino,
+      lat_origen: lat_origen ?? null,
+      lon_origen: lon_origen ?? null,
+      lat_destino: lat_destino ?? null,
+      lon_destino: lon_destino ?? null,
       costo_total,
-      usuario_id: id_usuario, // Aseguramos que el ID del usuario esté presente
-      estado_viaje: 'pendiente',
+      usuario_id: id_usuario,
+      estado_viaje: es_programado ? 'programado' : 'pendiente',
       fecha_creacion: new Date(),
-      fecha_inicio: new Date()
+      fecha_inicio: es_programado && fecha_programada ? new Date(fecha_programada) : new Date(),
+      es_programado,
+      recordatorio_enviado: false,
     });
 
     return res.status(201).json({
-      message: 'Viaje creado correctamente',
-      viaje: nuevoViaje,
+      message: es_programado ? 'Viaje programado creado correctamente' : 'Viaje creado correctamente',
+      viaje,
     });
   } catch (error) {
     console.error('❌ Error al crear el viaje:', error);
@@ -48,35 +47,52 @@ exports.crearViaje = async (req, res) => {
   }
 };
 
-// ✅ Obtener historial de viajes por usuario
+// ✅ Obtener historial de viajes de un usuario
 exports.obtenerViajesPorUsuario = async (req, res) => {
   const { userId } = req.params;
-
-  if (!userId) {
-    return res.status(400).json({ error: 'ID de usuario no proporcionado' });
-  }
+  if (!userId) return res.status(400).json({ error: 'ID de usuario no proporcionado' });
 
   try {
     const viajes = await Viaje.findAll({
       where: { usuario_id: userId },
       order: [['fecha_inicio', 'DESC']],
-      limit: 10,
-      attributes: ['id_viaje_maestro', 'origen', 'destino', 'fecha_inicio', 'estado_viaje', 'costo_total']
+      limit: 20,
+      attributes: ['id_viaje_maestro', 'origen', 'destino', 'fecha_inicio', 'estado_viaje', 'costo_total', 'es_programado']
+    });
+    return res.json({ viajes });
+  } catch (error) {
+    console.error('❌ Error al obtener viajes por usuario:', error);
+    return res.status(500).json({ error: 'Error interno al obtener viajes' });
+  }
+};
+
+// ✅ Obtener viajes programados futuros de un usuario
+exports.obtenerViajesProgramados = async (req, res) => {
+  const { userId } = req.params;
+  if (!userId) return res.status(400).json({ error: 'ID de usuario no proporcionado' });
+
+  try {
+    const ahora = new Date();
+    const viajes = await Viaje.findAll({
+      where: {
+        usuario_id: userId,
+        es_programado: true,
+        fecha_inicio: { [Op.gt]: ahora },
+      },
+      order: [['fecha_inicio', 'ASC']],
     });
 
     return res.json({ viajes });
   } catch (error) {
-    console.error('❌ Error al obtener viajes por usuario:', error);
-    return res.status(500).json({ error: 'Error interno al obtener viajes por usuario' });
+    console.error('❌ Error al obtener viajes programados:', error);
+    return res.status(500).json({ error: 'Error al obtener viajes programados' });
   }
 };
 
-// ✅ Obtener todos los viajes (uso general)
+// ✅ Obtener todos los viajes
 exports.obtenerViajes = async (req, res) => {
   try {
-    const viajes = await Viaje.findAll({
-      order: [['id_viaje_maestro', 'DESC']],
-    });
+    const viajes = await Viaje.findAll({ order: [['id_viaje_maestro', 'DESC']] });
     return res.json({ viajes });
   } catch (error) {
     console.error('❌ Error al obtener los viajes:', error);
@@ -87,18 +103,11 @@ exports.obtenerViajes = async (req, res) => {
 // ✅ Obtener viaje por ID
 exports.obtenerViajePorId = async (req, res) => {
   const { id } = req.params;
-
-  if (!id) {
-    return res.status(400).json({ error: 'ID de viaje no proporcionado' });
-  }
+  if (!id) return res.status(400).json({ error: 'ID de viaje no proporcionado' });
 
   try {
     const viaje = await Viaje.findByPk(id);
-
-    if (!viaje) {
-      return res.status(404).json({ error: 'Viaje no encontrado' });
-    }
-
+    if (!viaje) return res.status(404).json({ error: 'Viaje no encontrado' });
     return res.json({ viaje });
   } catch (error) {
     console.error('❌ Error al obtener el viaje:', error);
@@ -109,42 +118,21 @@ exports.obtenerViajePorId = async (req, res) => {
 // ✅ Actualizar viaje
 exports.actualizarViaje = async (req, res) => {
   const { id } = req.params;
-
-  if (!id) {
-    return res.status(400).json({ error: 'ID de viaje no proporcionado' });
-  }
+  if (!id) return res.status(400).json({ error: 'ID de viaje no proporcionado' });
 
   try {
-    let datosActualizacion = { ...req.body };
-
-    if (datosActualizacion.lat_origen && datosActualizacion.lat_destino) {
-      const distancia = calcularDistancia(
-        parseFloat(datosActualizacion.lat_origen),
-        parseFloat(datosActualizacion.lon_origen),
-        parseFloat(datosActualizacion.lat_destino),
-        parseFloat(datosActualizacion.lon_destino)
-      );
-      datosActualizacion.distancia_km = distancia;
-    }
-
-    datosActualizacion.fecha_actualizacion = new Date();
-
-    const [filasActualizadas] = await Viaje.update(datosActualizacion, {
+    const datos = { ...req.body, fecha_actualizacion: new Date() };
+    const [filasActualizadas] = await Viaje.update(datos, {
       where: { id_viaje_maestro: id },
-      returning: true
+      returning: true,
     });
 
     if (filasActualizadas === 0) {
       return res.status(404).json({ error: 'Viaje no encontrado' });
     }
 
-    const viajeActualizado = await Viaje.findByPk(id);
-
-    return res.json({
-      message: 'Viaje actualizado correctamente',
-      viaje: viajeActualizado
-    });
-
+    const viaje = await Viaje.findByPk(id);
+    return res.json({ message: 'Viaje actualizado correctamente', viaje });
   } catch (error) {
     console.error('❌ Error al actualizar el viaje:', error);
     return res.status(500).json({ error: 'Error interno al actualizar el viaje' });
@@ -154,22 +142,14 @@ exports.actualizarViaje = async (req, res) => {
 // ✅ Eliminar viaje
 exports.eliminarViaje = async (req, res) => {
   const { id } = req.params;
-
-  if (!id) {
-    return res.status(400).json({ error: 'ID de viaje no proporcionado' });
-  }
+  if (!id) return res.status(400).json({ error: 'ID de viaje no proporcionado' });
 
   try {
     const viaje = await Viaje.findByPk(id);
-
-    if (!viaje) {
-      return res.status(404).json({ error: 'Viaje no encontrado' });
-    }
+    if (!viaje) return res.status(404).json({ error: 'Viaje no encontrado' });
 
     await Viaje.destroy({ where: { id_viaje_maestro: id } });
-
     return res.json({ message: 'Viaje eliminado correctamente' });
-
   } catch (error) {
     console.error('❌ Error al eliminar el viaje:', error);
     return res.status(500).json({ error: 'Error interno al eliminar el viaje' });
@@ -180,10 +160,7 @@ exports.eliminarViaje = async (req, res) => {
 exports.buscarViagesCercanos = async (req, res) => {
   try {
     const { lat, lon, radio = 10 } = req.query;
-
-    if (!lat || !lon) {
-      return res.status(400).json({ error: 'Latitud y longitud son requeridas' });
-    }
+    if (!lat || !lon) return res.status(400).json({ error: 'Latitud y longitud son requeridas' });
 
     const latitude = parseFloat(lat);
     const longitude = parseFloat(lon);
@@ -204,23 +181,8 @@ exports.buscarViagesCercanos = async (req, res) => {
     });
 
     return res.json({ viajes });
-
   } catch (error) {
     console.error('❌ Error al buscar viajes cercanos:', error);
-    return res.status(500).json({ error: 'Error interno al buscar viajes cercanos' });
+    return res.status(500).json({ error: 'Error interno al buscar viajes' });
   }
 };
-
-// ✅ Utilidad: calcular distancia entre coordenadas
-function calcularDistancia(lat1, lon1, lat2, lon2) {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const distancia = R * c;
-  return Math.round(distancia * 100) / 100;
-}

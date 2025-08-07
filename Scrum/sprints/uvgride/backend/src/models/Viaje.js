@@ -1,5 +1,4 @@
-// src/models/Viaje.js
-const { DataTypes } = require('sequelize');
+const { DataTypes, Op } = require('sequelize');
 const { sequelize } = require('./index');
 
 const Viaje = sequelize.define('viaje_maestro', {
@@ -16,22 +15,10 @@ const Viaje = sequelize.define('viaje_maestro', {
     type: DataTypes.STRING,
     allowNull: false,
   },
-  lat_origen: {
-    type: DataTypes.DECIMAL(9, 6),
-    allowNull: true,
-  },
-  lon_origen: {
-    type: DataTypes.DECIMAL(9, 6),
-    allowNull: true,
-  },
-  lat_destino: {
-    type: DataTypes.DECIMAL(9, 6),
-    allowNull: true,
-  },
-  lon_destino: {
-    type: DataTypes.DECIMAL(9, 6),
-    allowNull: true,
-  },
+  lat_origen: DataTypes.DECIMAL(9, 6),
+  lon_origen: DataTypes.DECIMAL(9, 6),
+  lat_destino: DataTypes.DECIMAL(9, 6),
+  lon_destino: DataTypes.DECIMAL(9, 6),
   hora_solicitud: {
     type: DataTypes.DATE,
     allowNull: false,
@@ -48,109 +35,100 @@ const Viaje = sequelize.define('viaje_maestro', {
   },
   fecha_creacion: {
     type: DataTypes.DATE,
-    defaultValue: DataTypes.NOW
+    defaultValue: DataTypes.NOW,
   },
   fecha_actualizacion: {
     type: DataTypes.DATE,
-    allowNull: true
+    allowNull: true,
   },
   fecha_inicio: {
     type: DataTypes.DATE,
-    allowNull: true
+    allowNull: true,
   },
   fecha_fin: {
     type: DataTypes.DATE,
-    allowNull: true
+    allowNull: true,
   },
   usuario_id: {
     type: DataTypes.INTEGER,
-    allowNull: true,
     references: {
-      model: 'usuarios', // nombre de la tabla de usuarios
-      key: 'id'
-    }
+      model: 'usuario',
+      key: 'id_usuario',
+    },
   },
   conductor_id: {
     type: DataTypes.INTEGER,
-    allowNull: true,
     references: {
-      model: 'conductores', // nombre de la tabla de conductores
-      key: 'id'
-    }
+      model: 'usuario',
+      key: 'id_usuario',
+    },
   },
   notas: {
     type: DataTypes.TEXT,
-    allowNull: true,
     validate: {
-      len: {
-        args: [0, 500],
-        msg: 'Las notas no pueden exceder 500 caracteres'
-      }
-    }
+      len: [0, 500],
+    },
   },
   calificacion: {
     type: DataTypes.INTEGER,
-    allowNull: true,
     validate: {
-      min: {
-        args: [1],
-        msg: 'La calificación mínima es 1'
-      },
-      max: {
-        args: [5],
-        msg: 'La calificación máxima es 5'
-      }
-    }
-  }
-},{
+      min: 1,
+      max: 5,
+    },
+  },
+  // Nuevos campos para viajes programados
+  es_programado: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  recordatorio_enviado: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+}, {
   tableName: 'viaje_maestro',
   timestamps: true,
   createdAt: 'fecha_creacion',
   updatedAt: 'fecha_actualizacion',
   indexes: [
-    {
-      fields: ['usuario_id', 'fecha_creacion']
-    },
-    {
-      fields: ['estado']
-    },
-    {
-      fields: ['conductor_id']
-    },
-    {
-      fields: ['fecha_creacion']
-    }
+    { fields: ['usuario_id'] },
+    { fields: ['conductor_id'] },
+    { fields: ['estado_viaje'] },
+    { fields: ['fecha_creacion'] },
   ]
 });
 
-// ✅ Métodos de instancia
-Viaje.prototype.iniciarViaje = function() {
-  this.estado = 'en_progreso';
+// Métodos de instancia
+Viaje.prototype.iniciarViaje = function () {
+  this.estado_viaje = 'en_progreso';
   this.fecha_inicio = new Date();
   return this.save();
 };
 
-Viaje.prototype.completarViaje = function(calificacion = null) {
-  this.estado = 'completado';
+Viaje.prototype.completarViaje = function (calificacion = null) {
+  this.estado_viaje = 'completado';
   this.fecha_fin = new Date();
-  if (calificacion) {
-    this.calificacion = calificacion;
-  }
+  if (calificacion) this.calificacion = calificacion;
   return this.save();
 };
 
-Viaje.prototype.cancelarViaje = function(motivo = null) {
-  this.estado = 'cancelado';
+Viaje.prototype.cancelarViaje = function (motivo = null) {
+  this.estado_viaje = 'cancelado';
   if (motivo) {
     this.notas = this.notas ? `${this.notas}. Cancelado: ${motivo}` : `Cancelado: ${motivo}`;
   }
   return this.save();
 };
 
-// ✅ Métodos estáticos
-Viaje.buscarViagesCercanos = function(lat, lon, radioKm = 10) {
-  const { Op } = require('sequelize');
-  
+Viaje.prototype.getDuracionMinutos = function () {
+  if (this.fecha_inicio && this.fecha_fin) {
+    return Math.round((this.fecha_fin - this.fecha_inicio) / (1000 * 60));
+  }
+  return null;
+};
+
+// Método estático para buscar viajes cercanos
+Viaje.buscarViagesCercanos = function (lat, lon, radioKm = 10) {
   const latMin = lat - (radioKm / 111);
   const latMax = lat + (radioKm / 111);
   const lonMin = lon - (radioKm / (111 * Math.cos(lat * Math.PI / 180)));
@@ -158,23 +136,11 @@ Viaje.buscarViagesCercanos = function(lat, lon, radioKm = 10) {
 
   return this.findAll({
     where: {
-      lat_origen: {
-        [Op.between]: [latMin, latMax]
-      },
-      lon_origen: {
-        [Op.between]: [lonMin, lonMax]
-      },
-      estado: 'pendiente'
-    }
+      lat_origen: { [Op.between]: [latMin, latMax] },
+      lon_origen: { [Op.between]: [lonMin, lonMax] },
+      estado_viaje: 'pendiente',
+    },
   });
-};
-
-// ✅ Getter virtual para duración
-Viaje.prototype.getDuracionMinutos = function() {
-  if (this.fecha_inicio && this.fecha_fin) {
-    return Math.round((this.fecha_fin - this.fecha_inicio) / (1000 * 60));
-  }
-  return null;
 };
 
 module.exports = Viaje;
