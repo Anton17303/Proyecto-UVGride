@@ -32,4 +32,6 @@ export type RootStackParamList = {
 
   // 💡 Necesario para el botón "Programar" en TravelScreen
   ScheduledTripScreen: undefined;
+
+  DriverProfile: {driverId: number};
 };

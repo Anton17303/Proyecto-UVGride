@@ -22,6 +22,7 @@ export default function RootStack() {
     <Stack.Navigator
       screenOptions={{ headerShown: false }}
       key={user ? 'app' : 'auth'}
+      initialRouteName={user ? 'Home' : 'Login'}
     >
       {user ? (
         <Stack.Group>
@@ -32,6 +33,7 @@ export default function RootStack() {
           <Stack.Screen name="TripFormScreen" component={TripFormScreen} />
           <Stack.Screen name="VehicleForm" component={VehicleFormScreen} />
           <Stack.Screen name="ScheduledTripScreen" component={ScheduledTripScreen} />
+          {/* 👇 Detalle del conductor */}
           <Stack.Screen name="DriverProfile" component={DriverProfileScreen} />
         </Stack.Group>
       ) : (

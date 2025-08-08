@@ -5,6 +5,7 @@ import HomeScreen from "../screens/HomeScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import TravelStack from "./TravelStack";
 import DriverTripScreen from "../screens/DriverTripScreen";
+import DriverScreen from "../screens/DriverScreen";
 import { CommonActions } from "@react-navigation/native";
 import { useUser } from "../context/UserContext";
 
@@ -12,7 +13,8 @@ export type BottomTabParamList = {
   Inicio: undefined;
   Viaje: undefined;
   Perfil: undefined;
-  Conductores?: undefined;
+  Conductores?: undefined; // para pasajeros
+  MisViajes?: undefined;   // para conductores
 };
 
 const Tab = createBottomTabNavigator<BottomTabParamList>();
@@ -20,12 +22,12 @@ const Tab = createBottomTabNavigator<BottomTabParamList>();
 export default function BottomTabs() {
   const { user } = useUser();
 
-  // 👇 Corrige aquí: compara con "conductor" en minúsculas
   const esConductor = user?.tipo_usuario?.toLowerCase() === "conductor";
+  const esPasajero = user?.tipo_usuario?.toLowerCase() === "pasajero";
 
   return (
     <Tab.Navigator
-      key={user?.id} // 👈 fuerza re-render si el usuario cambia
+      key={user?.id}
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarShowLabel: true,
@@ -38,6 +40,7 @@ export default function BottomTabs() {
           else if (route.name === "Viaje") iconName = "airplane-outline";
           else if (route.name === "Perfil") iconName = "person-outline";
           else if (route.name === "Conductores") iconName = "car-outline";
+          else if (route.name === "MisViajes") iconName = "list-outline";
 
           return <Ionicons name={iconName} size={size} color={color} />;
         },
@@ -61,9 +64,14 @@ export default function BottomTabs() {
         })}
       />
 
-      {/* ✅ Solo aparece si el usuario es conductor */}
+      {/* ✅ Solo para pasajeros */}
+      {esPasajero && (
+        <Tab.Screen name="Conductores" component={DriverScreen} />
+      )}
+
+      {/* ✅ Solo para conductores */}
       {esConductor && (
-        <Tab.Screen name="Conductores" component={DriverTripScreen} />
+        <Tab.Screen name="MisViajes" component={DriverTripScreen} />
       )}
 
       <Tab.Screen name="Perfil" component={ProfileScreen} />
