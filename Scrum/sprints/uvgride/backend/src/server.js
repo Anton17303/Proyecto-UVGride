@@ -16,6 +16,7 @@ const viajeRoutes = require('./routes/viaje.routes');
 const favoriteRoutes = require('./routes/favorite.routes');
 const vehicleRoutes = require('./routes/vehicle.routes');
 const pagoRoutes = require('./routes/pago.routes');
+const driverRoutes = require('./routes/driver.routes');
 
 // Prefijo para rutas de la API
 app.use('/api/auth', authRoutes);
@@ -24,6 +25,7 @@ app.use('/api/viajes', viajeRoutes);
 app.use('/api/favoritos', favoriteRoutes);
 app.use('/api/vehiculos', vehicleRoutes);
 app.use('/api/pagos', pagoRoutes);
+app.use('/api', driverRoutes);
 
 // Ruta raíz
 app.get('/', (req, res) => {
