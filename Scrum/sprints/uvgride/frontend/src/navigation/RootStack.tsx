@@ -9,6 +9,7 @@ import VehicleFormScreen from '../screens/VehicleFormScreen';
 import TravelScreen from '../screens/TravelScreen';
 import TripFormScreen from '../screens/TripFormScreen';
 import ScheduledTripScreen from '../screens/ScheduledTripScreen';
+import DriverProfileScreen from '../screens/DriverProfileScreen';
 import { useUser } from '../context/UserContext';
 import { RootStackParamList } from './type';
 
@@ -31,6 +32,7 @@ export default function RootStack() {
           <Stack.Screen name="TripFormScreen" component={TripFormScreen} />
           <Stack.Screen name="VehicleForm" component={VehicleFormScreen} />
           <Stack.Screen name="ScheduledTripScreen" component={ScheduledTripScreen} />
+          <Stack.Screen name="DriverProfile" component={DriverProfileScreen} />
         </Stack.Group>
       ) : (
         <Stack.Group>
