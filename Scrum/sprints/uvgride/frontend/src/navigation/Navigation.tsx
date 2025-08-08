@@ -9,19 +9,32 @@ import TravelScreen from '../screens/TravelScreen';
 import TripFormScreen from '../screens/TripFormScreen';
 import FavoriteScreen from '../screens/FavoriteScreen';
 import AddFavoriteScreen from '../screens/AddFavoriteScreen';
+import ScheduledTripScreen from '../screens/ScheduledTripScreen';
+import VehicleFormScreen from '../screens/VehicleFormScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function Navigation() {
   return (
     <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
+      {/* Auth */}
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Register" component={RegisterScreen} />
+
+      {/* App */}
       <Stack.Screen name="Home" component={BottomTabs} />
+
+      {/* Viajes */}
       <Stack.Screen name="Travel" component={TravelScreen} />
-      <Stack.Screen name="FavoriteScreen" component={FavoriteScreen}/>
-      <Stack.Screen name="AddFavoriteScreen" component={AddFavoriteScreen} />
-    
+      <Stack.Screen name="TripFormScreen" component={TripFormScreen} />
+      <Stack.Screen name="ScheduledTripScreen" component={ScheduledTripScreen} />
+
+      {/* Favoritos (nombres alineados con el type) */}
+      <Stack.Screen name="Favorite" component={FavoriteScreen} />
+      <Stack.Screen name="AddFavorite" component={AddFavoriteScreen} />
+
+      {/* Vehículos (si lo usas desde Perfil) */}
+      <Stack.Screen name="VehicleForm" component={VehicleFormScreen} />
     </Stack.Navigator>
   );
 }

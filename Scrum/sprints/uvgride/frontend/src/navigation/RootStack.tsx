@@ -8,31 +8,9 @@ import RegisterScreen from '../screens/RegisterScreen';
 import VehicleFormScreen from '../screens/VehicleFormScreen';
 import TravelScreen from '../screens/TravelScreen';
 import TripFormScreen from '../screens/TripFormScreen';
+import ScheduledTripScreen from '../screens/ScheduledTripScreen';
 import { useUser } from '../context/UserContext';
-
-// Define el tipo de rutas del stack
-export type RootStackParamList = {
-  Home: undefined;
-  Login: undefined;
-  Register: undefined;
-  Favorite: undefined;
-  AddFavorite: undefined;
-  VehicleForm: undefined;
-  Travel: {
-    origin: string;
-    latitude: number;
-    longitude: number;
-    destination: string;
-    destinationLatitude: number;
-    destinationLongitude: number;
-  };
-  TripFormScreen: {
-    origin: string;
-    latitude: number;
-    longitude: number;
-    destinationName?: string;
-  };
-};
+import { RootStackParamList } from './type';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -40,26 +18,25 @@ export default function RootStack() {
   const { user } = useUser();
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator
+      screenOptions={{ headerShown: false }}
+      key={user ? 'app' : 'auth'}
+    >
       {user ? (
-        <>
-          {/* 👇 Esto fuerza que BottomTabs se re-renderice cuando cambia el usuario */}
-          <Stack.Screen
-            name="Home"
-            component={BottomTabs}
-            key={user?.id} // 👈 esto es importante
-          />
+        <Stack.Group>
+          <Stack.Screen name="Home" component={BottomTabs} />
           <Stack.Screen name="Favorite" component={FavoriteScreen} />
           <Stack.Screen name="AddFavorite" component={AddFavoriteScreen} />
           <Stack.Screen name="Travel" component={TravelScreen} />
           <Stack.Screen name="TripFormScreen" component={TripFormScreen} />
           <Stack.Screen name="VehicleForm" component={VehicleFormScreen} />
-        </>
+          <Stack.Screen name="ScheduledTripScreen" component={ScheduledTripScreen} />
+        </Stack.Group>
       ) : (
-        <>
+        <Stack.Group>
           <Stack.Screen name="Login" component={LoginScreen} />
           <Stack.Screen name="Register" component={RegisterScreen} />
-        </>
+        </Stack.Group>
       )}
     </Stack.Navigator>
   );

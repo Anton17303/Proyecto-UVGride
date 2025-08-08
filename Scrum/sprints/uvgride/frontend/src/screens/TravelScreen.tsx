@@ -13,6 +13,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/core';
 import axios from 'axios';
 import * as Location from 'expo-location';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+
 import { RootStackParamList } from '../navigation/type';
 import { useTheme } from '../context/ThemeContext';
 import { lightColors, darkColors } from '../constants/colors';
@@ -124,6 +126,7 @@ export default function TravelScreen() {
       }
     };
     setup();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleMapPress = (event: MapPressEvent) => {
@@ -144,8 +147,23 @@ export default function TravelScreen() {
     });
   };
 
+  // ✅ Cambiado para abrir la lista de viajes programados
+  const goToScheduledList = () => {
+    navigation.navigate('ScheduledTripScreen');
+  };
+
   return (
     <View style={styles.container}>
+      {/* Botón flotante arriba-izquierda: calendario */}
+      <TouchableOpacity
+        onPress={goToScheduledList}
+        style={[styles.calendarBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="calendar-outline" size={20} color={colors.text} />
+        <Text style={[styles.calendarText, { color: colors.text }]}>Programados</Text>
+      </TouchableOpacity>
+
       <MapView
         style={styles.map}
         region={region}
@@ -209,6 +227,26 @@ export default function TravelScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { flex: 1 },
+
+  // Botón flotante de calendario (arriba-izquierda)
+  calendarBtn: {
+    position: 'absolute',
+    top: 50,
+    left: 16,
+    zIndex: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  calendarText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+
   startButton: {
     position: 'absolute',
     bottom: 40,
@@ -219,6 +257,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   buttonText: { color: '#fff', fontWeight: 'bold' },
+
   zoomContainer: {
     position: 'absolute',
     top: 100,
@@ -229,6 +268,7 @@ const styles = StyleSheet.create({
   },
   zoomButton: { padding: 10 },
   zoomText: { fontSize: 24, fontWeight: 'bold' },
+
   modalOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#00000077',
@@ -240,8 +280,5 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
   },
-  modalText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  modalText: { fontSize: 16, fontWeight: '600' },
 });

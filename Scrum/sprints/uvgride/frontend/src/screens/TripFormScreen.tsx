@@ -46,11 +46,12 @@ export default function TripFormScreen() {
   const [loading, setLoading] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
 
-  // Programación
+  // Estado para viajes programados
   const [isScheduled, setIsScheduled] = useState(false);
   const [scheduledAt, setScheduledAt] = useState<Date>(new Date());
   const [showPicker, setShowPicker] = useState<"date" | "time" | null>(null);
 
+  // 📌 Obtener ubicación inicial
   useEffect(() => {
     const fetchLocation = async () => {
       if (latitude != null && longitude != null) {
@@ -76,81 +77,79 @@ export default function TripFormScreen() {
     fetchLocation();
   }, [latitude, longitude]);
 
+  // 📌 Validación fecha programada
   const validateScheduledAt = (dt: Date) => {
     const now = new Date();
-    const min = new Date(now.getTime() + 2 * 60 * 1000); // >= 2 minutos
+    const min = new Date(now.getTime() + 2 * 60 * 1000); // 2 minutos adelante
     return dt.getTime() >= min.getTime();
-  };
-
-  const handlePick = (_: any, selected?: Date) => {
-    setShowPicker(null);
-    if (selected) setScheduledAt(selected);
   };
 
   const handleCreateTrip = async () => {
     const trimmedDest = destination.trim();
 
+    // Validaciones generales
     if (!trimmedDest) {
-      Alert.alert("Destino requerido", "Por favor ingresa un destino válido.");
-      return;
+      return Alert.alert("Destino requerido", "Por favor ingresa un destino válido.");
     }
     if (!user?.id) {
-      Alert.alert("Error", "Usuario no autenticado.");
-      return;
+      return Alert.alert("Error", "Usuario no autenticado.");
     }
-    if (!coords) {
-      Alert.alert("Ubicación faltante", "No se pudo determinar tu ubicación.");
-      return;
+
+    // Validaciones específicas
+    if (!isScheduled && !coords) {
+      return Alert.alert("Ubicación faltante", "No se pudo determinar tu ubicación.");
     }
     if (isScheduled && !validateScheduledAt(scheduledAt)) {
-      Alert.alert(
+      return Alert.alert(
         "Fecha inválida",
         "El viaje programado debe ser al menos 2 minutos en el futuro."
       );
-      return;
     }
 
     setLoading(true);
     try {
-      // Geocodificar destino
-      const geoUrl = `https://api.openrouteservice.org/geocode/search?api_key=5b3ce3597851110001cf62486825133970f449ebbc374649ee03b5eb&text=${encodeURIComponent(
-        trimmedDest
-      )}`;
-      const { data: geoData } = await axios.get(geoUrl);
+      let lat = null;
+      let lng = null;
 
-      if (!geoData.features?.length) {
-        Alert.alert("Destino no encontrado", "No se pudo localizar el destino.");
-        return;
+      // Si el viaje NO es programado → geocodificamos y pedimos coords exactas
+      if (!isScheduled) {
+        const geoUrl = `https://api.openrouteservice.org/geocode/search?api_key=5b3ce3597851110001cf62486825133970f449ebbc374649ee03b5eb&text=${encodeURIComponent(
+          trimmedDest
+        )}`;
+        const { data: geoData } = await axios.get(geoUrl);
+
+        if (!geoData.features?.length) {
+          return Alert.alert("Destino no encontrado", "No se pudo localizar el destino.");
+        }
+
+        [lng, lat] = geoData.features[0].geometry.coordinates;
       }
 
-      const [lng, lat] = geoData.features[0].geometry.coordinates;
-
-      // Payload que espera tu backend
+      // 📌 Construir payload para el backend
       const tripData: any = {
         origen: origin,
         destino: trimmedDest,
-        lat_origen: coords.lat,
-        lon_origen: coords.lon,
+        lat_origen: coords?.lat ?? null,
+        lon_origen: coords?.lon ?? null,
         lat_destino: lat,
         lon_destino: lng,
         costo_total: 10.0,
-        id_usuario: user.id,          // <- el controller lo mapea a usuario_id
-        es_programado: !!isScheduled, // <- flag esperado en tu modelo
+        id_usuario: user.id,
+        es_programado: isScheduled,
       };
 
       if (isScheduled) {
-        // tu modelo no tiene fecha_programada, usamos fecha_inicio como programación
-        tripData.fecha_inicio = scheduledAt.toISOString();
+        tripData.fecha_programada = scheduledAt.toISOString();
       }
 
       const { data } = await axios.post(`${API_URL}/api/viajes/crear`, tripData);
 
       const created = data?.viaje;
       if (!created) {
-        Alert.alert("Error", "No se pudo guardar el viaje en el servidor.");
-        return;
+        return Alert.alert("Error", "No se pudo guardar el viaje en el servidor.");
       }
 
+      // 📌 Navegación
       if (isScheduled) {
         Alert.alert(
           "Viaje programado",
@@ -158,15 +157,14 @@ export default function TripFormScreen() {
           [{ text: "OK", onPress: () => navigation.goBack() }]
         );
       } else {
-        // viaje inmediato → ir al mapa
         navigation.dispatch(
           CommonActions.navigate({
             name: "TravelScreen",
             params: {
-              latitude: coords.lat,
-              longitude: coords.lon,
-              destinationLatitude: lat,
-              destinationLongitude: lng,
+              latitude: coords!.lat,
+              longitude: coords!.lon,
+              destinationLatitude: lat!,
+              destinationLongitude: lng!,
             },
           })
         );
@@ -190,7 +188,7 @@ export default function TripFormScreen() {
       <Text style={[styles.label, { color: colors.text }]}>Origen</Text>
       <Text style={[styles.value, { color: colors.text }]}>{origin}</Text>
 
-      {coords && (
+      {coords && !isScheduled && (
         <>
           <Text style={[styles.label, { color: colors.text }]}>Coordenadas</Text>
           <Text style={[styles.value, { color: colors.text }]}>
@@ -235,7 +233,6 @@ export default function TripFormScreen() {
           <Text style={[styles.labelSmall, { color: colors.text }]}>
             Fecha y hora del viaje
           </Text>
-
           <View style={styles.datetimeRow}>
             <TouchableOpacity
               style={[
