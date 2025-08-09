@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+// src/screens/DriverTripScreen.tsx
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,9 +8,12 @@ import {
   ActivityIndicator,
   Alert,
   SafeAreaView,
+  RefreshControl,
 } from 'react-native';
-import { useUser } from '../context/UserContext';
 import axios from 'axios';
+import { useFocusEffect } from '@react-navigation/native';
+
+import { useUser } from '../context/UserContext';
 import { API_URL } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 import { lightColors, darkColors } from '../constants/colors';
@@ -27,27 +31,38 @@ export default function DriverTripScreen() {
   const { user } = useUser();
   const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const { theme } = useTheme();
   const colors = theme === 'light' ? lightColors : darkColors;
 
-  useEffect(() => {
-    const fetchVehiculos = async () => {
-      if (!user?.id) return;
+  const fetchVehiculos = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      if (!refreshing) setLoading(true);
+      const res = await axios.get(`${API_URL}/api/vehiculos/usuario/${user.id}`);
+      setVehiculos(res.data?.vehiculos ?? []);
+    } catch (error) {
+      console.error('Error cargando vehículos:', error);
+      Alert.alert('Error', 'No se pudieron cargar los vehículos');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [user?.id, refreshing]);
 
-      try {
-        const res = await axios.get(`${API_URL}/api/vehiculos/usuario/${user.id}`);
-        setVehiculos(res.data.vehiculos || []);
-      } catch (error) {
-        console.error('Error cargando vehículos:', error);
-        Alert.alert('Error', 'No se pudieron cargar los vehículos');
-      } finally {
-        setLoading(false);
-      }
-    };
+  // 🔁 Se ejecuta cada vez que la pantalla vuelve a tener foco
+  useFocusEffect(
+    useCallback(() => {
+      fetchVehiculos();
+    }, [fetchVehiculos])
+  );
 
+  // Pull-to-refresh
+  const onRefresh = () => {
+    setRefreshing(true);
     fetchVehiculos();
-  }, [user]);
+  };
 
   const renderVehiculo = ({ item }: { item: Vehiculo }) => (
     <View style={[styles.card, { backgroundColor: colors.card }]}>
@@ -75,9 +90,12 @@ export default function DriverTripScreen() {
       ) : (
         <FlatList
           data={vehiculos}
-          keyExtractor={(item) => item.id_vehiculo.toString()}
+          keyExtractor={(item) => String(item.id_vehiculo)}
           renderItem={renderVehiculo}
           contentContainerStyle={{ paddingBottom: 20 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+          }
         />
       )}
     </SafeAreaView>
