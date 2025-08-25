@@ -19,7 +19,9 @@ import { RootStackParamList } from '../navigation/type';
 import { useTheme } from '../context/ThemeContext';
 import { lightColors, darkColors } from '../constants/colors';
 
-const OPENROUTESERVICE_API_KEY = '5b3ce3597851110001cf62486825133970f449ebbc374649ee03b5eb';
+const OPENROUTESERVICE_API_KEY =
+  '5b3ce3597851110001cf62486825133970f449ebbc374649ee03b5eb';
+
 type TravelRouteProp = RouteProp<RootStackParamList, 'Travel'>;
 
 export default function TravelScreen() {
@@ -40,6 +42,9 @@ export default function TravelScreen() {
   const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
   const [loadingRoute, setLoadingRoute] = useState(false);
   const [routeDrawn, setRouteDrawn] = useState(false);
+
+  // 👇 NEW: resumen de ruta (tiempo/distancia)
+  const [summary, setSummary] = useState<{ durationSec: number; distanceKm: number } | null>(null);
 
   const requestUserLocation = async () => {
     try {
@@ -82,17 +87,31 @@ export default function TravelScreen() {
         }
       );
 
-      const coords = res.data.features[0].geometry.coordinates.map(
+      const feature = res.data?.features?.[0];
+      const coords = feature.geometry.coordinates.map(
         ([lng, lat]: [number, number]) => ({
           latitude: lat,
           longitude: lng,
         })
       );
+
       setRouteCoords(coords);
       setRouteDrawn(true);
+
+      // 👇 NEW: guardar summary (duration en segundos, distance en metros)
+      const sum = feature?.properties?.summary;
+      if (sum) {
+        setSummary({
+          durationSec: Number(sum.duration) || 0,
+          distanceKm: (Number(sum.distance) || 0) / 1000,
+        });
+      } else {
+        setSummary(null);
+      }
     } catch (error) {
       console.error('Error al obtener la ruta:', error);
       Alert.alert('Error', 'No se pudo calcular la ruta');
+      setSummary(null);
     } finally {
       setLoadingRoute(false);
     }
@@ -147,9 +166,15 @@ export default function TravelScreen() {
     });
   };
 
-  // ✅ Cambiado para abrir la lista de viajes programados
   const goToScheduledList = () => {
     navigation.navigate('ScheduledTripScreen');
+  };
+
+  // 👇 NEW: formateador de duración
+  const formatDuration = (sec: number) => {
+    const h = Math.floor(sec / 3600);
+    const m = Math.round((sec % 3600) / 60);
+    return h > 0 ? `${h}h ${m}m` : `${m} min`;
   };
 
   return (
@@ -183,24 +208,40 @@ export default function TravelScreen() {
         />
       </MapView>
 
+      {/* 👇 NEW: Tarjeta con duración y distancia */}
+      {summary && (
+        <View style={[styles.routeInfo, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Ionicons name="time-outline" size={16} color={colors.text} />
+          <Text style={[styles.routeInfoText, { color: colors.text }]}>
+            {formatDuration(summary.durationSec)} · {summary.distanceKm.toFixed(1)} km
+          </Text>
+        </View>
+      )}
+
       <View style={[styles.zoomContainer, { backgroundColor: colors.card }]}>
-        <TouchableOpacity style={styles.zoomButton} onPress={() =>
-          setRegion(prev => ({
-            ...prev,
-            latitudeDelta: prev.latitudeDelta / 2,
-            longitudeDelta: prev.longitudeDelta / 2,
-          }))
-        }>
+        <TouchableOpacity
+          style={styles.zoomButton}
+          onPress={() =>
+            setRegion(prev => ({
+              ...prev,
+              latitudeDelta: prev.latitudeDelta / 2,
+              longitudeDelta: prev.longitudeDelta / 2,
+            }))
+          }
+        >
           <Text style={[styles.zoomText, { color: colors.text }]}>＋</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.zoomButton} onPress={() =>
-          setRegion(prev => ({
-            ...prev,
-            latitudeDelta: prev.latitudeDelta * 2,
-            longitudeDelta: prev.longitudeDelta * 2,
-          }))
-        }>
+        <TouchableOpacity
+          style={styles.zoomButton}
+          onPress={() =>
+            setRegion(prev => ({
+              ...prev,
+              latitudeDelta: prev.latitudeDelta * 2,
+              longitudeDelta: prev.longitudeDelta * 2,
+            }))
+          }
+        >
           <Text style={[styles.zoomText, { color: colors.text }]}>−</Text>
         </TouchableOpacity>
       </View>
@@ -246,6 +287,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
+
+  // 👇 NEW: Tarjeta de info de ruta
+  routeInfo: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    bottom: 100, // queda arriba del botón principal
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    zIndex: 15,
+  },
+  routeInfoText: { fontSize: 14, fontWeight: '600' },
 
   startButton: {
     position: 'absolute',
