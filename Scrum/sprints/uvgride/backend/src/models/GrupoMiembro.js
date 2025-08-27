@@ -5,55 +5,52 @@ const { sequelize } = require('./index');
 const GrupoMiembro = sequelize.define(
   'GrupoMiembro',
   {
-    id_miembro: {
+    id_grupo_miembro: {
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+      field: 'id_grupo_miembro',
     },
-
     id_grupo: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      field: 'id_grupo',
     },
-
     id_usuario: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      field: 'id_usuario',
     },
-
-    // rol dentro del grupo
     rol: {
-      type: DataTypes.ENUM('conductor', 'pasajero'),
+      type: DataTypes.STRING(20),
       allowNull: false,
       defaultValue: 'pasajero',
+      validate: { isIn: [['conductor', 'pasajero']] },
+      field: 'rol',
     },
-
-    // estado de la membresía
-    estado: {
-      type: DataTypes.ENUM('pendiente', 'aceptado', 'rechazado', 'salido'),
+    estado_solicitud: {
+      type: DataTypes.STRING(20),
       allowNull: false,
-      defaultValue: 'aceptado',
+      defaultValue: 'pendiente',
+      validate: { isIn: [['pendiente', 'aprobado', 'rechazado', 'baja']] },
+      field: 'estado_solicitud',
     },
-
-    // Timestamps manuales
-    unido_en: {
+    joined_at: {
       type: DataTypes.DATE,
       allowNull: false,
       defaultValue: DataTypes.NOW,
+      field: 'joined_at',
     },
-    actualizado_en: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: DataTypes.NOW,
-    },
+    // ⚠️ No existe updated_at en la tabla -> NO lo declares aquí
   },
   {
     tableName: 'grupo_miembro',
-    timestamps: false,
+    timestamps: false, // usamos joined_at; no hay updated_at
     indexes: [
       { fields: ['id_grupo'] },
       { fields: ['id_usuario'] },
-      { unique: true, fields: ['id_grupo', 'id_usuario'] },
+      { fields: ['estado_solicitud'] },
+      { unique: true, fields: ['id_grupo', 'id_usuario'] }, // uq_usuario_en_grupo
     ],
   }
 );

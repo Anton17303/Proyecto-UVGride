@@ -1,54 +1,71 @@
+// src/routes/grupo.routes.js
 const express = require('express');
 const router = express.Router();
 const ctrl = require('../controllers/grupo.controller');
 
-/* -----------------------------
-   Helpers de validación simples
------------------------------- */
-const toNumber = (v) => (v === '' || v === null || v === undefined ? NaN : Number(v));
+/* Helpers */
+const isNilOrEmpty = (v) => v === undefined || v === null || v === '';
+const toNumber = (v) => (isNilOrEmpty(v) ? NaN : Number(v));
 const isPosInt = (v) => Number.isInteger(toNumber(v)) && toNumber(v) > 0;
 
+/* -------- Normalizador robusto --------
+   - Trata '' como vacío
+   - Mapea alias (destino_nombre → destino, cupos_totales → capacidad_total, costo_estimado → precio_base)
+   - Castea a número cuando corresponde
+--------------------------------------- */
+const normalizeBody = (req, _res, next) => {
+  const b = { ...(req.body || {}) };
+
+  // destino
+  if (isNilOrEmpty(b.destino) && !isNilOrEmpty(b.destino_nombre)) {
+    b.destino = String(b.destino_nombre).trim();
+  }
+  if (!isNilOrEmpty(b.destino)) {
+    b.destino = String(b.destino).trim();
+  }
+
+  // capacidad_total
+  const rawCap =
+    !isNilOrEmpty(b.capacidad_total) ? b.capacidad_total : b.cupos_totales;
+  b.capacidad_total = isNilOrEmpty(rawCap) ? undefined : toNumber(rawCap);
+
+  // precio_base
+  const rawPrecio =
+    !isNilOrEmpty(b.precio_base) ? b.precio_base : b.costo_estimado;
+  b.precio_base = isNilOrEmpty(rawPrecio) ? undefined : toNumber(rawPrecio);
+
+  // fecha_salida (deja string; el controller la convierte a Date si viene)
+  if (isNilOrEmpty(b.fecha_salida)) delete b.fecha_salida;
+
+  // limpia alias para que no confundan más adelante
+  delete b.destino_nombre;
+  delete b.cupos_totales;
+  delete b.costo_estimado;
+
+  req.body = b;
+  next();
+};
+
+/* Validadores */
 const validateCrearGrupo = (req, res, next) => {
-  const {
-    conductor_id,
-    destino_nombre,
-    cupos_totales,
-    lat_destino,
-    lon_destino,
-    fecha_salida,
-    costo_estimado,
-    // opcionales: notas, lat_origen, lon_origen, etc. si decides soportarlos luego
-  } = req.body || {};
+  const { conductor_id, destino, capacidad_total, fecha_salida, precio_base } =
+    req.body || {};
 
   if (!isPosInt(conductor_id)) {
     return res.status(400).json({ error: 'conductor_id inválido' });
   }
 
-  if (!destino_nombre || !String(destino_nombre).trim()) {
-    return res.status(400).json({ error: 'destino_nombre es requerido' });
+  if (!destino || !String(destino).trim()) {
+    return res.status(400).json({ error: 'destino es requerido' });
   }
 
-  if (!isPosInt(cupos_totales)) {
-    return res.status(400).json({ error: 'cupos_totales debe ser un entero > 0' });
+  if (!Number.isInteger(capacidad_total) || capacidad_total <= 0) {
+    return res
+      .status(400)
+      .json({ error: 'capacidad_total debe ser un entero > 0' });
   }
 
-  // Coordenadas opcionales pero válidas si vienen
-  if (lat_destino != null) {
-    const n = toNumber(lat_destino);
-    if (!Number.isFinite(n) || n < -90 || n > 90) {
-      return res.status(400).json({ error: 'lat_destino inválida' });
-    }
-  }
-
-  if (lon_destino != null) {
-    const n = toNumber(lon_destino);
-    if (!Number.isFinite(n) || n < -180 || n > 180) {
-      return res.status(400).json({ error: 'lon_destino inválida' });
-    }
-  }
-
-  // fecha_salida opcional pero válida
-  if (fecha_salida) {
+  if (!isNilOrEmpty(fecha_salida)) {
     const d = new Date(fecha_salida);
     if (Number.isNaN(d.getTime())) {
       return res
@@ -57,11 +74,9 @@ const validateCrearGrupo = (req, res, next) => {
     }
   }
 
-  // costo_estimado opcional pero numérico
-  if (costo_estimado != null) {
-    const n = toNumber(costo_estimado);
-    if (!Number.isFinite(n) || n < 0) {
-      return res.status(400).json({ error: 'costo_estimado inválido' });
+  if (!isNilOrEmpty(precio_base)) {
+    if (!Number.isFinite(Number(precio_base)) || Number(precio_base) < 0) {
+      return res.status(400).json({ error: 'precio_base inválido' });
     }
   }
 
@@ -72,24 +87,21 @@ const validateIdParam = (req, res, next, id) => {
   if (!isPosInt(id)) {
     return res.status(400).json({ error: 'Parámetro id inválido' });
   }
-  req.grupoId = Number(id); // 👈 útil en controladores
+  req.grupoId = Number(id);
   next();
 };
 
 const validateJoin = (req, res, next) => {
   const { id_usuario, monto_acordado } = req.body || {};
-
   if (!isPosInt(id_usuario)) {
     return res.status(400).json({ error: 'id_usuario inválido' });
   }
-
-  if (monto_acordado != null) {
+  if (!isNilOrEmpty(monto_acordado)) {
     const n = toNumber(monto_acordado);
     if (!Number.isFinite(n) || n < 0) {
       return res.status(400).json({ error: 'monto_acordado inválido' });
     }
   }
-
   next();
 };
 
@@ -107,37 +119,22 @@ const validateCerrar = (req, res, next) => {
     return res.status(400).json({ error: 'conductor_id inválido' });
   }
   if (estado && !['cerrado', 'cancelado'].includes(String(estado))) {
-    return res.status(400).json({ error: 'estado inválido (cerrado|cancelado)' });
+    return res
+      .status(400)
+      .json({ error: 'estado inválido (cerrado|cancelado)' });
   }
   next();
 };
 
-/* -----------------------------
-   Param validator
------------------------------- */
+/* Params */
 router.param('id', validateIdParam);
 
-/* -----------------------------
-   Rutas (todas con paths limpios)
------------------------------- */
-
-// Crear grupo (conductor)
-router.post('/', validateCrearGrupo, ctrl.crearGrupo);
-
-// Listar grupos (por defecto abiertos)
-// Soporta query: ?estado=abierto|en_curso|cerrado|cancelado&?q=texto
+/* Rutas */
+router.post('/', normalizeBody, validateCrearGrupo, ctrl.crearGrupo);
 router.get('/', ctrl.listarGrupos);
-
-// Detalle de grupo + miembros
 router.get('/:id', ctrl.obtenerGrupo);
-
-// Unirse a un grupo (pasajero)
 router.post('/:id/join', validateJoin, ctrl.unirseAGrupo);
-
-// Salir del grupo (miembro no-conductor)
 router.post('/:id/leave', validateLeave, ctrl.salirDeGrupo);
-
-// Cerrar/cancelar grupo (conductor creador)
 router.post('/:id/cerrar', validateCerrar, ctrl.cerrarGrupo);
 
 module.exports = router;

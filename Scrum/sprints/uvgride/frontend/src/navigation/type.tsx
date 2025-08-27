@@ -1,17 +1,20 @@
+// src/navigation/type.ts
 export type RootStackParamList = {
+  // Auth / App root
   Login: undefined;
   Register: undefined;
   Home: undefined;
 
-  // Opcionales (si los usas)
+  // Opcionales
   Profile?: undefined;
   Settings?: undefined;
 
+  // Favoritos / Vehículos
   Favorite: undefined;
   AddFavorite: undefined;
   VehicleForm: undefined;
 
-  // Puedes entrar sin params (desde el tab) o con coords (después de crear viaje)
+  // Viajes
   Travel:
     | undefined
     | {
@@ -25,13 +28,17 @@ export type RootStackParamList = {
 
   TripFormScreen: {
     origin: string;
-    latitude: number | null;   // aceptamos null porque a veces dejas que TripForm resuelva la ubicación
+    latitude: number | null;
     longitude: number | null;
     destinationName?: string;
   };
 
-  // 💡 Necesario para el botón "Programar" en TravelScreen
   ScheduledTripScreen: undefined;
 
-  DriverProfile: {driverId: number};
+  // Conductores
+  DriverProfile: { driverId: number };
+
+  // 🚀 Grupos
+  GroupDetail: { groupId: number }; // detalle de un grupo
+  GroupCreate: undefined;           // formulario para crear grupo (conductor)
 };

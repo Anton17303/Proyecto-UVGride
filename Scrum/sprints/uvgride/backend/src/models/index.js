@@ -1,4 +1,5 @@
-const { Sequelize } = require('sequelize');
+// src/models/index.js
+const { Sequelize, Op } = require('sequelize');
 
 const sequelize = new Sequelize(
   process.env.DB_NAME || 'uvgride',
@@ -17,20 +18,25 @@ const sequelize = new Sequelize(
   }
 );
 
+// Exporta la instancia primero (evita ciclos de require)
 module.exports.sequelize = sequelize;
 
+/* ---------------- Modelos ---------------- */
 const Usuario = require('./Usuario');
 const Vehiculo = require('./Vehiculo');
 const GrupoViaje = require('./GrupoViaje');
 const GrupoMiembro = require('./GrupoMiembro');
 
+// Viaje es opcional (tu proyecto lo puede o no tener)
 let Viaje = null;
 try {
   Viaje = require('./Viaje');
-} catch (e) {
+} catch {
   Viaje = null;
 }
 
+/* ---------------- Asociaciones ---------------- */
+// Usuario ↔ Vehiculo
 Usuario.hasMany(Vehiculo, {
   foreignKey: 'id_usuario',
   as: 'vehiculos',
@@ -44,6 +50,7 @@ Vehiculo.belongsTo(Usuario, {
   onUpdate: 'CASCADE',
 });
 
+// GrupoViaje ↔ Usuario (conductor)
 GrupoViaje.belongsTo(Usuario, {
   as: 'conductor',
   foreignKey: 'conductor_id',
@@ -55,6 +62,7 @@ Usuario.hasMany(GrupoViaje, {
   foreignKey: 'conductor_id',
 });
 
+// GrupoViaje ↔ Viaje (opcional)
 if (Viaje) {
   GrupoViaje.belongsTo(Viaje, {
     as: 'viaje',
@@ -64,6 +72,7 @@ if (Viaje) {
   });
 }
 
+// GrupoViaje ↔ GrupoMiembro ↔ Usuario
 GrupoViaje.hasMany(GrupoMiembro, {
   as: 'miembros',
   foreignKey: 'id_grupo',
@@ -86,24 +95,29 @@ Usuario.hasMany(GrupoMiembro, {
   foreignKey: 'id_usuario',
 });
 
+/* ---------------- Scopes útiles ---------------- */
+// Case-insensitive por consistencia con los controladores
 Usuario.addScope('conductoresConVehiculos', {
-  where: { tipo_usuario: 'Conductor' },
+  where: { tipo_usuario: { [Op.iLike]: 'conductor' } },
   include: [{ model: Vehiculo, as: 'vehiculos', required: true }],
 });
 
+/* ---------------- Exports ---------------- */
 module.exports.Usuario = Usuario;
 module.exports.Vehiculo = Vehiculo;
 module.exports.GrupoViaje = GrupoViaje;
 module.exports.GrupoMiembro = GrupoMiembro;
 if (Viaje) module.exports.Viaje = Viaje;
 
+/* ---------------- Init DB ---------------- */
 module.exports.initDB = async () => {
   try {
     await sequelize.authenticate();
     console.log('✅ Conexión a la base de datos establecida correctamente.');
 
+    // Solo en desarrollo si lo necesitas:
     if (process.env.SYNC_DB === 'true') {
-      await sequelize.sync({ alter: true });
+      await sequelize.sync({ alter: true }); // ¡no uses force en prod!
       console.log('🛠️  Modelos sincronizados (alter=true)');
     }
   } catch (error) {

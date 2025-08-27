@@ -1,97 +1,124 @@
-// src/screens/DriverTripScreen.tsx
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   ActivityIndicator,
+  FlatList,
+  RefreshControl,
+  TouchableOpacity,
   Alert,
   SafeAreaView,
-  RefreshControl,
 } from 'react-native';
-import axios from 'axios';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 
-import { useUser } from '../context/UserContext';
-import { API_URL } from '../services/api';
+import { RootStackParamList } from '../navigation/type';
+import { listGroups, Grupo } from '../services/groups';
 import { useTheme } from '../context/ThemeContext';
 import { lightColors, darkColors } from '../constants/colors';
+import { useUser } from '../context/UserContext';
 
-type Vehiculo = {
-  id_vehiculo: number;
-  marca: string;
-  modelo: string;
-  placa: string;
-  color: string;
-  capacidad_pasajeros: number;
-};
+type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export default function DriverTripScreen() {
-  const { user } = useUser();
-  const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
+  const navigation = useNavigation<Nav>();
   const { theme } = useTheme();
   const colors = theme === 'light' ? lightColors : darkColors;
+  const { user } = useUser();
 
-  const fetchVehiculos = useCallback(async () => {
-    if (!user?.id) return;
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [grupos, setGrupos] = useState<Grupo[]>([]);
+
+  const fetchData = useCallback(async () => {
     try {
-      if (!refreshing) setLoading(true);
-      const res = await axios.get(`${API_URL}/api/vehiculos/usuario/${user.id}`);
-      setVehiculos(res.data?.vehiculos ?? []);
-    } catch (error) {
-      console.error('Error cargando vehículos:', error);
-      Alert.alert('Error', 'No se pudieron cargar los vehículos');
+      setLoading(true);
+      // puedes filtrar por estado si quieres: { estado: 'abierto' }
+      const data = await listGroups();
+      setGrupos(data);
+    } catch (e: any) {
+      console.error(e);
+      Alert.alert('Error', e?.response?.data?.error || 'No se pudieron cargar los grupos');
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
-  }, [user?.id, refreshing]);
+  }, []);
 
-  // 🔁 Se ejecuta cada vez que la pantalla vuelve a tener foco
+  // ✅ Se ejecuta cada vez que la screen recupera el foco (después de crear un grupo)
   useFocusEffect(
     useCallback(() => {
-      fetchVehiculos();
-    }, [fetchVehiculos])
+      fetchData();
+    }, [fetchData])
   );
 
-  // Pull-to-refresh
-  const onRefresh = () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    fetchVehiculos();
-  };
+    await fetchData();
+    setRefreshing(false);
+  }, [fetchData]);
 
-  const renderVehiculo = ({ item }: { item: Vehiculo }) => (
-    <View style={[styles.card, { backgroundColor: colors.card }]}>
-      <Text style={[styles.cardTitle, { color: colors.primary }]}>
-        {item.marca} {item.modelo}
-      </Text>
-      <Text style={{ color: colors.text }}>Placa: {item.placa}</Text>
-      <Text style={{ color: colors.text }}>Color: {item.color}</Text>
-      <Text style={{ color: colors.text }}>
-        Capacidad: {item.capacidad_pasajeros} pasajero(s)
-      </Text>
-    </View>
-  );
+  const renderItem = ({ item }: { item: Grupo }) => {
+    const v = item.conductor?.vehiculos?.[0];
+    const nombreConductor = `${item.conductor?.nombre ?? ''} ${item.conductor?.apellido ?? ''}`.trim();
+    return (
+      <View style={[styles.card, { backgroundColor: colors.card }]}>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('DriverProfile', { driverId: item.conductor_id })}
+        >
+          <Text style={[styles.cardTitle, { color: colors.primary }]} numberOfLines={1}>
+            {nombreConductor || 'Conductor'}
+          </Text>
+        </TouchableOpacity>
+
+        {v && (
+          <Text style={{ color: colors.text, marginBottom: 2 }}>
+            Vehículo: {v.marca} {v.modelo} · {v.placa}
+          </Text>
+        )}
+
+        <Text style={{ color: colors.text, marginBottom: 2 }}>
+          Destino: {item.viaje?.destino ?? item.destino_nombre ?? '—'}
+        </Text>
+
+        <Text style={{ color: colors.text, marginBottom: 2 }}>
+          Cupos: {item.cupos_disponibles ?? 0} / {item.cupos_totales ?? item.capacidad_total ?? '—'}
+        </Text>
+
+        <Text style={{ color: colors.text, marginBottom: 8 }}>
+          Salida: {item.viaje?.fecha_inicio ?? item.fecha_salida ?? 'Por definir'}
+        </Text>
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <Text style={[styles.title, { color: colors.text }]}>Mis Vehículos</Text>
+      <View style={styles.headerRow}>
+        <Text style={[styles.title, { color: colors.text }]}>Mis viajes (grupos)</Text>
+        <TouchableOpacity
+          onPress={() => {
+            if (!user?.id) return Alert.alert('Sesión', 'Inicia sesión.');
+            navigation.navigate('GroupCreate');
+          }}
+          style={[styles.createBtn, { backgroundColor: colors.primary }]}
+        >
+          <Text style={styles.createBtnText}>Crear grupo</Text>
+        </TouchableOpacity>
+      </View>
 
       {loading ? (
         <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 30 }} />
-      ) : vehiculos.length === 0 ? (
+      ) : grupos.length === 0 ? (
         <Text style={[styles.noDataText, { color: colors.text }]}>
-          No tienes vehículos registrados.
+          No hay grupos disponibles.
         </Text>
       ) : (
         <FlatList
-          data={vehiculos}
-          keyExtractor={(item) => String(item.id_vehiculo)}
-          renderItem={renderVehiculo}
+          data={grupos}
+          keyExtractor={(item) => String(item.id_grupo)}
+          renderItem={renderItem}
           contentContainerStyle={{ paddingBottom: 20 }}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
@@ -104,17 +131,11 @@ export default function DriverTripScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  noDataText: {
-    textAlign: 'center',
-    marginTop: 30,
-    fontSize: 16,
-  },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  title: { fontSize: 20, fontWeight: '800' },
+  createBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10 },
+  createBtnText: { color: '#fff', fontWeight: '700' },
+  noDataText: { textAlign: 'center', marginTop: 30, fontSize: 16 },
   card: {
     padding: 16,
     borderRadius: 14,
@@ -125,9 +146,5 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
   },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
+  cardTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 6 },
 });

@@ -9,96 +9,71 @@ const GrupoViaje = sequelize.define(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+      field: 'id_grupo',
     },
-
-    // Conductor que crea el grupo
+    id_viaje_maestro: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      field: 'id_viaje_maestro',
+      unique: 'uq_grupo_por_viaje',
+    },
     conductor_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      field: 'conductor_id',
     },
-
-    // Vehículo usado
-    id_vehiculo: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-    },
-
-    // Ubicaciones
-    origen: {
-      type: DataTypes.STRING(255),
-      allowNull: false,
-    },
-    destino: {
-      type: DataTypes.STRING(255),
-      allowNull: false,
-    },
-    lat_origen: {
-      type: DataTypes.DECIMAL(9, 6),
-      allowNull: true,
-    },
-    lon_origen: {
-      type: DataTypes.DECIMAL(9, 6),
-      allowNull: true,
-    },
-    lat_destino: {
-      type: DataTypes.DECIMAL(9, 6),
-      allowNull: true,
-    },
-    lon_destino: {
-      type: DataTypes.DECIMAL(9, 6),
-      allowNull: true,
-    },
-
-    // Capacidad
-    cupos_totales: {
+    capacidad_total: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      defaultValue: 4,
+      field: 'capacidad_total',
+      validate: {
+        isInt: true,
+        min: 1,
+      },
     },
-    cupos_disponibles: {
-      type: DataTypes.INTEGER,
+    precio_base: {
+      type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
-      defaultValue: 4,
+      defaultValue: 0,
+      field: 'precio_base',
+      validate: {
+        min: 0,
+      },
     },
-
-    // Horarios
-    fecha_salida: {
-      type: DataTypes.DATE,
-      allowNull: true,
-    },
-
-    // Estado del grupo
-    estado: {
-      type: DataTypes.ENUM('abierto', 'en_curso', 'cerrado', 'cancelado'),
+    estado_grupo: {
+      type: DataTypes.STRING(20),
       allowNull: false,
       defaultValue: 'abierto',
-    },
-
-    // Metadatos
-    precio_compartido: {
-      type: DataTypes.DECIMAL(10, 2),
-      allowNull: true,
+      field: 'estado_grupo',
+      validate: { isIn: [['abierto', 'cerrado', 'cancelado', 'finalizado']] },
     },
     notas: {
       type: DataTypes.TEXT,
       allowNull: true,
+      field: 'notas',
     },
-
-    // Timestamps manuales
-    creado_en: {
+    created_at: {
       type: DataTypes.DATE,
       allowNull: false,
       defaultValue: DataTypes.NOW,
+      field: 'created_at',
     },
-    actualizado_en: {
+    updated_at: {
       type: DataTypes.DATE,
       allowNull: false,
       defaultValue: DataTypes.NOW,
+      field: 'updated_at',
     },
   },
   {
     tableName: 'grupo_viaje',
-    timestamps: false,
+    timestamps: false,       // usamos created_at/updated_at + trigger en SQL
+    // underscored: true,    // opcional; ya mapeas con field
+    indexes: [
+      { fields: ['estado_grupo'] },
+      { fields: ['conductor_id'] },
+      { fields: ['id_viaje_maestro'] },
+    ],
   }
 );
 

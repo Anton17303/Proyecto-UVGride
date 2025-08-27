@@ -1,4 +1,4 @@
--- ================  ESQUEMA BASE  ===================
+-- ======================  ESQUEMA BASE  ======================
 -- Usuarios
 CREATE TABLE IF NOT EXISTS usuario (
   id_usuario SERIAL PRIMARY KEY,
@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS usuario (
   correo_institucional VARCHAR(255) UNIQUE NOT NULL,
   contrasenia VARCHAR(255) NOT NULL,
   telefono VARCHAR(20) NOT NULL,
-  tipo_usuario VARCHAR(255) NOT NULL,
+  tipo_usuario VARCHAR(255) NOT NULL, -- "Pasajero" o "Conductor"
   licencia_conducir VARCHAR(255),
   estado_disponibilidad VARCHAR(255),
   activo BOOLEAN NOT NULL DEFAULT TRUE,
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS viaje_maestro (
   lat_destino DECIMAL(9,6),
   lon_destino DECIMAL(9,6),
   hora_solicitud TIMESTAMP NOT NULL DEFAULT NOW(),
-  fecha_inicio TIMESTAMP,
+  fecha_inicio TIMESTAMP, -- se usa si es programado
   fecha_fin TIMESTAMP,
   costo_total DECIMAL(10,2) NOT NULL,
   distancia_km DECIMAL(8,2),
@@ -219,8 +219,9 @@ CREATE TABLE IF NOT EXISTS seguro_vehiculo (
     ON DELETE CASCADE
 );
 
--- =======================   GRUPOS DE VIAJE   ==========================
--- 0) Función genérica para actualizar updated_at
+-- ===================   GRUPOS DE VIAJE   ===================
+
+-- 0) Función genérica para updated_at
 CREATE OR REPLACE FUNCTION trg_touch_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -250,7 +251,7 @@ CREATE TABLE IF NOT EXISTS grupo_viaje (
     FOREIGN KEY (conductor_id) REFERENCES usuario(id_usuario)
       ON DELETE CASCADE ON UPDATE CASCADE,
 
-  -- Un grupo por viaje (ajusta si quieres permitir varios)
+  -- Un grupo por viaje (ajusta si quieres permitir varios grupos por viaje)
   CONSTRAINT uq_grupo_por_viaje UNIQUE (id_viaje_maestro)
 );
 
@@ -328,7 +329,6 @@ DECLARE
   capacidad INTEGER;
   aprobados INTEGER;
 BEGIN
-  -- Sólo actuar cuando el registro termina en 'aprobado'
   IF NEW.estado_solicitud = 'aprobado' THEN
     SELECT g.capacidad_total,
            COALESCE((
@@ -356,7 +356,9 @@ CREATE TRIGGER grupo_miembro_autoclose
 AFTER INSERT OR UPDATE OF estado_solicitud ON grupo_miembro
 FOR EACH ROW EXECUTE FUNCTION close_group_when_full();
 
--- 5) Vistas útiles para la UI
+-- 5) Vistas para la UI
+DROP VIEW IF EXISTS v_grupos_abiertos;
+DROP VIEW IF EXISTS v_grupos_cards;
 
 -- Vista de grupos abiertos con cupos usados y disponibles
 CREATE OR REPLACE VIEW v_grupos_abiertos AS
@@ -387,8 +389,7 @@ JOIN viaje_maestro v ON v.id_viaje_maestro = g.id_viaje_maestro
 JOIN usuario u        ON u.id_usuario = g.conductor_id
 WHERE g.estado_grupo = 'abierto';
 
--- Vista preparada para “cards”: incluye vehículo “principal” del conductor
--- (tomamos el más reciente por id_vehiculo, ajusta si quieres otra lógica)
+-- Vista “cards”: incluye vehículo “principal” del conductor (más reciente)
 CREATE OR REPLACE VIEW v_grupos_cards AS
 WITH vehiculo_principal AS (
   SELECT DISTINCT ON (ve.id_usuario)
@@ -435,6 +436,6 @@ JOIN usuario u         ON u.id_usuario = g.conductor_id
 LEFT JOIN vehiculo_principal vp ON vp.id_usuario = u.id_usuario
 WHERE g.estado_grupo = 'abierto';
 
--- Índices recomendados adicionales
+-- Índices útiles para consultas por fecha/destino en viajes
 CREATE INDEX IF NOT EXISTS idx_viaje_fecha_inicio ON viaje_maestro(fecha_inicio);
 CREATE INDEX IF NOT EXISTS idx_viaje_destino      ON viaje_maestro(destino);
