@@ -1,35 +1,105 @@
-const { Schema, model } = require('mongoose');
+// src/models/GrupoViaje.js
+const { DataTypes } = require('sequelize');
+const { sequelize } = require('./index');
 
-const LocationSchema = new Schema({
-  lat: { type: Number, required: true },
-  lng: { type: Number, required: true },
-  address: { type: String, required: true }
-}, { _id: false });
+const GrupoViaje = sequelize.define(
+  'GrupoViaje',
+  {
+    id_grupo: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
 
-const TripGroupSchema = new Schema({
-  driverId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-  vehicleId: { type: Schema.Types.ObjectId, ref: 'Vehicle', required: false },
-  origin: { type: LocationSchema, required: true },
-  destination: { type: LocationSchema, required: true },
-  waypoints: { type: [LocationSchema], default: [] },
+    // Conductor que crea el grupo
+    conductor_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
 
-  departureTime: { type: Date, required: true, index: true },
-  seatsTotal: { type: Number, required: true, min: 1 },
-  seatsAvailable: { type: Number, required: true, min: 0 },
+    // Vehículo usado
+    id_vehiculo: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
 
-  pricePerSeat: { type: Number, default: 0 },
-  rules: { type: String, default: '' },
+    // Ubicaciones
+    origen: {
+      type: DataTypes.STRING(255),
+      allowNull: false,
+    },
+    destino: {
+      type: DataTypes.STRING(255),
+      allowNull: false,
+    },
+    lat_origen: {
+      type: DataTypes.DECIMAL(9, 6),
+      allowNull: true,
+    },
+    lon_origen: {
+      type: DataTypes.DECIMAL(9, 6),
+      allowNull: true,
+    },
+    lat_destino: {
+      type: DataTypes.DECIMAL(9, 6),
+      allowNull: true,
+    },
+    lon_destino: {
+      type: DataTypes.DECIMAL(9, 6),
+      allowNull: true,
+    },
 
-  visibility: { type: String, enum: ['PUBLIC', 'PRIVATE'], default: 'PUBLIC' },
-  status: { type: String, enum: ['OPEN', 'CLOSED', 'CANCELLED'], default: 'OPEN', index: true },
+    // Capacidad
+    cupos_totales: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 4,
+    },
+    cupos_disponibles: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 4,
+    },
 
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-}, { versionKey: false });
+    // Horarios
+    fecha_salida: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
 
-TripGroupSchema.pre('save', function(next){
-  this.updatedAt = new Date();
-  next();
-});
+    // Estado del grupo
+    estado: {
+      type: DataTypes.ENUM('abierto', 'en_curso', 'cerrado', 'cancelado'),
+      allowNull: false,
+      defaultValue: 'abierto',
+    },
 
-module.exports = model('TripGroup', TripGroupSchema);
+    // Metadatos
+    precio_compartido: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+    },
+    notas: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+
+    // Timestamps manuales
+    creado_en: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+    },
+    actualizado_en: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+    },
+  },
+  {
+    tableName: 'grupo_viaje',
+    timestamps: false,
+  }
+);
+
+module.exports = GrupoViaje;

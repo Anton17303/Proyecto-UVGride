@@ -1,6 +1,5 @@
 const { Sequelize } = require('sequelize');
 
-// 1) Instancia Sequelize primero (clave para evitar requires circulares)
 const sequelize = new Sequelize(
   process.env.DB_NAME || 'uvgride',
   process.env.DB_USER || 'postgres',
@@ -18,21 +17,26 @@ const sequelize = new Sequelize(
   }
 );
 
-// Exporta sequelize de inmediato (los modelos lo importan desde aquí)
 module.exports.sequelize = sequelize;
 
-// 2) Importa modelos (usan { sequelize } de arriba)
 const Usuario = require('./Usuario');
 const Vehiculo = require('./Vehiculo');
+const GrupoViaje = require('./GrupoViaje');
+const GrupoMiembro = require('./GrupoMiembro');
 
-// 3) Asociaciones en un solo lugar
+let Viaje = null;
+try {
+  Viaje = require('./Viaje');
+} catch (e) {
+  Viaje = null;
+}
+
 Usuario.hasMany(Vehiculo, {
   foreignKey: 'id_usuario',
   as: 'vehiculos',
   onDelete: 'CASCADE',
   onUpdate: 'CASCADE',
 });
-
 Vehiculo.belongsTo(Usuario, {
   foreignKey: 'id_usuario',
   as: 'usuario',
@@ -40,25 +44,66 @@ Vehiculo.belongsTo(Usuario, {
   onUpdate: 'CASCADE',
 });
 
-// 4) Scopes útiles
+GrupoViaje.belongsTo(Usuario, {
+  as: 'conductor',
+  foreignKey: 'conductor_id',
+  onDelete: 'CASCADE',
+  onUpdate: 'CASCADE',
+});
+Usuario.hasMany(GrupoViaje, {
+  as: 'grupos_creados',
+  foreignKey: 'conductor_id',
+});
+
+if (Viaje) {
+  GrupoViaje.belongsTo(Viaje, {
+    as: 'viaje',
+    foreignKey: 'id_viaje_maestro',
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE',
+  });
+}
+
+GrupoViaje.hasMany(GrupoMiembro, {
+  as: 'miembros',
+  foreignKey: 'id_grupo',
+  onDelete: 'CASCADE',
+  onUpdate: 'CASCADE',
+});
+GrupoMiembro.belongsTo(GrupoViaje, {
+  as: 'grupo',
+  foreignKey: 'id_grupo',
+});
+
+GrupoMiembro.belongsTo(Usuario, {
+  as: 'usuario',
+  foreignKey: 'id_usuario',
+  onDelete: 'CASCADE',
+  onUpdate: 'CASCADE',
+});
+Usuario.hasMany(GrupoMiembro, {
+  as: 'grupos_participa',
+  foreignKey: 'id_usuario',
+});
+
 Usuario.addScope('conductoresConVehiculos', {
   where: { tipo_usuario: 'Conductor' },
   include: [{ model: Vehiculo, as: 'vehiculos', required: true }],
 });
 
-// 5) Exporta modelos
 module.exports.Usuario = Usuario;
 module.exports.Vehiculo = Vehiculo;
+module.exports.GrupoViaje = GrupoViaje;
+module.exports.GrupoMiembro = GrupoMiembro;
+if (Viaje) module.exports.Viaje = Viaje;
 
-// 6) Helper para probar conexión / sincronizar en dev
 module.exports.initDB = async () => {
   try {
     await sequelize.authenticate();
     console.log('✅ Conexión a la base de datos establecida correctamente.');
 
-    // SOLO para desarrollo (opcional)
     if (process.env.SYNC_DB === 'true') {
-      await sequelize.sync({ alter: true }); // nunca uses force en prod
+      await sequelize.sync({ alter: true });
       console.log('🛠️  Modelos sincronizados (alter=true)');
     }
   } catch (error) {
