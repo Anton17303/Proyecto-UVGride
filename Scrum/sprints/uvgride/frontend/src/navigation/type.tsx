@@ -35,6 +35,9 @@ export type RootStackParamList = {
 
   ScheduledTripScreen: undefined;
 
+  // Pagos
+  Payment: undefined;
+
   // Conductores
   DriverProfile: { driverId: number };
 
