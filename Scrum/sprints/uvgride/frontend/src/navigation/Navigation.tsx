@@ -11,6 +11,7 @@ import FavoriteScreen from '../screens/FavoriteScreen';
 import AddFavoriteScreen from '../screens/AddFavoriteScreen';
 import ScheduledTripScreen from '../screens/ScheduledTripScreen';
 import VehicleFormScreen from '../screens/VehicleFormScreen';
+import PaymentScreen from '../screens/PaymentScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -32,6 +33,9 @@ export default function Navigation() {
       {/* Favoritos (nombres alineados con el type) */}
       <Stack.Screen name="Favorite" component={FavoriteScreen} />
       <Stack.Screen name="AddFavorite" component={AddFavoriteScreen} />
+
+      {/* Pagos */}
+      <Stack.Screen name="Payment" component={PaymentScreen} />
 
       {/* Vehículos (si lo usas desde Perfil) */}
       <Stack.Screen name="VehicleForm" component={VehicleFormScreen} />

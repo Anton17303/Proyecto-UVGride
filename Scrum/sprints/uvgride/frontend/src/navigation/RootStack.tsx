@@ -12,6 +12,7 @@ import ScheduledTripScreen from '../screens/ScheduledTripScreen';
 import DriverProfileScreen from '../screens/DriverProfileScreen';
 import GroupCreateScreen from '../screens/GroupCreateScreen';
 import { useUser } from '../context/UserContext';
+import PaymentScreen from '../screens/PaymentScreen';
 import { RootStackParamList } from './type';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -35,6 +36,7 @@ export default function RootStack() {
           <Stack.Screen name="VehicleForm" component={VehicleFormScreen} />
           <Stack.Screen name="ScheduledTripScreen" component={ScheduledTripScreen} />
           <Stack.Screen name="GroupCreate" component={GroupCreateScreen} />
+          <Stack.Screen name="Payment" component={PaymentScreen} />
           {/* 👇 Detalle del conductor */}
           <Stack.Screen name="DriverProfile" component={DriverProfileScreen} />
         </Stack.Group>
