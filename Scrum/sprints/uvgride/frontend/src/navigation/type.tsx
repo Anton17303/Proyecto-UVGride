@@ -35,6 +35,9 @@ export type RootStackParamList = {
 
   ScheduledTripScreen: undefined;
 
+  // Pagos
+  Payment: undefined;
+
   // Conductores
   // driverId puede venir como number o string desde params; rateForGroupId es opcional
   DriverProfile: { driverId: number | string; rateForGroupId?: number | string };
