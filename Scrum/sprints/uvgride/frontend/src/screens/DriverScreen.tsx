@@ -1,3 +1,4 @@
+// src/screens/PassengerScreen.tsx
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
@@ -30,11 +31,12 @@ export default function PassengerScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [grupos, setGrupos] = useState<Grupo[]>([]);
+  const [joiningId, setJoiningId] = useState<number | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      // ✅ Mostrar TODOS los grupos; mandamos user_id para recibir es_miembro/es_propietario
+      // Mandamos user_id para recibir es_miembro / es_propietario
       const data = await listGroups(user?.id ? { user_id: Number(user.id) } : undefined);
       setGrupos(data);
     } catch (e: any) {
@@ -57,15 +59,61 @@ export default function PassengerScreen() {
     setRefreshing(false);
   }, [fetchData]);
 
+  // ↓↓↓ join con actualización optimista ↓↓↓
   const onJoin = async (id: number) => {
     try {
       if (!user?.id) return Alert.alert('Sesión', 'Inicia sesión.');
-      await joinGroup(id, { id_usuario: user.id });
+      if (joiningId) return; // evita doble toque
+      setJoiningId(id);
+
+      // 1) actualización optimista local
+      setGrupos((prev) =>
+        prev.map((g) => {
+          if (g.id_grupo !== id) return g;
+          const cuposTotales = Number(g.capacidad_total ?? g.cupos_totales ?? 0);
+          const usados = Number(g.cupos_usados ?? 0);
+          const dispActual =
+            typeof g.cupos_disponibles === 'number'
+              ? g.cupos_disponibles
+              : Math.max(cuposTotales - usados, 0);
+          return {
+            ...g,
+            es_miembro: true, // ahora perteneces a este grupo
+            cupos_disponibles: Math.max(dispActual - 1, 0),
+            cupos_usados: typeof g.cupos_usados === 'number' ? g.cupos_usados + 1 : g.cupos_usados,
+          };
+        })
+      );
+
+      // 2) llamada real
+      await joinGroup(id, { id_usuario: Number(user.id) });
+
+      // 3) feedback y sincronización
       Alert.alert('¡Listo!', 'Te uniste al grupo');
-      fetchData(); // refresca flags es_miembro/es_propietario
+      fetchData();
     } catch (e: any) {
       console.error(e);
+      // Revertir optimismo si falla
+      setGrupos((prev) =>
+        prev.map((g) => {
+          if (g.id_grupo !== id) return g;
+          const cuposTotales = Number(g.capacidad_total ?? g.cupos_totales ?? 0);
+          const usados = Number(g.cupos_usados ?? 0);
+          const dispActual =
+            typeof g.cupos_disponibles === 'number'
+              ? g.cupos_disponibles
+              : Math.max(cuposTotales - usados, 0);
+          return {
+            ...g,
+            es_miembro: false,
+            cupos_disponibles: dispActual + 1,
+            cupos_usados: typeof g.cupos_usados === 'number' ? Math.max(g.cupos_usados - 1, 0) : g.cupos_usados,
+          };
+        })
+      );
       Alert.alert('Error', e?.response?.data?.error || 'No fue posible unirte');
+    } finally {
+      setJoiningId(null);
     }
   };
 
@@ -74,18 +122,14 @@ export default function PassengerScreen() {
     []
   );
 
-  // 🚫 Si ya estoy en algún grupo, bloqueo el resto (pero dejo activo el botón del grupo donde ya estoy)
-  const hasJoinedAny = useMemo(
-    () => grupos.some((g) => g.es_miembro),
-    [grupos]
-  );
+  const hasJoinedAny = useMemo(() => grupos.some((g) => g.es_miembro), [grupos]);
 
   const EstadoBadge = ({ estado }: { estado: Grupo['estado'] }) => {
     const bg =
       estado === 'abierto' ? '#2e7d32' :
       estado === 'cerrado' ? '#616161' :
       estado === 'cancelado' ? '#b71c1c' :
-      '#1565c0'; // finalizado u otros
+      '#1565c0';
     return (
       <View style={[styles.badge, { backgroundColor: bg }]}>
         <Text style={styles.badgeTxt}>{estado.toUpperCase()}</Text>
@@ -99,24 +143,24 @@ export default function PassengerScreen() {
 
     const cuposTotales = Number(item.capacidad_total ?? item.cupos_totales ?? 0);
     const cuposUsados = Number(item.cupos_usados ?? 0);
-    const cuposDisp = Number.isFinite(Number(item.cupos_disponibles))
-      ? Number(item.cupos_disponibles)
-      : Math.max(0, cuposTotales - cuposUsados);
+    const cuposDisp =
+      typeof item.cupos_disponibles === 'number'
+        ? item.cupos_disponibles
+        : Math.max(0, cuposTotales - cuposUsados);
 
-    const isOwner = Boolean(item.es_propietario) || (user?.id != null && Number(user.id) === Number(item.conductor_id));
+    const isOwner =
+      Boolean(item.es_propietario) ||
+      (user?.id != null && Number(user.id) === Number(item.conductor_id));
+
     const isOpen = item.estado === 'abierto';
     const isMemberHere = Boolean(item.es_miembro);
 
-    // Reglas de deshabilitado:
-    // - No hay cupos
-    // - Grupo no está abierto
-    // - Es tu propio grupo
-    // - Ya estás unido en otro grupo distinto (hasJoinedAny && !isMemberHere)
     const disabledJoin =
       isOwner ||
       !isOpen ||
       cuposDisp <= 0 ||
-      (hasJoinedAny && !isMemberHere);
+      (hasJoinedAny && !isMemberHere) ||
+      joiningId === item.id_grupo; // bloquea mientras se envía
 
     const joinLabel = isOwner
       ? 'Tu grupo'
@@ -128,7 +172,11 @@ export default function PassengerScreen() {
       ? 'Sin cupos'
       : hasJoinedAny
       ? 'Unido en otro'
+      : joiningId === item.id_grupo
+      ? 'Uniendo...'
       : 'Unirse';
+
+    const canSeeDetail = isMemberHere || isOwner;
 
     return (
       <View style={[styles.card, { backgroundColor: colors.card }]}>
@@ -166,7 +214,7 @@ export default function PassengerScreen() {
 
         {item.fecha_salida && (
           <Text style={{ color: colors.text, marginBottom: 8 }}>
-            Salida:{' '}
+            Salida{' '}
             {new Date(item.fecha_salida).toLocaleString('es-GT', {
               dateStyle: 'medium',
               timeStyle: 'short',
@@ -174,16 +222,39 @@ export default function PassengerScreen() {
           </Text>
         )}
 
-        <TouchableOpacity
-          onPress={() => onJoin(item.id_grupo)}
-          style={[
-            styles.joinBtn,
-            { backgroundColor: disabledJoin ? '#9e9e9e' : colors.primary },
-          ]}
-          disabled={disabledJoin}
-        >
-          <Text style={styles.joinBtnText}>{joinLabel}</Text>
-        </TouchableOpacity>
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            onPress={() => onJoin(item.id_grupo)}
+            style={[
+              styles.joinBtn,
+              { backgroundColor: disabledJoin ? '#9e9e9e' : colors.primary },
+            ]}
+            disabled={disabledJoin}
+          >
+            <Text style={styles.joinBtnText}>{joinLabel}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => navigation.navigate('GroupDetail', { grupoId: item.id_grupo })} // 👈 param correcto
+            disabled={!canSeeDetail}
+            style={[
+              styles.detailBtn,
+              {
+                borderColor: canSeeDetail ? colors.primary : '#cccccc',
+                opacity: canSeeDetail ? 1 : 0.6,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.detailTxt,
+                { color: canSeeDetail ? colors.primary : '#aaaaaa' },
+              ]}
+            >
+              Ver detalle
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   };
@@ -233,19 +304,18 @@ const styles = StyleSheet.create({
   },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 6, marginRight: 10 },
-  badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    alignSelf: 'flex-start',
-  },
+  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, alignSelf: 'flex-start' },
   badgeTxt: { color: '#fff', fontWeight: '700', fontSize: 12 },
-  joinBtn: {
-    alignSelf: 'flex-start',
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    marginTop: 6,
-  },
+
+  actionsRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
+  joinBtn: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10 },
   joinBtnText: { color: '#fff', fontWeight: '700' },
+
+  detailBtn: {
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 2,
+  },
+  detailTxt: { fontWeight: '800' },
 });

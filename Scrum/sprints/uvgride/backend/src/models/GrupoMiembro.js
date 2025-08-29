@@ -15,11 +15,19 @@ const GrupoMiembro = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: false,
       field: 'id_grupo',
+      validate: { isInt: true, min: 1 },
+      references: { model: 'grupo_viaje', key: 'id_grupo' },
+      onUpdate: 'CASCADE',
+      onDelete: 'CASCADE',
     },
     id_usuario: {
       type: DataTypes.INTEGER,
       allowNull: false,
       field: 'id_usuario',
+      validate: { isInt: true, min: 1 },
+      references: { model: 'usuario', key: 'id_usuario' },
+      onUpdate: 'CASCADE',
+      onDelete: 'CASCADE',
     },
     rol: {
       type: DataTypes.STRING(20),
@@ -59,11 +67,14 @@ const GrupoMiembro = sequelize.define(
       pendientes: { where: { estado_solicitud: 'pendiente' } },
       pasajeros: { where: { rol: 'pasajero' } },
       conductores: { where: { rol: 'conductor' } },
+      // recientes: { order: [['joined_at', 'DESC']] } // alternativa al defaultScope
     },
     hooks: {
       beforeValidate: (m) => {
         if (typeof m.rol === 'string') m.rol = m.rol.trim().toLowerCase();
-        if (typeof m.estado_solicitud === 'string') m.estado_solicitud = m.estado_solicitud.trim().toLowerCase();
+        if (typeof m.estado_solicitud === 'string') {
+          m.estado_solicitud = m.estado_solicitud.trim().toLowerCase();
+        }
       },
     },
   }

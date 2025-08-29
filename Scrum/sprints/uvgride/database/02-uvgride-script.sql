@@ -1,3 +1,6 @@
+-- =========================================
+--  USUARIO (con cache global)
+-- =========================================
 CREATE TABLE IF NOT EXISTS usuario (
   id_usuario SERIAL PRIMARY KEY,
   nombre VARCHAR(255) NOT NULL,
@@ -14,6 +17,9 @@ CREATE TABLE IF NOT EXISTS usuario (
   calif_conductor_count INTEGER NOT NULL DEFAULT 0
 );
 
+-- =========================================
+--  VEHÍCULO
+-- =========================================
 CREATE TABLE IF NOT EXISTS vehiculo (
   id_vehiculo SERIAL PRIMARY KEY,
   id_usuario INT NOT NULL,
@@ -27,6 +33,9 @@ CREATE TABLE IF NOT EXISTS vehiculo (
     ON DELETE CASCADE ON UPDATE CASCADE
 );
 
+-- =========================================
+--  VIAJE MAESTRO
+-- =========================================
 CREATE TABLE IF NOT EXISTS viaje_maestro (
   id_viaje_maestro SERIAL PRIMARY KEY,
   origen VARCHAR(255) NOT NULL,
@@ -58,6 +67,10 @@ CREATE TABLE IF NOT EXISTS viaje_maestro (
     ON DELETE SET NULL ON UPDATE CASCADE
 );
 
+-- =========================================
+--  CALIFICACIÓN POR VIAJE (legacy / histórico)
+--  (NO ACTUALIZA CACHE GLOBAL)
+-- =========================================
 CREATE TABLE IF NOT EXISTS calificacion_maestro (
   id_calificacion_maestro SERIAL PRIMARY KEY,
   id_viaje_maestro INT NOT NULL,
@@ -91,6 +104,57 @@ CREATE TABLE IF NOT EXISTS calificacion_detalle (
   CONSTRAINT chk_calif_detalle_puntuacion CHECK (puntuacion BETWEEN 1 AND 5)
 );
 
+-- Validación de negocio de calificación por viaje (se mantiene)
+CREATE OR REPLACE FUNCTION validate_driver_rating()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+  v_usuario_id INT;
+  v_conductor_id INT;
+  v_estado VARCHAR(255);
+BEGIN
+  SELECT usuario_id, conductor_id, estado_viaje
+  INTO v_usuario_id, v_conductor_id, v_estado
+  FROM viaje_maestro
+  WHERE id_viaje_maestro = NEW.id_viaje_maestro;
+
+  IF NEW.id_usuario IS DISTINCT FROM v_usuario_id THEN
+    RAISE EXCEPTION 'Solo el pasajero del viaje puede calificar';
+  END IF;
+
+  IF NEW.objetivo_usuario_id IS DISTINCT FROM v_conductor_id THEN
+    RAISE EXCEPTION 'Solo puedes calificar al conductor del viaje';
+  END IF;
+
+  IF NEW.id_usuario = NEW.objetivo_usuario_id THEN
+    RAISE EXCEPTION 'No puedes calificarte a ti mismo';
+  END IF;
+
+  IF v_estado NOT IN ('finalizado','completado') THEN
+    RAISE EXCEPTION 'Solo se puede calificar un viaje finalizado';
+  END IF;
+
+  NEW.updated_at := NOW();
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS calif_validate_before ON calificacion_maestro;
+CREATE TRIGGER calif_validate_before
+BEFORE INSERT OR UPDATE OF puntuacion, comentario, objetivo_usuario_id, id_viaje_maestro, id_usuario
+ON calificacion_maestro
+FOR EACH ROW EXECUTE FUNCTION validate_driver_rating();
+
+-- (IMPORTANTE) Elimina triggers de cache del legacy para evitar conflicto con el nuevo flujo simple
+DROP TRIGGER IF EXISTS calif_aiud_cache ON calificacion_maestro;
+DROP FUNCTION IF EXISTS trg_calif_conductor_cache() CASCADE;
+DROP FUNCTION IF EXISTS recalc_conductor_cache(INT) CASCADE;
+
+CREATE INDEX IF NOT EXISTS idx_calif_objetivo ON calificacion_maestro(objetivo_usuario_id);
+CREATE INDEX IF NOT EXISTS idx_calif_viaje ON calificacion_maestro(id_viaje_maestro);
+
+-- =========================================
+--  TARIFAS / PAGO / HISTÓRICO / REPORTES / ETC (sin cambios)
+-- =========================================
 CREATE TABLE IF NOT EXISTS tarifa_maestro (
   id_tarifa_maestro SERIAL PRIMARY KEY,
   tipo_servicio VARCHAR(255) NOT NULL,
@@ -216,6 +280,17 @@ CREATE TABLE IF NOT EXISTS seguro_vehiculo (
     ON DELETE CASCADE
 );
 
+-- =========================================
+--  VIAJE_PASAJERO (sin columna estado)
+-- =========================================
+CREATE TABLE IF NOT EXISTS viaje_pasajero (
+  id_viaje_maestro INT NOT NULL REFERENCES viaje_maestro(id_viaje_maestro) ON DELETE CASCADE,
+  id_usuario INT NOT NULL REFERENCES usuario(id_usuario) ON DELETE CASCADE,
+  created_at TIMESTAMP DEFAULT now(),
+  updated_at TIMESTAMP DEFAULT now(),
+  PRIMARY KEY (id_viaje_maestro, id_usuario)
+);
+
 CREATE OR REPLACE FUNCTION trg_touch_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -224,6 +299,9 @@ BEGIN
 END;
 $$;
 
+-- =========================================
+--  GRUPOS
+-- =========================================
 CREATE TABLE IF NOT EXISTS grupo_viaje (
   id_grupo SERIAL PRIMARY KEY,
   id_viaje_maestro INTEGER NOT NULL,
@@ -275,6 +353,7 @@ CREATE INDEX IF NOT EXISTS idx_miembro_estado ON grupo_miembro(estado_solicitud)
 CREATE INDEX IF NOT EXISTS idx_miembro_grupo ON grupo_miembro(id_grupo);
 CREATE INDEX IF NOT EXISTS idx_miembro_user ON grupo_miembro(id_usuario);
 
+-- Cupos disponibles
 CREATE OR REPLACE FUNCTION check_cupos_disponibles()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE
@@ -305,6 +384,7 @@ CREATE TRIGGER grupo_miembro_check_cupos
 BEFORE INSERT OR UPDATE OF estado_solicitud ON grupo_miembro
 FOR EACH ROW EXECUTE FUNCTION check_cupos_disponibles();
 
+-- Autocerrar cuando se llena
 CREATE OR REPLACE FUNCTION close_group_when_full()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE
@@ -337,6 +417,7 @@ CREATE TRIGGER grupo_miembro_autoclose
 AFTER INSERT OR UPDATE OF estado_solicitud ON grupo_miembro
 FOR EACH ROW EXECUTE FUNCTION close_group_when_full();
 
+-- Vistas auxiliares
 DROP VIEW IF EXISTS v_grupos_abiertos;
 CREATE OR REPLACE VIEW v_grupos_abiertos AS
 SELECT
@@ -416,90 +497,81 @@ WHERE g.estado_grupo = 'abierto';
 CREATE INDEX IF NOT EXISTS idx_viaje_fecha_inicio ON viaje_maestro(fecha_inicio);
 CREATE INDEX IF NOT EXISTS idx_viaje_destino ON viaje_maestro(destino);
 
-CREATE INDEX IF NOT EXISTS idx_calif_objetivo ON calificacion_maestro(objetivo_usuario_id);
-CREATE INDEX IF NOT EXISTS idx_calif_viaje ON calificacion_maestro(id_viaje_maestro);
+-- =========================================
+--  CALIFICACIÓN GLOBAL (flujo simple)
+-- =========================================
+CREATE TABLE IF NOT EXISTS conductor_rating (
+  id_conductor_rating SERIAL PRIMARY KEY,
+  conductor_id INTEGER NOT NULL REFERENCES usuario(id_usuario) ON DELETE CASCADE,
+  pasajero_id  INTEGER NOT NULL REFERENCES usuario(id_usuario) ON DELETE CASCADE,
+  puntuacion   INTEGER NOT NULL CHECK (puntuacion BETWEEN 1 AND 5),
+  comentario   TEXT,
+  created_at   TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at   TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_conductor_pasajero UNIQUE (conductor_id, pasajero_id)
+);
 
-CREATE OR REPLACE FUNCTION validate_driver_rating()
-RETURNS TRIGGER LANGUAGE plpgsql AS $$
-DECLARE
-  v_usuario_id INT;
-  v_conductor_id INT;
-  v_estado VARCHAR(255);
-BEGIN
-  SELECT usuario_id, conductor_id, estado_viaje
-  INTO v_usuario_id, v_conductor_id, v_estado
-  FROM viaje_maestro
-  WHERE id_viaje_maestro = NEW.id_viaje_maestro;
+CREATE INDEX IF NOT EXISTS idx_conductor_rating_conductor ON conductor_rating (conductor_id);
+CREATE INDEX IF NOT EXISTS idx_conductor_rating_pasajero  ON conductor_rating (pasajero_id);
 
-  IF NEW.id_usuario IS DISTINCT FROM v_usuario_id THEN
-    RAISE EXCEPTION 'Solo el pasajero del viaje puede calificar';
-  END IF;
+-- Trigger genérico de updated_at
+DROP TRIGGER IF EXISTS conductor_rating_touch_updated ON conductor_rating;
+CREATE TRIGGER conductor_rating_touch_updated
+BEFORE UPDATE ON conductor_rating
+FOR EACH ROW EXECUTE FUNCTION trg_touch_updated_at();
 
-  IF NEW.objetivo_usuario_id IS DISTINCT FROM v_conductor_id THEN
-    RAISE EXCEPTION 'Solo puedes calificar al conductor del viaje';
-  END IF;
-
-  IF NEW.id_usuario = NEW.objetivo_usuario_id THEN
-    RAISE EXCEPTION 'No puedes calificarte a ti mismo';
-  END IF;
-
-  IF v_estado NOT IN ('finalizado','completado') THEN
-    RAISE EXCEPTION 'Solo se puede calificar un viaje finalizado';
-  END IF;
-
-  NEW.updated_at := NOW();
-  RETURN NEW;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS calif_validate_before ON calificacion_maestro;
-CREATE TRIGGER calif_validate_before
-BEFORE INSERT OR UPDATE OF puntuacion, comentario, objetivo_usuario_id, id_viaje_maestro, id_usuario
-ON calificacion_maestro
-FOR EACH ROW EXECUTE FUNCTION validate_driver_rating();
-
-CREATE OR REPLACE FUNCTION recalc_conductor_cache(p_conductor_id INT)
+-- Recalcular cache global desde conductor_rating
+CREATE OR REPLACE FUNCTION recalc_conductor_cache_simple(p_conductor_id INT)
 RETURNS VOID LANGUAGE plpgsql AS $$
 BEGIN
   UPDATE usuario u
   SET calif_conductor_avg = COALESCE(sub.avg_score, 0),
       calif_conductor_count = COALESCE(sub.cnt, 0)
   FROM (
-    SELECT objetivo_usuario_id AS conductor_id,
+    SELECT conductor_id,
            AVG(puntuacion)::NUMERIC(3,2) AS avg_score,
            COUNT(*) AS cnt
-    FROM calificacion_maestro
-    WHERE objetivo_usuario_id = p_conductor_id
-    GROUP BY objetivo_usuario_id
+    FROM conductor_rating
+    WHERE conductor_id = p_conductor_id
+    GROUP BY conductor_id
   ) sub
-  WHERE u.id_usuario = sub.conductor_id;
+  WHERE u.id_usuario = p_conductor_id;
+
+  -- si no tiene filas, deja 0/0
+  UPDATE usuario
+  SET calif_conductor_avg = 0,
+      calif_conductor_count = 0
+  WHERE id_usuario = p_conductor_id
+    AND NOT EXISTS (SELECT 1 FROM conductor_rating cr WHERE cr.conductor_id = p_conductor_id);
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION trg_calif_conductor_cache()
+-- Trigger AIUD para mantener el cache
+CREATE OR REPLACE FUNCTION trg_conductor_rating_aiud()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE
   target_id INT;
 BEGIN
   IF TG_OP = 'DELETE' THEN
-    target_id := OLD.objetivo_usuario_id;
+    target_id := OLD.conductor_id;
   ELSE
-    target_id := NEW.objetivo_usuario_id;
+    target_id := NEW.conductor_id;
   END IF;
 
   IF target_id IS NOT NULL THEN
-    PERFORM recalc_conductor_cache(target_id);
+    PERFORM recalc_conductor_cache_simple(target_id);
   END IF;
 
   RETURN NULL;
 END;
 $$;
 
-DROP TRIGGER IF EXISTS calif_aiud_cache ON calificacion_maestro;
-CREATE TRIGGER calif_aiud_cache
-AFTER INSERT OR UPDATE OR DELETE ON calificacion_maestro
-FOR EACH ROW EXECUTE FUNCTION trg_calif_conductor_cache();
+DROP TRIGGER IF EXISTS conductor_rating_aiud ON conductor_rating;
+CREATE TRIGGER conductor_rating_aiud
+AFTER INSERT OR UPDATE OR DELETE ON conductor_rating
+FOR EACH ROW EXECUTE PROCEDURE trg_conductor_rating_aiud();
 
+-- Vista de resumen global (lee el cache de usuario)
 DROP VIEW IF EXISTS v_conductor_rating_summary;
 CREATE OR REPLACE VIEW v_conductor_rating_summary AS
 SELECT

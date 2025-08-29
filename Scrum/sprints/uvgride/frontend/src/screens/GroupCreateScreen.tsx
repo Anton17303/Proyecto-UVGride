@@ -1,3 +1,4 @@
+// src/screens/GroupCreateScreen.tsx
 import React, { useMemo, useRef, useState } from 'react';
 import {
   View,
@@ -23,7 +24,7 @@ import { lightColors, darkColors } from '../constants/colors';
 type Nav = NativeStackNavigationProp<RootStackParamList, 'GroupCreate'>;
 
 function clampInt(v: number, min = 1, max = 99) {
-  if (!Number.isFinite(v)) return NaN;
+  if (!Number.isFinite(v)) return NaN as unknown as number;
   return Math.max(min, Math.min(max, Math.trunc(v)));
 }
 
@@ -33,14 +34,22 @@ function parseCurrency2dec(raw: string): number | null {
   const parts = cleaned.split('.');
   const normalized = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : cleaned;
   const n = Number(normalized);
-  if (!Number.isFinite(n) || n < 0) return NaN;
+  if (!Number.isFinite(n) || n < 0) return NaN as unknown as number;
   return Math.round(n * 100) / 100;
 }
 
-function isIso(str: string) {
-  if (!str) return false;
-  const d = new Date(str);
-  return !Number.isNaN(d.getTime());
+function toIsoMaybe(str: string): string | null {
+  if (!str) return null;
+  // Si ya es ISO válido, lo dejamos
+  const asIs = new Date(str);
+  if (!Number.isNaN(asIs.getTime())) return new Date(asIs.getTime()).toISOString();
+
+  // Intento suave: "YYYY-MM-DD HH:mm"
+  const soft = str.replace(' ', 'T');
+  const d = new Date(soft);
+  if (!Number.isNaN(d.getTime())) return d.toISOString();
+
+  return null;
 }
 
 export default function GroupCreateScreen() {
@@ -56,9 +65,11 @@ export default function GroupCreateScreen() {
 
   const [destino, setDestino] = useState('');
   const [cupos, setCupos] = useState<string>('3');
-  const [fecha, setFecha] = useState<string>('');  // ISO opcional
+  const [fecha, setFecha] = useState<string>('');  // libre, lo convertimos a ISO al enviar
   const [costo, setCosto] = useState<string>('');  // máscara
   const [loading, setLoading] = useState(false);
+
+  const esConductor = (user?.tipo_usuario || '').toLowerCase() === 'conductor';
 
   /* ---------- Validaciones ---------- */
   const destinoErr = useMemo(() => (destino.trim() ? '' : 'Ingresa un destino.'), [destino]);
@@ -81,7 +92,7 @@ export default function GroupCreateScreen() {
 
   const fechaErr = useMemo(() => {
     if (fecha.trim() === '') return '';
-    return isIso(fecha) ? '' : 'Fecha inválida. Usa ISO, e.g. 2025-08-26T18:30:00Z';
+    return toIsoMaybe(fecha) ? '' : 'Fecha inválida. Ej: 2025-08-26 18:30 o ISO.';
   }, [fecha]);
 
   const isFormValid = useMemo(
@@ -107,14 +118,21 @@ export default function GroupCreateScreen() {
       Alert.alert('Sesión', 'Inicia sesión nuevamente.');
       return;
     }
+    if (!esConductor) {
+      Alert.alert('No disponible', 'Solo los conductores pueden crear grupos.');
+      return;
+    }
     if (!isFormValid) {
-      Alert.alert('Revisa el formulario', [destinoErr, cuposErr, costoErr, fechaErr].filter(Boolean).join('\n'));
+      Alert.alert(
+        'Revisa el formulario',
+        [destinoErr, cuposErr, costoErr, fechaErr].filter(Boolean).join('\n')
+      );
       return;
     }
 
     const nCupos = clampInt(Number(cupos), 1, 99);
     const nCosto = parseCurrency2dec(costo); // puede ser null
-    const fechaOut = fecha.trim();
+    const fechaIso = fecha.trim() ? toIsoMaybe(fecha.trim()) : null;
 
     try {
       setLoading(true);
@@ -123,11 +141,10 @@ export default function GroupCreateScreen() {
         conductor_id: Number(user.id),
         destino_nombre: destino.trim(),
         cupos_totales: nCupos,
-        fecha_salida: fechaOut || undefined,
+        fecha_salida: fechaIso ?? undefined,
         costo_estimado: nCosto ?? undefined,
       });
 
-      // Mostrar confirmación y volver a la lista (que refresca con useFocusEffect)
       Alert.alert('Éxito', 'Grupo creado.', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
@@ -143,6 +160,8 @@ export default function GroupCreateScreen() {
     }
   };
 
+  const submitDisabled = loading || !isFormValid || !esConductor;
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <KeyboardAvoidingView
@@ -151,6 +170,12 @@ export default function GroupCreateScreen() {
       >
         <View style={{ padding: 16 }}>
           <Text style={[styles.title, { color: colors.text }]}>Crear grupo</Text>
+
+          {!esConductor && (
+            <Text style={[styles.note, { color: colors.text }]}>
+              Solo los conductores pueden crear grupos.
+            </Text>
+          )}
 
           {/* Destino */}
           <Text style={[styles.label, { color: colors.text }]}>Destino</Text>
@@ -185,7 +210,7 @@ export default function GroupCreateScreen() {
           {/* Fecha */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Text style={[styles.label, { color: colors.text, flex: 1 }]}>
-              Fecha de salida (opcional, ISO)
+              Fecha de salida (opcional)
             </Text>
             <TouchableOpacity onPress={fillNowPlus30} style={styles.chip}>
               <Text style={styles.chipTxt}>+30 min</Text>
@@ -195,7 +220,7 @@ export default function GroupCreateScreen() {
             ref={fechaRef}
             value={fecha}
             onChangeText={setFecha}
-            placeholder="2025-08-26T18:30:00Z"
+            placeholder="2025-08-26 18:30  o  2025-08-26T18:30:00Z"
             style={[styles.input, { backgroundColor: colors.card, color: colors.text }]}
             placeholderTextColor="#888"
             autoCapitalize="none"
@@ -224,10 +249,10 @@ export default function GroupCreateScreen() {
             style={[
               styles.btn,
               { backgroundColor: colors.primary },
-              (loading || !isFormValid) && { opacity: 0.6 },
+              submitDisabled && { opacity: 0.6 },
             ]}
             onPress={onSubmit}
-            disabled={loading || !isFormValid}
+            disabled={submitDisabled}
             activeOpacity={0.85}
           >
             {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnTxt}>Crear grupo</Text>}
@@ -239,7 +264,8 @@ export default function GroupCreateScreen() {
 }
 
 const styles = StyleSheet.create({
-  title: { fontSize: 20, fontWeight: '800', marginBottom: 12 },
+  title: { fontSize: 20, fontWeight: '800', marginBottom: 8 },
+  note: { marginBottom: 8, opacity: 0.8 },
   label: { fontSize: 14, marginTop: 10, marginBottom: 6 },
   input: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 4 },
   err: { color: '#d32f2f', fontSize: 12, marginTop: 2 },

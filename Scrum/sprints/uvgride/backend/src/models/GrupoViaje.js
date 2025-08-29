@@ -8,9 +8,26 @@ const GrupoViaje = sequelize.define(
     id_grupo: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, field: 'id_grupo' },
     id_viaje_maestro: { type: DataTypes.INTEGER, allowNull: false, field: 'id_viaje_maestro', unique: 'uq_grupo_por_viaje' },
     conductor_id: { type: DataTypes.INTEGER, allowNull: false, field: 'conductor_id' },
-    capacidad_total: { type: DataTypes.INTEGER, allowNull: false, field: 'capacidad_total', validate: { isInt: true, min: 1 } },
-    precio_base: { type: DataTypes.DECIMAL(10, 2), allowNull: false, defaultValue: 0, field: 'precio_base', validate: { min: 0 } },
-    estado_grupo: { type: DataTypes.STRING(20), allowNull: false, defaultValue: 'abierto', field: 'estado_grupo', validate: { isIn: [['abierto','cerrado','cancelado','finalizado']] } },
+    capacidad_total: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      field: 'capacidad_total',
+      validate: { isInt: true, min: 1 },
+    },
+    precio_base: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
+      defaultValue: 0,
+      field: 'precio_base',
+      validate: { min: 0 },
+    },
+    estado_grupo: {
+      type: DataTypes.STRING(20),
+      allowNull: false,
+      defaultValue: 'abierto',
+      field: 'estado_grupo',
+      validate: { isIn: [['abierto', 'cerrado', 'cancelado', 'finalizado']] },
+    },
     notas: { type: DataTypes.TEXT, allowNull: true, field: 'notas' },
     created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW, field: 'created_at' },
     updated_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW, field: 'updated_at' },
@@ -18,13 +35,17 @@ const GrupoViaje = sequelize.define(
   {
     tableName: 'grupo_viaje',
     timestamps: false,
-    indexes: [{ fields: ['estado_grupo'] }, { fields: ['conductor_id'] }, { fields: ['id_viaje_maestro'] }],
+    indexes: [
+      { fields: ['estado_grupo'] },
+      { fields: ['conductor_id'] },
+      { fields: ['id_viaje_maestro'] },
+    ],
   }
 );
 
 /* ===== Helpers internos ===== */
 async function assertMiembroAprobadoPasajero(grupoId, usuarioId) {
-  const row = await sequelize.query(
+  const rows = await sequelize.query(
     `
     SELECT 1
     FROM grupo_miembro
@@ -36,7 +57,7 @@ async function assertMiembroAprobadoPasajero(grupoId, usuarioId) {
     `,
     { replacements: { grupoId, usuarioId }, type: QueryTypes.SELECT }
   );
-  if (row.length === 0) {
+  if (rows.length === 0) {
     const err = new Error('No eres miembro aprobado como pasajero en este grupo');
     err.status = 403;
     throw err;
@@ -46,8 +67,7 @@ async function assertMiembroAprobadoPasajero(grupoId, usuarioId) {
 async function getGrupoConViaje(grupoId) {
   const [row] = await sequelize.query(
     `
-    SELECT g.id_grupo, g.id_viaje_maestro, g.conductor_id,
-           v.estado_viaje
+    SELECT g.id_grupo, g.id_viaje_maestro, g.conductor_id, v.estado_viaje
     FROM grupo_viaje g
     JOIN viaje_maestro v ON v.id_viaje_maestro = g.id_viaje_maestro
     WHERE g.id_grupo = :grupoId
@@ -77,7 +97,6 @@ GrupoViaje.calificarConductor = async function ({ grupoId, pasajeroId, puntuacio
   }
 
   await assertMiembroAprobadoPasajero(grupoId, pasajeroId);
-
   const g = await getGrupoConViaje(grupoId);
 
   if (!['finalizado', 'completado'].includes(g.estado_viaje)) {
@@ -92,7 +111,8 @@ GrupoViaje.calificarConductor = async function ({ grupoId, pasajeroId, puntuacio
   }
 
   try {
-    const [inserted] = await sequelize.query(
+    // ⚠️ No usar QueryTypes.INSERT aquí; deja que devuelva las filas del RETURNING
+    const [rows] = await sequelize.query(
       `
       INSERT INTO calificacion_maestro
         (id_viaje_maestro, id_usuario, puntuacion, objetivo_usuario_id, comentario, created_at, updated_at)
@@ -108,11 +128,9 @@ GrupoViaje.calificarConductor = async function ({ grupoId, pasajeroId, puntuacio
           driverId: g.conductor_id,
           comment: comentario ?? null,
         },
-        type: QueryTypes.INSERT,
       }
     );
-    // Nota: el trigger en DB recalcula el cache en usuario automáticamente
-    return inserted;
+    return rows?.[0] || null;
   } catch (e) {
     // Violación de UNIQUE (id_viaje_maestro, id_usuario, objetivo_usuario_id)
     if (e?.original?.code === '23505') {
@@ -129,6 +147,7 @@ GrupoViaje.calificarConductor = async function ({ grupoId, pasajeroId, puntuacio
  */
 GrupoViaje.listarCalificaciones = async function (grupoId, { limit = 10, offset = 0 } = {}) {
   const g = await getGrupoConViaje(grupoId);
+
   const rows = await sequelize.query(
     `
     SELECT cm.id_calificacion_maestro, cm.puntuacion, cm.comentario, cm.created_at,
@@ -164,7 +183,7 @@ GrupoViaje.listarCalificaciones = async function (grupoId, { limit = 10, offset 
  */
 GrupoViaje.obtenerResumenConductor = async function (grupoId) {
   const g = await getGrupoConViaje(grupoId);
-  const row = await sequelize.query(
+  const rows = await sequelize.query(
     `
     SELECT id_usuario, nombre, apellido,
            calif_conductor_avg::float AS avg,
@@ -174,13 +193,19 @@ GrupoViaje.obtenerResumenConductor = async function (grupoId) {
     `,
     { replacements: { driverId: g.conductor_id }, type: QueryTypes.SELECT }
   );
-  if (!row || row.length === 0) {
+  if (!rows || rows.length === 0) {
     const err = new Error('Conductor no encontrado');
     err.status = 404;
     throw err;
   }
-  const u = row[0];
-  return { conductorId: u.id_usuario, nombre: u.nombre, apellido: u.apellido, avg: u.avg || 0, count: u.count || 0 };
+  const u = rows[0];
+  return {
+    conductorId: u.id_usuario,
+    nombre: u.nombre,
+    apellido: u.apellido,
+    avg: u.avg || 0,
+    count: u.count || 0,
+  };
 };
 
 module.exports = GrupoViaje;

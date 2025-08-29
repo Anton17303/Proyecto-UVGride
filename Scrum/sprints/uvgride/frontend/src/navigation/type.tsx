@@ -36,9 +36,11 @@ export type RootStackParamList = {
   ScheduledTripScreen: undefined;
 
   // Conductores
-  DriverProfile: { driverId: number };
+  // driverId puede venir como number o string desde params; rateForGroupId es opcional
+  DriverProfile: { driverId: number | string; rateForGroupId?: number | string };
 
   // 🚀 Grupos
-  GroupDetail: { grupoId: number }; // detalle de un grupo
-  GroupCreate: undefined;            // formulario para crear grupo (conductor)
+  // Hacemos ambos opcionales para soportar el fallback groupId/grupoId usado en la screen
+  GroupDetail: { groupId?: number | string; grupoId?: number | string };
+  GroupCreate: undefined;
 };

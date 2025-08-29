@@ -1,3 +1,4 @@
+// src/screens/DriverTripScreen.tsx
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
@@ -31,10 +32,13 @@ export default function DriverTripScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [joinedOther, setJoinedOther] = useState(false); // unido como pasajero a un grupo ajeno
+  const [closingId, setClosingId] = useState<number | null>(null); // evita doble tap en acciones
 
   const fmtDate = useMemo(
-    () => (s: string) =>
-      new Date(s).toLocaleString('es-GT', { dateStyle: 'medium', timeStyle: 'short' }),
+    () => (s?: string | null) =>
+      s
+        ? new Date(s).toLocaleString('es-GT', { dateStyle: 'medium', timeStyle: 'short' })
+        : 'Por definir',
     []
   );
 
@@ -48,12 +52,10 @@ export default function DriverTripScreen() {
       const mine = user?.id ? all.filter((g) => g.conductor_id === Number(user.id)) : [];
       setGrupos(mine);
 
-      // Estoy unido en algún grupo ajeno?
+      // ¿Estoy unido en algún grupo ajeno como pasajero?
       const iJoinedOther =
         user?.id
-          ? all.some(
-              (g) => g.es_miembro === true && g.es_propietario !== true
-            )
+          ? all.some((g) => g.es_miembro === true && g.es_propietario !== true)
           : false;
       setJoinedOther(iJoinedOther);
     } catch (e: any) {
@@ -79,12 +81,17 @@ export default function DriverTripScreen() {
   const doClose = async (g: Grupo, estado: 'cerrado' | 'cancelado' | 'finalizado') => {
     try {
       if (!user?.id) return Alert.alert('Sesión', 'Inicia sesión.');
+      if (closingId) return; // evita taps repetidos mientras hay una acción en curso
+      setClosingId(g.id_grupo);
+
       await closeGroup(g.id_grupo, { conductor_id: user.id, estado });
       Alert.alert('OK', `Grupo ${estado}`);
       fetchData();
     } catch (e: any) {
       console.error(e);
       Alert.alert('Error', e?.response?.data?.error || 'No se pudo actualizar el grupo');
+    } finally {
+      setClosingId(null);
     }
   };
 
@@ -115,6 +122,8 @@ export default function DriverTripScreen() {
     const canCancel = item.estado === 'abierto' || item.estado === 'cerrado';
     const canFinalize = item.estado === 'cerrado';
 
+    const isBusy = closingId === item.id_grupo;
+
     return (
       <View style={[styles.card, { backgroundColor: colors.card }]}>
         <View style={styles.headerRow}>
@@ -144,17 +153,12 @@ export default function DriverTripScreen() {
         </Text>
 
         <Text style={{ color: colors.text, marginBottom: 8 }}>
-          Salida:{' '}
-          {item.viaje?.fecha_inicio
-            ? fmtDate(item.viaje.fecha_inicio)
-            : item.fecha_salida
-            ? fmtDate(item.fecha_salida)
-            : 'Por definir'}
+          Salida: {fmtDate(item.viaje?.fecha_inicio ?? item.fecha_salida)}
         </Text>
 
         <View style={styles.actionsRow}>
           <TouchableOpacity
-            onPress={() => navigation.navigate('GroupDetail', { grupoId: item.id_grupo })}
+            onPress={() => navigation.navigate('GroupDetail', { grupoId: item.id_grupo })} // ✅ param correcto
             style={[styles.actionBtn, { backgroundColor: colors.primary }]}
           >
             <Text style={styles.actionTxt}>Ver detalle</Text>
@@ -162,42 +166,43 @@ export default function DriverTripScreen() {
 
           <TouchableOpacity
             onPress={() => doClose(item, 'cerrado')}
-            disabled={!isAbierto}
+            disabled={!isAbierto || isBusy}
             style={[
               styles.actionBtn,
-              { backgroundColor: isAbierto ? '#1565c0' : '#9e9e9e' },
+              { backgroundColor: isAbierto && !isBusy ? '#1565c0' : '#9e9e9e' },
             ]}
           >
-            <Text style={styles.actionTxt}>Cerrar</Text>
+            <Text style={styles.actionTxt}>{isBusy ? '...' : 'Cerrar'}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={() => doClose(item, 'cancelado')}
-            disabled={!canCancel}
+            disabled={!canCancel || isBusy}
             style={[
               styles.actionBtn,
-              { backgroundColor: canCancel ? '#c62828' : '#9e9e9e' },
+              { backgroundColor: canCancel && !isBusy ? '#c62828' : '#9e9e9e' },
             ]}
           >
-            <Text style={styles.actionTxt}>Cancelar</Text>
+            <Text style={styles.actionTxt}>{isBusy ? '...' : 'Cancelar'}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={() => doClose(item, 'finalizado')}
-            disabled={!canFinalize}
+            disabled={!canFinalize || isBusy}
             style={[
               styles.actionBtn,
-              { backgroundColor: canFinalize ? '#2e7d32' : '#9e9e9e' },
+              { backgroundColor: canFinalize && !isBusy ? '#2e7d32' : '#9e9e9e' },
             ]}
           >
-            <Text style={styles.actionTxt}>Finalizar</Text>
+            <Text style={styles.actionTxt}>{isBusy ? '...' : 'Finalizar'}</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
   };
 
-  const createDisabled = joinedOther; // Regla: si me uní a otro grupo, no puedo crear uno
+  const esConductor = (user?.tipo_usuario || '').toLowerCase() === 'conductor';
+  const createDisabled = joinedOther || !esConductor;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -209,7 +214,9 @@ export default function DriverTripScreen() {
             if (createDisabled) {
               return Alert.alert(
                 'No disponible',
-                'No puedes crear un grupo porque actualmente estás unido a otro.'
+                !esConductor
+                  ? 'Solo los conductores pueden crear grupos.'
+                  : 'No puedes crear un grupo porque actualmente estás unido a otro como pasajero.'
               );
             }
             navigation.navigate('GroupCreate');
@@ -221,7 +228,7 @@ export default function DriverTripScreen() {
           disabled={createDisabled}
         >
           <Text style={styles.createBtnText}>
-            {createDisabled ? 'Unido en otro' : 'Crear grupo'}
+            {createDisabled ? (esConductor ? 'Unido en otro' : 'No disponible') : 'Crear grupo'}
           </Text>
         </TouchableOpacity>
       </View>

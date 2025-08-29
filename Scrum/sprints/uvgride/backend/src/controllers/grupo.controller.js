@@ -6,7 +6,8 @@ const {
   Vehiculo,
   GrupoViaje,
   GrupoMiembro,
-  Viaje, // puede venir undefined si no mapeaste viaje_maestro
+  Viaje,          // puede venir null/undefined si no mapeaste viaje_maestro
+  ViajePasajero,  // si existe el modelo, lo usamos; si no, haremos SQL crudo
 } = require('../models');
 
 /* ======================= Helpers ======================= */
@@ -15,7 +16,6 @@ const toNumber = (v) => (v === '' || v === null || v === undefined ? NaN : Numbe
 const isPosInt = (v) => Number.isInteger(toNumber(v)) && toNumber(v) > 0;
 const isFiniteNum = (v) => Number.isFinite(toNumber(v));
 
-/** Normaliza el payload que viene del cliente (pasajero/conductor) a los campos que usamos */
 function normalizeCreatePayload(body = {}) {
   const {
     conductor_id,
@@ -55,17 +55,59 @@ function normalizeCreatePayload(body = {}) {
   };
 }
 
+/* ======================= Vínculo viaje_pasajero ======================= */
+
+async function ensureViajePasajero(viajeId, userId, t) {
+  if (!Number.isInteger(viajeId) || viajeId <= 0) return;
+  if (!Number.isInteger(userId) || userId <= 0) return;
+
+  if (ViajePasajero) {
+    await ViajePasajero.findOrCreate({
+      where: { id_viaje_maestro: viajeId, id_usuario: userId },
+      defaults: { id_viaje_maestro: viajeId, id_usuario: userId },
+      transaction: t,
+    });
+  } else {
+    await sequelize.query(
+      `
+      INSERT INTO viaje_pasajero (id_viaje_maestro, id_usuario)
+      VALUES (:viajeId, :userId)
+      ON CONFLICT (id_viaje_maestro, id_usuario) DO NOTHING
+      `,
+      { replacements: { viajeId, userId }, transaction: t }
+    );
+  }
+}
+
+async function removeViajePasajero(viajeId, userId, t) {
+  if (!Number.isInteger(viajeId) || viajeId <= 0) return;
+  if (!Number.isInteger(userId) || userId <= 0) return;
+
+  if (ViajePasajero) {
+    await ViajePasajero.destroy({
+      where: { id_viaje_maestro: viajeId, id_usuario: userId },
+      transaction: t,
+    });
+  } else {
+    await sequelize.query(
+      `
+      DELETE FROM viaje_pasajero
+      WHERE id_viaje_maestro = :viajeId AND id_usuario = :userId
+      `,
+      { replacements: { viajeId, userId }, transaction: t }
+    );
+  }
+}
+
 /* ======================= Controllers ======================= */
 
 /**
  * POST /api/grupos
- * Crea un viaje_maestro (mínimo) y el grupo asociado.
- * También agrega al conductor como miembro (rol=conductor, estado_solicitud=aprobado).
+ * Crea viaje_maestro + grupo y agrega al conductor como miembro aprobado.
  */
 exports.crearGrupo = async (req, res) => {
   const p = normalizeCreatePayload(req.body);
 
-  // Validaciones
   if (!isPosInt(p.conductor_id)) {
     return res.status(400).json({ error: 'conductor_id inválido' });
   }
@@ -84,7 +126,7 @@ exports.crearGrupo = async (req, res) => {
 
   const t = await sequelize.transaction();
   try {
-    // 1) Validar que el usuario es conductor y tiene vehículo
+    // Validar conductor con vehículo
     const conductor = await Usuario.findOne({
       where: { id_usuario: p.conductor_id, tipo_usuario: { [Op.iLike]: 'conductor' } },
       include: [{ model: Vehiculo, as: 'vehiculos', required: true, attributes: ['id_vehiculo'] }],
@@ -92,18 +134,13 @@ exports.crearGrupo = async (req, res) => {
     });
     if (!conductor) {
       await t.rollback();
-      return res
-        .status(400)
-        .json({ error: 'Conductor inválido o sin vehículos registrados' });
+      return res.status(400).json({ error: 'Conductor inválido o sin vehículos registrados' });
     }
 
-    // 2) Crear viaje_maestro mínimo (si tienes el modelo Viaje mapeado)
+    // Crear viaje_maestro
     if (!Viaje) {
       await t.rollback();
-      return res.status(500).json({
-        error:
-          'Modelo Viaje (viaje_maestro) no está disponible en Sequelize. Mapea el modelo o ajusta el flujo.',
-      });
+      return res.status(500).json({ error: 'Modelo Viaje no disponible' });
     }
 
     const viaje = await Viaje.create(
@@ -113,14 +150,14 @@ exports.crearGrupo = async (req, res) => {
         lat_destino: p.lat_destino,
         lon_destino: p.lon_destino,
         costo_total: p.costo_estimado ?? 0,
-        fecha_inicio: p.fecha_salida, // opcional
+        fecha_inicio: p.fecha_salida || null,
         estado_viaje: 'pendiente',
         conductor_id: p.conductor_id,
       },
       { transaction: t }
     );
 
-    // 3) Crear el grupo
+    // Crear grupo
     const grupo = await GrupoViaje.create(
       {
         id_viaje_maestro: viaje.id_viaje_maestro,
@@ -133,24 +170,16 @@ exports.crearGrupo = async (req, res) => {
       { transaction: t }
     );
 
-    // 4) Agregar al conductor como miembro aprobado
+    // Agregar conductor como miembro aprobado
     await GrupoMiembro.create(
-      {
-        id_grupo: grupo.id_grupo,
-        id_usuario: p.conductor_id,
-        rol: 'conductor',
-        estado_solicitud: 'aprobado',
-      },
+      { id_grupo: grupo.id_grupo, id_usuario: p.conductor_id, rol: 'conductor', estado_solicitud: 'aprobado' },
       { transaction: t }
     );
 
     await t.commit();
     return res.status(201).json({
       message: 'Grupo creado',
-      data: {
-        id_grupo: grupo.id_grupo,
-        id_viaje_maestro: grupo.id_viaje_maestro,
-      },
+      data: { id_grupo: grupo.id_grupo, id_viaje_maestro: grupo.id_viaje_maestro },
     });
   } catch (err) {
     await t.rollback();
@@ -161,11 +190,7 @@ exports.crearGrupo = async (req, res) => {
 
 /**
  * GET /api/grupos
- * Lista grupos con conteo de cupos usados/disponibles.
- * Query opcionales:
- *   - estado=abierto|cerrado|cancelado|finalizado (si no se envía, muestra TODOS)
- *   - q=texto (busca por destino o nombre/apellido del conductor)
- *   - user_id=ID (agrega flags es_miembro y es_propietario en la respuesta)
+ * ?estado=&q=&user_id=
  */
 exports.listarGrupos = async (req, res) => {
   try {
@@ -185,12 +210,11 @@ exports.listarGrupos = async (req, res) => {
         { nombre: { [Op.iLike]: term } },
         { apellido: { [Op.iLike]: term } },
       ];
-      if (Viaje) {
-        whereViaje.destino = { [Op.iLike]: term };
-      }
+      if (Viaje) whereViaje.destino = { [Op.iLike]: term };
     }
 
-    const SUB_CUPOS = `(SELECT COUNT(*) FROM grupo_miembro gm WHERE gm.id_grupo = "GrupoViaje"."id_grupo" AND gm.estado_solicitud = 'aprobado')`;
+    const SUB_CUPOS = `(SELECT COUNT(*) FROM grupo_miembro gm 
+      WHERE gm.id_grupo = "GrupoViaje"."id_grupo" AND gm.estado_solicitud = 'aprobado')`;
 
     const LIT_ES_MIEMBRO = userIdValido
       ? literal(`EXISTS (
@@ -231,7 +255,7 @@ exports.listarGrupos = async (req, res) => {
         as: 'viaje',
         where: whereViaje,
         required: true,
-        attributes: ['id_viaje_maestro', 'origen', 'destino', 'lat_destino', 'lon_destino', 'fecha_inicio'],
+        attributes: ['id_viaje_maestro', 'origen', 'destino', 'lat_destino', 'lon_destino', 'fecha_inicio', 'estado_viaje'],
       });
     }
 
@@ -244,7 +268,7 @@ exports.listarGrupos = async (req, res) => {
         'conductor_id',
         'capacidad_total',
         'precio_base',
-        'estado_grupo',
+        ['estado_grupo', 'estado'], // alias para el frontend
         'created_at',
         'updated_at',
         [literal(SUB_CUPOS), 'cupos_usados'],
@@ -264,8 +288,7 @@ exports.listarGrupos = async (req, res) => {
 
 /**
  * GET /api/grupos/:id
- * Detalle del grupo con sus miembros y viaje asociado.
- * Query opcional: user_id=ID (devuelve es_miembro/es_propietario en attributes)
+ * ?user_id=
  */
 exports.obtenerGrupo = async (req, res) => {
   try {
@@ -297,11 +320,7 @@ exports.obtenerGrupo = async (req, res) => {
         as: 'miembros',
         attributes: ['id_grupo_miembro', 'id_usuario', 'rol', 'estado_solicitud', 'joined_at'],
         include: [
-          {
-            model: Usuario,
-            as: 'usuario',
-            attributes: ['id_usuario', 'nombre', 'apellido', 'telefono'],
-          },
+          { model: Usuario, as: 'usuario', attributes: ['id_usuario', 'nombre', 'apellido', 'telefono'] },
         ],
       },
     ];
@@ -322,7 +341,8 @@ exports.obtenerGrupo = async (req, res) => {
       });
     }
 
-    const SUB_CUPOS = `(SELECT COUNT(*) FROM grupo_miembro gm WHERE gm.id_grupo = "GrupoViaje"."id_grupo" AND gm.estado_solicitud = 'aprobado')`;
+    const SUB_CUPOS = `(SELECT COUNT(*) FROM grupo_miembro gm 
+      WHERE gm.id_grupo = "GrupoViaje"."id_grupo" AND gm.estado_solicitud = 'aprobado')`;
 
     const attrs = [
       'id_grupo',
@@ -330,7 +350,7 @@ exports.obtenerGrupo = async (req, res) => {
       'conductor_id',
       'capacidad_total',
       'precio_base',
-      'estado_grupo',
+      ['estado_grupo', 'estado'], // alias para el frontend
       'notas',
       'created_at',
       'updated_at',
@@ -353,10 +373,7 @@ exports.obtenerGrupo = async (req, res) => {
       );
     }
 
-    const grupo = await GrupoViaje.findByPk(id, {
-      attributes: attrs,
-      include,
-    });
+    const grupo = await GrupoViaje.findByPk(id, { attributes: attrs, include });
 
     if (!grupo) return res.status(404).json({ error: 'Grupo no encontrado' });
     return res.json({ data: grupo });
@@ -368,12 +385,12 @@ exports.obtenerGrupo = async (req, res) => {
 
 /**
  * POST /api/grupos/:id/join
- * Un usuario se une al grupo si hay cupos. Pasa a estado_solicitud='aprobado'
  * Body: { id_usuario }
  * Reglas:
- *  - El grupo debe estar 'abierto'
- *  - El usuario no puede ser el conductor del grupo
- *  - El usuario no puede estar ya 'aprobado' en otro grupo activo (abierto o cerrado)
+ *  - abierto
+ *  - no conductor
+ *  - no estar aprobado en otro grupo activo
+ *  - crea vínculo en viaje_pasajero
  */
 exports.unirseAGrupo = async (req, res) => {
   const id = Number(req.params.id);
@@ -398,13 +415,13 @@ exports.unirseAGrupo = async (req, res) => {
       return res.status(400).json({ error: 'El grupo no está abierto' });
     }
 
-    // 🚫 impedir que el conductor se una a su propio grupo
+    // no te unes a tu propio grupo
     if (grupo.conductor_id === Number(id_usuario)) {
       await t.rollback();
       return res.status(400).json({ error: 'No puedes unirte a tu propio grupo' });
     }
 
-    // 🚫 impedir pertenecer a múltiples grupos (aprobado) simultáneamente
+    // ya en otro grupo activo
     const yaEnOtro = await GrupoMiembro.findOne({
       where: { id_usuario: Number(id_usuario), estado_solicitud: 'aprobado' },
       include: [
@@ -424,12 +441,7 @@ exports.unirseAGrupo = async (req, res) => {
       return res.status(400).json({ error: 'Ya perteneces a otro grupo activo' });
     }
 
-    const ya = await GrupoMiembro.findOne({
-      where: { id_grupo: id, id_usuario },
-      transaction: t,
-      lock: t.LOCK.UPDATE,
-    });
-
+    // cupos
     const aprobados = await GrupoMiembro.count({
       where: { id_grupo: id, estado_solicitud: 'aprobado' },
       transaction: t,
@@ -439,34 +451,40 @@ exports.unirseAGrupo = async (req, res) => {
       return res.status(400).json({ error: 'No hay cupos disponibles' });
     }
 
+    // crear/actualizar miembro
+    const ya = await GrupoMiembro.findOne({
+      where: { id_grupo: id, id_usuario },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
     if (ya) {
       if (ya.estado_solicitud === 'aprobado') {
         await t.rollback();
         return res.status(409).json({ error: 'Ya eres miembro de este grupo' });
       }
-      await ya.update({ estado_solicitud: 'aprobado' }, { transaction: t });
+      await ya.update({ estado_solicitud: 'aprobado', rol: ya.rol || 'pasajero' }, { transaction: t });
     } else {
       await GrupoMiembro.create(
-        {
-          id_grupo: id,
-          id_usuario,
-          rol: 'pasajero',
-          estado_solicitud: 'aprobado',
-        },
+        { id_grupo: id, id_usuario, rol: 'pasajero', estado_solicitud: 'aprobado' },
         { transaction: t }
       );
+    }
+
+    // vínculo viaje_pasajero para futuras calificaciones/estadísticas
+    const viajeId = Number(grupo.id_viaje_maestro);
+    if (Number.isInteger(viajeId) && viajeId > 0) {
+      await ensureViajePasajero(viajeId, Number(id_usuario), t);
     }
 
     await t.commit();
     return res.json({ message: 'Te uniste al grupo' });
   } catch (err) {
     await t.rollback();
-
     const msg = String(err?.parent?.message || err?.message || '').toLowerCase();
-    if (msg.includes('no tiene cupos') || msg.includes('cupos')) {
+    if (msg.includes('cupos')) {
       return res.status(400).json({ error: 'No hay cupos disponibles' });
     }
-
     console.error('[grupos] Error unirseAGrupo:', err);
     return res.status(500).json({ error: 'Error interno al unirse al grupo' });
   }
@@ -474,8 +492,8 @@ exports.unirseAGrupo = async (req, res) => {
 
 /**
  * POST /api/grupos/:id/leave
- * Un miembro aprobado pasa a 'baja' (liberando cupo).
  * Body: { id_usuario }
+ * Pasa a 'baja' y remueve vínculo viaje_pasajero.
  */
 exports.salirDeGrupo = async (req, res) => {
   const id = Number(req.params.id);
@@ -510,6 +528,13 @@ exports.salirDeGrupo = async (req, res) => {
     }
 
     await miembro.update({ estado_solicitud: 'baja' }, { transaction: t });
+
+    // limpiar vínculo viaje_pasajero
+    const viajeId = Number(grupo.id_viaje_maestro);
+    if (Number.isInteger(viajeId) && viajeId > 0) {
+      await removeViajePasajero(viajeId, Number(id_usuario), t);
+    }
+
     await t.commit();
     return res.json({ message: 'Saliste del grupo' });
   } catch (err) {
@@ -521,12 +546,8 @@ exports.salirDeGrupo = async (req, res) => {
 
 /**
  * POST /api/grupos/:id/cerrar
- * Cerrar/cancelar/finalizar un grupo (solo conductor creador)
- * Body: { conductor_id, estado? = 'cerrado'|'cancelado'|'finalizado' }
- * Reglas:
- *   cerrado    <= solo desde 'abierto'
- *   cancelado  <= desde 'abierto' o 'cerrado'
- *   finalizado <= solo desde 'cerrado'
+ * Body: { conductor_id, estado = 'cerrado'|'cancelado'|'finalizado' }
+ * Sincroniza estado del viaje (si existe el modelo).
  */
 exports.cerrarGrupo = async (req, res) => {
   const id = Number(req.params.id);
@@ -539,76 +560,79 @@ exports.cerrarGrupo = async (req, res) => {
     return res.status(400).json({ error: 'conductor_id inválido' });
   }
   if (!['cerrado', 'cancelado', 'finalizado'].includes(String(estado))) {
-    return res
-      .status(400)
-      .json({ error: 'estado inválido (cerrado|cancelado|finalizado)' });
+    return res.status(400).json({ error: 'estado inválido (cerrado|cancelado|finalizado)' });
   }
 
+  const t = await sequelize.transaction();
   try {
-    const grupo = await GrupoViaje.findByPk(id);
-    if (!grupo) return res.status(404).json({ error: 'Grupo no encontrado' });
+    const grupo = await GrupoViaje.findByPk(id, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!grupo) {
+      await t.rollback();
+      return res.status(404).json({ error: 'Grupo no encontrado' });
+    }
     if (grupo.conductor_id !== Number(conductor_id)) {
+      await t.rollback();
       return res.status(403).json({ error: 'No autorizado para cerrar este grupo' });
     }
 
+    // reglas de transición
     const from = grupo.estado_grupo;
     if (estado === 'cerrado' && from !== 'abierto') {
+      await t.rollback();
       return res.status(400).json({ error: 'Solo grupos abiertos pueden cerrarse' });
     }
     if (estado === 'cancelado' && !['abierto', 'cerrado'].includes(from)) {
+      await t.rollback();
       return res.status(400).json({ error: 'Solo grupos abiertos/cerrados pueden cancelarse' });
     }
     if (estado === 'finalizado' && from !== 'cerrado') {
+      await t.rollback();
       return res.status(400).json({ error: 'Solo grupos cerrados pueden finalizarse' });
     }
 
-    await grupo.update({ estado_grupo: estado, updated_at: new Date() });
+    // 1) actualiza grupo
+    await grupo.update({ estado_grupo: estado, updated_at: new Date() }, { transaction: t });
+
+    // 2) sincroniza Viaje (si existe)
+    if (Viaje && grupo.id_viaje_maestro) {
+      let estadoViaje = null;
+      if (estado === 'cerrado') estadoViaje = 'cerrado';
+      if (estado === 'cancelado') estadoViaje = 'cancelado';
+      if (estado === 'finalizado') estadoViaje = 'finalizado';
+
+      if (estadoViaje) {
+        await Viaje.update(
+          { estado_viaje: estadoViaje, updated_at: new Date() },
+          { where: { id_viaje_maestro: grupo.id_viaje_maestro }, transaction: t }
+        );
+      }
+    }
+
+    await t.commit();
     return res.json({ message: `Grupo ${estado}`, data: grupo });
   } catch (err) {
+    await t.rollback();
     console.error('[grupos] Error cerrarGrupo:', err);
     return res.status(500).json({ error: 'Error interno al cerrar grupo' });
   }
 };
 
-/* ======================= Calificaciones (ancladas al grupo) ======================= */
+/* ======================= Calificaciones (DEPRECADO aquí) ======================= */
+
 /**
  * POST /api/grupos/:id/calificaciones
- * Body: { id_usuario, puntuacion (1..5), comentario? }
- * id_usuario = pasajero que califica
+ * 🔁 DEPRECADO: ahora la calificación se hace en
+ * POST /api/conductores/:conductorId/calificar
  */
-exports.calificarConductor = async (req, res) => {
-  try {
-    const grupoId = Number(req.params.id);
-    const pasajeroId = Number(req.body.id_usuario);
-    const puntuacion = Number(req.body.puntuacion);
-    const comentario = req.body.comentario;
-
-    if (!Number.isInteger(grupoId) || grupoId <= 0) {
-      return res.status(400).json({ error: 'Parámetro id inválido' });
-    }
-    if (!isPosInt(pasajeroId)) {
-      return res.status(400).json({ error: 'id_usuario inválido' });
-    }
-    if (!Number.isInteger(puntuacion) || puntuacion < 1 || puntuacion > 5) {
-      return res.status(400).json({ error: 'puntuacion debe ser entero 1..5' });
-    }
-
-    const rating = await GrupoViaje.calificarConductor({
-      grupoId,
-      pasajeroId,
-      puntuacion,
-      comentario,
-    });
-
-    return res.status(201).json(rating);
-  } catch (e) {
-    const status = e.status || 500;
-    return res.status(status).json({ error: e.message || 'Error al calificar' });
-  }
+exports.calificarConductor = (_req, res) => {
+  return res.status(410).json({
+    error: 'Endpoint deprecado. Usa POST /api/conductores/:id/calificar',
+  });
 };
 
 /**
  * GET /api/grupos/:id/calificaciones?limit=&offset=
+ * (Lo dejamos por compatibilidad si aún lo consumes desde el cliente)
  */
 exports.listarCalificaciones = async (req, res) => {
   try {
@@ -620,6 +644,7 @@ exports.listarCalificaciones = async (req, res) => {
       return res.status(400).json({ error: 'Parámetro id inválido' });
     }
 
+    // Estos métodos deben existir en tu modelo GrupoViaje si los usas.
     const data = await GrupoViaje.listarCalificaciones(grupoId, {
       limit: Number.isInteger(limit) && limit > 0 ? limit : 10,
       offset: Number.isInteger(offset) && offset >= 0 ? offset : 0,
@@ -641,6 +666,7 @@ exports.obtenerResumenConductor = async (req, res) => {
     if (!Number.isInteger(grupoId) || grupoId <= 0) {
       return res.status(400).json({ error: 'Parámetro id inválido' });
     }
+    // También asumimos que existe en el modelo si lo usas.
     const resumen = await GrupoViaje.obtenerResumenConductor(grupoId);
     return res.json(resumen);
   } catch (e) {

@@ -1,5 +1,5 @@
 // src/models/index.js
-const { Sequelize, Op } = require('sequelize');
+const { Sequelize, Op, DataTypes } = require('sequelize');
 
 /* ======================= Sequelize ======================= */
 const sequelize = new Sequelize(
@@ -19,24 +19,40 @@ const sequelize = new Sequelize(
   }
 );
 
-/* Export temprano para romper ciclos */
+// Export temprano para evitar ciclos
 module.exports.sequelize = sequelize;
 
-/* ======================= Modelos ======================= */
-const Usuario = require('./Usuario');       // usa { sequelize } desde este mismo index
+/* ======================= Modelos base ======================= */
+const Usuario = require('./Usuario');
 const Vehiculo = require('./Vehiculo');
 const GrupoViaje = require('./GrupoViaje');
 const GrupoMiembro = require('./GrupoMiembro');
 
-// Viaje es opcional
+/* ======================= Modelos opcionales ======================= */
 let Viaje = null;
 try {
-  Viaje = require('./Viaje');
+  Viaje = require('./Viaje'); // puede no existir
 } catch {
   Viaje = null;
 }
 
-/* ======================= Asociaciones ======================= */
+let ViajePasajero = null;
+try {
+  // ⚠️ El archivo debe llamarse exactamente 'ViajePasajero.js'
+  const factory = require('./ViajePasajero');
+  ViajePasajero = typeof factory === 'function' ? factory(sequelize, DataTypes) : factory;
+} catch {
+  ViajePasajero = null;
+}
+
+let ConductorRating = null;
+try {
+  ConductorRating = require('./ConductorRating'); // este modelo define .associate(models)
+} catch {
+  ConductorRating = null;
+}
+
+/* ======================= Asociaciones explícitas ======================= */
 // Usuario ↔ Vehiculo
 Usuario.hasMany(Vehiculo, {
   foreignKey: 'id_usuario',
@@ -51,7 +67,7 @@ Vehiculo.belongsTo(Usuario, {
   onUpdate: 'CASCADE',
 });
 
-// GrupoViaje ↔ Usuario (conductor)
+// GrupoViaje ↔ Usuario (conductor del grupo)
 GrupoViaje.belongsTo(Usuario, {
   as: 'conductor',
   foreignKey: 'conductor_id',
@@ -71,10 +87,6 @@ if (Viaje) {
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE',
   });
-
-  // (Opcional) relaciones útiles si luego las necesitas:
-  // Viaje.belongsTo(Usuario, { as: 'conductor', foreignKey: 'conductor_id' });
-  // Usuario.hasMany(Viaje, { as: 'viajes_como_conductor', foreignKey: 'conductor_id' });
 }
 
 // GrupoViaje ↔ GrupoMiembro ↔ Usuario
@@ -90,7 +102,6 @@ GrupoMiembro.belongsTo(GrupoViaje, {
   onDelete: 'CASCADE',
   onUpdate: 'CASCADE',
 });
-
 GrupoMiembro.belongsTo(Usuario, {
   as: 'usuario',
   foreignKey: 'id_usuario',
@@ -100,6 +111,25 @@ GrupoMiembro.belongsTo(Usuario, {
 Usuario.hasMany(GrupoMiembro, {
   as: 'grupos_participa',
   foreignKey: 'id_usuario',
+});
+
+/* ======================= Registrar modelos y associate() ======================= */
+const models = {
+  Usuario,
+  Vehiculo,
+  GrupoViaje,
+  GrupoMiembro,
+};
+if (Viaje) models.Viaje = Viaje;
+if (ViajePasajero) models.ViajePasajero = ViajePasajero;
+if (ConductorRating) models.ConductorRating = ConductorRating;
+
+// ⚠️ Importante: NO volver a definir aquí las asociaciones de ConductorRating.
+// Deja que ConductorRating.associate(models) las cree una sola vez.
+Object.values(models).forEach((mdl) => {
+  if (mdl && typeof mdl.associate === 'function') {
+    mdl.associate(models);
+  }
 });
 
 /* ======================= Scopes útiles ======================= */
@@ -114,8 +144,8 @@ module.exports.Vehiculo = Vehiculo;
 module.exports.GrupoViaje = GrupoViaje;
 module.exports.GrupoMiembro = GrupoMiembro;
 if (Viaje) module.exports.Viaje = Viaje;
-
-// (Opcional) exportar Op si quieres usarlo desde ../models en vez de 'sequelize'
+if (ViajePasajero) module.exports.ViajePasajero = ViajePasajero;
+if (ConductorRating) module.exports.ConductorRating = ConductorRating;
 module.exports.Op = Op;
 
 /* ======================= Init DB ======================= */
@@ -125,7 +155,7 @@ module.exports.initDB = async () => {
     console.log('✅ Conexión a la base de datos establecida correctamente.');
 
     if (process.env.SYNC_DB === 'true') {
-      await sequelize.sync({ alter: true }); // no uses force en prod
+      await sequelize.sync({ alter: true }); // en prod usa migraciones
       console.log('🛠️  Modelos sincronizados (alter=true)');
     }
   } catch (error) {

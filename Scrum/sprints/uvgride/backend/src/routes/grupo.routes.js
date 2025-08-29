@@ -26,8 +26,6 @@ const normalizeBody = (req, _res, next) => {
   b.capacidad_total = isNilOrEmpty(rawCap) ? undefined : toNumber(rawCap);
 
   // precio / costo
-  // ✅ mantenemos costo_estimado (lo usa el controller para Viaje.costo_total)
-  // ✅ y también seteamos precio_base (lo usa Grupo.precio_base)
   const rawPrecio =
     !isNilOrEmpty(b.precio_base) ? b.precio_base : b.costo_estimado;
   if (!isNilOrEmpty(rawPrecio)) {
@@ -128,22 +126,7 @@ const validateCerrar = (req, res, next) => {
   next();
 };
 
-/* Calificaciones */
-const validateRate = (req, res, next) => {
-  const { id_usuario, puntuacion, comentario } = req.body || {};
-  if (!isPosInt(id_usuario)) {
-    return res.status(400).json({ error: 'id_usuario inválido' });
-  }
-  const n = toNumber(puntuacion);
-  if (!Number.isInteger(n) || n < 1 || n > 5) {
-    return res.status(400).json({ error: 'puntuacion debe ser entero 1..5' });
-  }
-  if (comentario !== undefined && typeof comentario !== 'string') {
-    return res.status(400).json({ error: 'comentario debe ser string' });
-  }
-  next();
-};
-
+/* Calificaciones (solo se usan los GET aquí; el POST ahora vive en /api/conductores/:id/calificar) */
 const validatePaginate = (req, _res, next) => {
   const limit = toNumber(req.query.limit ?? 10);
   const offset = toNumber(req.query.offset ?? 0);
@@ -163,8 +146,16 @@ router.post('/:id/join', validateJoin, ctrl.unirseAGrupo);
 router.post('/:id/leave', validateLeave, ctrl.salirDeGrupo);
 router.post('/:id/cerrar', validateCerrar, ctrl.cerrarGrupo);
 
-/* Rutas de calificaciones ancladas al grupo */
-router.post('/:id/calificaciones', validateRate, ctrl.calificarConductor);
+/* Rutas de calificaciones ancladas al grupo (GET sí; POST deshabilitado) */
+
+// ❌ POST deshabilitado: calificar se hace en /api/conductores/:id/calificar
+router.post('/:id/calificaciones', (_req, res) => {
+  return res.status(410).json({
+    error: 'Este endpoint fue deprecado. Usa POST /api/conductores/:id/calificar',
+  });
+});
+
+// Si aún muestras calificaciones por grupo en el detalle:
 router.get('/:id/calificaciones', validatePaginate, ctrl.listarCalificaciones);
 router.get('/:id/calificacion-resumen', ctrl.obtenerResumenConductor);
 

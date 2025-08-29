@@ -6,7 +6,6 @@ import ProfileScreen from "../screens/ProfileScreen";
 import TravelStack from "./TravelStack";
 import DriverTripScreen from "../screens/DriverTripScreen";
 import DriverScreen from "../screens/DriverScreen";
-import { CommonActions } from "@react-navigation/native";
 import { useUser } from "../context/UserContext";
 
 export type BottomTabParamList = {
@@ -27,7 +26,7 @@ export default function BottomTabs() {
 
   return (
     <Tab.Navigator
-      key={user?.id}
+      key={`${user?.id}-${user?.tipo_usuario}`} // ✅ se remonta si cambia el rol
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarShowLabel: true,
@@ -51,28 +50,21 @@ export default function BottomTabs() {
       <Tab.Screen
         name="Viaje"
         component={TravelStack}
+        options={{ unmountOnBlur: true }} // ✅ resetea el stack al salir
         listeners={({ navigation }) => ({
+          // ✅ deep link al hijo: TravelScreen
           tabPress: (e) => {
             e.preventDefault();
-            navigation.dispatch(
-              CommonActions.navigate({
-                name: "Viaje",
-                params: { screen: "TravelScreen" },
-              })
-            );
+            navigation.navigate("Viaje" as never, { screen: "TravelScreen" } as never);
           },
         })}
       />
 
       {/* ✅ Solo para pasajeros */}
-      {esPasajero && (
-        <Tab.Screen name="Conductores" component={DriverScreen} />
-      )}
+      {esPasajero && <Tab.Screen name="Conductores" component={DriverScreen} />}
 
       {/* ✅ Solo para conductores */}
-      {esConductor && (
-        <Tab.Screen name="MisViajes" component={DriverTripScreen} />
-      )}
+      {esConductor && <Tab.Screen name="MisViajes" component={DriverTripScreen} />}
 
       <Tab.Screen name="Perfil" component={ProfileScreen} />
     </Tab.Navigator>

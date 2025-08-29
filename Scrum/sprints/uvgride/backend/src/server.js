@@ -23,7 +23,7 @@ app.use(
     origin: (origin, callback) => {
       // requests sin Origin (curl/healthchecks) => permitir
       if (!origin) return callback(null, true);
-      if (!allowedOrigins) return callback(null, true); // reflect origin
+      if (!allowedOrigins) return callback(null, true); // reflejar origin en dev
       if (allowedOrigins.includes(origin)) return callback(null, true);
       return callback(new Error(`Origin bloqueado por CORS: ${origin}`));
     },
@@ -60,7 +60,7 @@ const viajeRoutes    = tryRequire('viajes',    './routes/viaje.routes');
 const favoriteRoutes = tryRequire('favoritos', './routes/favorite.routes');
 const vehicleRoutes  = tryRequire('vehiculos', './routes/vehicle.routes');
 const pagoRoutes     = tryRequire('pagos',     './routes/pago.routes');
-const driverRoutes   = tryRequire('driver',    './routes/driver.routes');
+const driverRoutes   = tryRequire('driver',    './routes/driver.routes'); // incluye /conductores y ratings simples
 const grupoRoutes    = tryRequire('grupos',    './routes/grupo.routes');
 
 /* ---------- Mount ---------- */
@@ -70,7 +70,7 @@ app.use('/api/viajes',     viajeRoutes);
 app.use('/api/favoritos',  favoriteRoutes);
 app.use('/api/vehiculos',  vehicleRoutes);
 app.use('/api/pagos',      pagoRoutes);
-app.use('/api',            driverRoutes);
+app.use('/api',            driverRoutes); // /api/conductores..., /api/conductores/:id/calificar, etc.
 app.use('/api/grupos',     grupoRoutes);
 
 /* ---------- Health & root ---------- */
