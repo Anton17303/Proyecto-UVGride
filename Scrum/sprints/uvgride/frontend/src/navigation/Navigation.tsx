@@ -11,6 +11,7 @@ import FavoriteScreen from '../screens/FavoriteScreen';
 import AddFavoriteScreen from '../screens/AddFavoriteScreen';
 import ScheduledTripScreen from '../screens/ScheduledTripScreen';
 import VehicleFormScreen from '../screens/VehicleFormScreen';
+import PaymentScreen from '../screens/PaymentScreen';
 
 // 👇 NUEVOS imports
 import GroupCreateScreen from '../screens/GroupCreateScreen';
@@ -51,6 +52,8 @@ export default function Navigation() {
 
       {/* Perfil de conductor */}
       <Stack.Screen name="DriverProfile" component={DriverProfileScreen} />
+      {/* Pagos */}
+      <Stack.Screen name="Payment" component={PaymentScreen} />
     </Stack.Navigator>
   );
 }
