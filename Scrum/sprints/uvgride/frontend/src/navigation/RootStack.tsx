@@ -11,6 +11,7 @@ import TripFormScreen from '../screens/TripFormScreen';
 import ScheduledTripScreen from '../screens/ScheduledTripScreen';
 import DriverProfileScreen from '../screens/DriverProfileScreen';
 import GroupCreateScreen from '../screens/GroupCreateScreen';
+import GroupDetailScreen from '../screens/GroupDetailScreen'; // 👈 NUEVO
 import { useUser } from '../context/UserContext';
 import { RootStackParamList } from './type';
 
@@ -35,8 +36,13 @@ export default function RootStack() {
           <Stack.Screen name="VehicleForm" component={VehicleFormScreen} />
           <Stack.Screen name="ScheduledTripScreen" component={ScheduledTripScreen} />
           <Stack.Screen name="GroupCreate" component={GroupCreateScreen} />
-          {/* 👇 Detalle del conductor */}
           <Stack.Screen name="DriverProfile" component={DriverProfileScreen} />
+          {/* 👇 Detalle del grupo con header visible */}
+          <Stack.Screen
+            name="GroupDetail"
+            component={GroupDetailScreen}
+            options={{ headerShown: true, title: 'Detalle del grupo' }}
+          />
         </Stack.Group>
       ) : (
         <Stack.Group>

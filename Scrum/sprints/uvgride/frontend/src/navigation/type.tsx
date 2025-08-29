@@ -39,6 +39,6 @@ export type RootStackParamList = {
   DriverProfile: { driverId: number };
 
   // 🚀 Grupos
-  GroupDetail: { groupId: number }; // detalle de un grupo
-  GroupCreate: undefined;           // formulario para crear grupo (conductor)
+  GroupDetail: { grupoId: number }; // detalle de un grupo
+  GroupCreate: undefined;            // formulario para crear grupo (conductor)
 };

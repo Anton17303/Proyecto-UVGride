@@ -8,11 +8,7 @@ const isNilOrEmpty = (v) => v === undefined || v === null || v === '';
 const toNumber = (v) => (isNilOrEmpty(v) ? NaN : Number(v));
 const isPosInt = (v) => Number.isInteger(toNumber(v)) && toNumber(v) > 0;
 
-/* -------- Normalizador robusto --------
-   - Trata '' como vacío
-   - Mapea alias (destino_nombre → destino, cupos_totales → capacidad_total, costo_estimado → precio_base)
-   - Castea a número cuando corresponde
---------------------------------------- */
+/* Normalizador de payload */
 const normalizeBody = (req, _res, next) => {
   const b = { ...(req.body || {}) };
 
@@ -24,23 +20,28 @@ const normalizeBody = (req, _res, next) => {
     b.destino = String(b.destino).trim();
   }
 
-  // capacidad_total
+  // capacidad_total (alias cupos_totales)
   const rawCap =
     !isNilOrEmpty(b.capacidad_total) ? b.capacidad_total : b.cupos_totales;
   b.capacidad_total = isNilOrEmpty(rawCap) ? undefined : toNumber(rawCap);
 
-  // precio_base
+  // precio / costo
+  // ✅ mantenemos costo_estimado (lo usa el controller para Viaje.costo_total)
+  // ✅ y también seteamos precio_base (lo usa Grupo.precio_base)
   const rawPrecio =
     !isNilOrEmpty(b.precio_base) ? b.precio_base : b.costo_estimado;
-  b.precio_base = isNilOrEmpty(rawPrecio) ? undefined : toNumber(rawPrecio);
+  if (!isNilOrEmpty(rawPrecio)) {
+    const n = toNumber(rawPrecio);
+    b.precio_base = n;
+    b.costo_estimado = n; // mantener para el controller
+  }
 
-  // fecha_salida (deja string; el controller la convierte a Date si viene)
+  // fecha_salida (string ISO opcional)
   if (isNilOrEmpty(b.fecha_salida)) delete b.fecha_salida;
 
-  // limpia alias para que no confundan más adelante
+  // limpiar alias que ya mapeamos
   delete b.destino_nombre;
   delete b.cupos_totales;
-  delete b.costo_estimado;
 
   req.body = b;
   next();
@@ -75,7 +76,8 @@ const validateCrearGrupo = (req, res, next) => {
   }
 
   if (!isNilOrEmpty(precio_base)) {
-    if (!Number.isFinite(Number(precio_base)) || Number(precio_base) < 0) {
+    const n = toNumber(precio_base);
+    if (!Number.isFinite(n) || n < 0) {
       return res.status(400).json({ error: 'precio_base inválido' });
     }
   }
@@ -118,23 +120,52 @@ const validateCerrar = (req, res, next) => {
   if (!isPosInt(conductor_id)) {
     return res.status(400).json({ error: 'conductor_id inválido' });
   }
-  if (estado && !['cerrado', 'cancelado'].includes(String(estado))) {
+  if (estado && !['cerrado', 'cancelado', 'finalizado'].includes(String(estado))) {
     return res
       .status(400)
-      .json({ error: 'estado inválido (cerrado|cancelado)' });
+      .json({ error: 'estado inválido (cerrado|cancelado|finalizado)' });
   }
+  next();
+};
+
+/* Calificaciones */
+const validateRate = (req, res, next) => {
+  const { id_usuario, puntuacion, comentario } = req.body || {};
+  if (!isPosInt(id_usuario)) {
+    return res.status(400).json({ error: 'id_usuario inválido' });
+  }
+  const n = toNumber(puntuacion);
+  if (!Number.isInteger(n) || n < 1 || n > 5) {
+    return res.status(400).json({ error: 'puntuacion debe ser entero 1..5' });
+  }
+  if (comentario !== undefined && typeof comentario !== 'string') {
+    return res.status(400).json({ error: 'comentario debe ser string' });
+  }
+  next();
+};
+
+const validatePaginate = (req, _res, next) => {
+  const limit = toNumber(req.query.limit ?? 10);
+  const offset = toNumber(req.query.offset ?? 0);
+  req.query.limit = Number.isInteger(limit) && limit > 0 ? limit : 10;
+  req.query.offset = Number.isInteger(offset) && offset >= 0 ? offset : 0;
   next();
 };
 
 /* Params */
 router.param('id', validateIdParam);
 
-/* Rutas */
+/* Rutas base de grupos */
 router.post('/', normalizeBody, validateCrearGrupo, ctrl.crearGrupo);
 router.get('/', ctrl.listarGrupos);
 router.get('/:id', ctrl.obtenerGrupo);
 router.post('/:id/join', validateJoin, ctrl.unirseAGrupo);
 router.post('/:id/leave', validateLeave, ctrl.salirDeGrupo);
 router.post('/:id/cerrar', validateCerrar, ctrl.cerrarGrupo);
+
+/* Rutas de calificaciones ancladas al grupo */
+router.post('/:id/calificaciones', validateRate, ctrl.calificarConductor);
+router.get('/:id/calificaciones', validatePaginate, ctrl.listarCalificaciones);
+router.get('/:id/calificacion-resumen', ctrl.obtenerResumenConductor);
 
 module.exports = router;

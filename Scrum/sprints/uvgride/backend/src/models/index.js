@@ -1,6 +1,7 @@
 // src/models/index.js
 const { Sequelize, Op } = require('sequelize');
 
+/* ======================= Sequelize ======================= */
 const sequelize = new Sequelize(
   process.env.DB_NAME || 'uvgride',
   process.env.DB_USER || 'postgres',
@@ -18,16 +19,16 @@ const sequelize = new Sequelize(
   }
 );
 
-// Exporta la instancia primero (evita ciclos de require)
+/* Export temprano para romper ciclos */
 module.exports.sequelize = sequelize;
 
-/* ---------------- Modelos ---------------- */
-const Usuario = require('./Usuario');
+/* ======================= Modelos ======================= */
+const Usuario = require('./Usuario');       // usa { sequelize } desde este mismo index
 const Vehiculo = require('./Vehiculo');
 const GrupoViaje = require('./GrupoViaje');
 const GrupoMiembro = require('./GrupoMiembro');
 
-// Viaje es opcional (tu proyecto lo puede o no tener)
+// Viaje es opcional
 let Viaje = null;
 try {
   Viaje = require('./Viaje');
@@ -35,7 +36,7 @@ try {
   Viaje = null;
 }
 
-/* ---------------- Asociaciones ---------------- */
+/* ======================= Asociaciones ======================= */
 // Usuario ↔ Vehiculo
 Usuario.hasMany(Vehiculo, {
   foreignKey: 'id_usuario',
@@ -70,6 +71,10 @@ if (Viaje) {
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE',
   });
+
+  // (Opcional) relaciones útiles si luego las necesitas:
+  // Viaje.belongsTo(Usuario, { as: 'conductor', foreignKey: 'conductor_id' });
+  // Usuario.hasMany(Viaje, { as: 'viajes_como_conductor', foreignKey: 'conductor_id' });
 }
 
 // GrupoViaje ↔ GrupoMiembro ↔ Usuario
@@ -82,6 +87,8 @@ GrupoViaje.hasMany(GrupoMiembro, {
 GrupoMiembro.belongsTo(GrupoViaje, {
   as: 'grupo',
   foreignKey: 'id_grupo',
+  onDelete: 'CASCADE',
+  onUpdate: 'CASCADE',
 });
 
 GrupoMiembro.belongsTo(Usuario, {
@@ -95,29 +102,30 @@ Usuario.hasMany(GrupoMiembro, {
   foreignKey: 'id_usuario',
 });
 
-/* ---------------- Scopes útiles ---------------- */
-// Case-insensitive por consistencia con los controladores
+/* ======================= Scopes útiles ======================= */
 Usuario.addScope('conductoresConVehiculos', {
   where: { tipo_usuario: { [Op.iLike]: 'conductor' } },
   include: [{ model: Vehiculo, as: 'vehiculos', required: true }],
 });
 
-/* ---------------- Exports ---------------- */
+/* ======================= Exports ======================= */
 module.exports.Usuario = Usuario;
 module.exports.Vehiculo = Vehiculo;
 module.exports.GrupoViaje = GrupoViaje;
 module.exports.GrupoMiembro = GrupoMiembro;
 if (Viaje) module.exports.Viaje = Viaje;
 
-/* ---------------- Init DB ---------------- */
+// (Opcional) exportar Op si quieres usarlo desde ../models en vez de 'sequelize'
+module.exports.Op = Op;
+
+/* ======================= Init DB ======================= */
 module.exports.initDB = async () => {
   try {
     await sequelize.authenticate();
     console.log('✅ Conexión a la base de datos establecida correctamente.');
 
-    // Solo en desarrollo si lo necesitas:
     if (process.env.SYNC_DB === 'true') {
-      await sequelize.sync({ alter: true }); // ¡no uses force en prod!
+      await sequelize.sync({ alter: true }); // no uses force en prod
       console.log('🛠️  Modelos sincronizados (alter=true)');
     }
   } catch (error) {

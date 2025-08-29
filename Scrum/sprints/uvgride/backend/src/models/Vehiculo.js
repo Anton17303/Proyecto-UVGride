@@ -3,7 +3,7 @@ const { DataTypes } = require('sequelize');
 const { sequelize } = require('./index');
 
 const Vehiculo = sequelize.define(
-  'vehiculo', // nombre del modelo
+  'vehiculo',
   {
     id_vehiculo: {
       type: DataTypes.INTEGER,
@@ -27,7 +27,7 @@ const Vehiculo = sequelize.define(
     placa: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true,
+      // OJO: en tu SQL la placa NO es UNIQUE; si quieres que lo sea, agrega la constraint en SQL también.
       validate: { notEmpty: true },
     },
     color: {
@@ -49,6 +49,7 @@ const Vehiculo = sequelize.define(
     timestamps: false,
     indexes: [
       { fields: ['id_usuario'] },
+      { fields: ['placa'] }, // índice para búsquedas por placa
     ],
     hooks: {
       beforeValidate: (veh) => {

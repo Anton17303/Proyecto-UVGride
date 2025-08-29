@@ -1,5 +1,5 @@
 // src/controllers/grupo.controller.js
-const { Op, fn, col, literal } = require('sequelize');
+const { Op, literal } = require('sequelize');
 const {
   sequelize,
   Usuario,
@@ -18,7 +18,6 @@ const isFiniteNum = (v) => Number.isFinite(toNumber(v));
 /** Normaliza el payload que viene del cliente (pasajero/conductor) a los campos que usamos */
 function normalizeCreatePayload(body = {}) {
   const {
-    // nombres posibles desde el front
     conductor_id,
     destino,
     destino_nombre,
@@ -31,10 +30,8 @@ function normalizeCreatePayload(body = {}) {
     notas,
   } = body;
 
-  // admitir "destino" o "destino_nombre"
   const dest = (destino_nombre ?? destino ?? '').toString().trim();
 
-  // admitir "cupos_totales" o "capacidad_total"
   const capacidad = isPosInt(cupos_totales)
     ? Number(cupos_totales)
     : isPosInt(capacidad_total)
@@ -66,9 +63,7 @@ function normalizeCreatePayload(body = {}) {
  * También agrega al conductor como miembro (rol=conductor, estado_solicitud=aprobado).
  */
 exports.crearGrupo = async (req, res) => {
-  console.log('[grupos] 🟢 crearGrupo payload RAW:', req.body);
   const p = normalizeCreatePayload(req.body);
-  console.log('[grupos] 🟢 crearGrupo payload NORMALIZED:', p);
 
   // Validaciones
   if (!isPosInt(p.conductor_id)) {
@@ -103,30 +98,27 @@ exports.crearGrupo = async (req, res) => {
     }
 
     // 2) Crear viaje_maestro mínimo (si tienes el modelo Viaje mapeado)
-    // Requisitos NOT NULL: origen, destino, costo_total
-    let viaje = null;
-    if (Viaje) {
-      viaje = await Viaje.create(
-        {
-          origen: 'Punto de salida', // puedes mejorar esto
-          destino: p.destino_nombre,
-          lat_destino: p.lat_destino,
-          lon_destino: p.lon_destino,
-          costo_total: p.costo_estimado ?? 0,
-          fecha_inicio: p.fecha_salida, // opcional
-          estado_viaje: 'pendiente',
-          conductor_id: p.conductor_id,
-        },
-        { transaction: t }
-      );
-    } else {
-      // Si no tienes el modelo Viaje en Sequelize, no podemos FK.
+    if (!Viaje) {
       await t.rollback();
       return res.status(500).json({
         error:
           'Modelo Viaje (viaje_maestro) no está disponible en Sequelize. Mapea el modelo o ajusta el flujo.',
       });
     }
+
+    const viaje = await Viaje.create(
+      {
+        origen: 'Punto de salida',
+        destino: p.destino_nombre,
+        lat_destino: p.lat_destino,
+        lon_destino: p.lon_destino,
+        costo_total: p.costo_estimado ?? 0,
+        fecha_inicio: p.fecha_salida, // opcional
+        estado_viaje: 'pendiente',
+        conductor_id: p.conductor_id,
+      },
+      { transaction: t }
+    );
 
     // 3) Crear el grupo
     const grupo = await GrupoViaje.create(
@@ -148,7 +140,6 @@ exports.crearGrupo = async (req, res) => {
         id_usuario: p.conductor_id,
         rol: 'conductor',
         estado_solicitud: 'aprobado',
-        // joined_at -> default NOW()
       },
       { transaction: t }
     );
@@ -163,45 +154,56 @@ exports.crearGrupo = async (req, res) => {
     });
   } catch (err) {
     await t.rollback();
-    console.error('[grupos] ❌ Error creando grupo:', err);
+    console.error('[grupos] Error creando grupo:', err);
     return res.status(500).json({ error: 'Error interno al crear el grupo' });
   }
 };
 
 /**
  * GET /api/grupos
- * Lista grupos (por defecto abiertos) con conteo de cupos usados/disponibles
- * Query: ?estado=abierto|cerrado|cancelado|finalizado & ?q=texto
+ * Lista grupos con conteo de cupos usados/disponibles.
+ * Query opcionales:
+ *   - estado=abierto|cerrado|cancelado|finalizado (si no se envía, muestra TODOS)
+ *   - q=texto (busca por destino o nombre/apellido del conductor)
+ *   - user_id=ID (agrega flags es_miembro y es_propietario en la respuesta)
  */
 exports.listarGrupos = async (req, res) => {
   try {
-    console.log('[grupos] 🔵 listarGrupos query:', req.query);
-    const { estado = 'abierto', q } = req.query || {};
+    const { estado, q } = req.query || {};
+    const userId = Number(req.query.user_id);
+    const userIdValido = Number.isInteger(userId) && userId > 0;
 
     const whereGrupo = {};
     if (estado) whereGrupo.estado_grupo = String(estado);
 
-    // Para búsqueda por texto (destino o nombre del conductor)
     const whereConductor = {};
     const whereViaje = {};
 
     if (q && String(q).trim()) {
       const term = `%${String(q).trim()}%`;
-      // conductor
       whereConductor[Op.or] = [
         { nombre: { [Op.iLike]: term } },
         { apellido: { [Op.iLike]: term } },
       ];
-      // destino (viaje_maestro.destino)
       if (Viaje) {
         whereViaje.destino = { [Op.iLike]: term };
       }
     }
 
-    // Atributo calculado: cupos aprovados
-    const cuposUsadosLiteral = literal(
-      `(SELECT COUNT(*) FROM grupo_miembro gm WHERE gm.id_grupo = "GrupoViaje"."id_grupo" AND gm.estado_solicitud = 'aprobado')`
-    );
+    const SUB_CUPOS = `(SELECT COUNT(*) FROM grupo_miembro gm WHERE gm.id_grupo = "GrupoViaje"."id_grupo" AND gm.estado_solicitud = 'aprobado')`;
+
+    const LIT_ES_MIEMBRO = userIdValido
+      ? literal(`EXISTS (
+          SELECT 1 FROM grupo_miembro gm
+          WHERE gm.id_grupo = "GrupoViaje"."id_grupo"
+            AND gm.id_usuario = ${userId}
+            AND gm.estado_solicitud = 'aprobado'
+        )`)
+      : literal('false');
+
+    const LIT_ES_PROPIETARIO = userIdValido
+      ? literal(`("GrupoViaje"."conductor_id" = ${userId})`)
+      : literal('false');
 
     const include = [
       {
@@ -228,7 +230,7 @@ exports.listarGrupos = async (req, res) => {
         model: Viaje,
         as: 'viaje',
         where: whereViaje,
-        required: true, // si no hay Viaje no mostramos el grupo
+        required: true,
         attributes: ['id_viaje_maestro', 'origen', 'destino', 'lat_destino', 'lon_destino', 'fecha_inicio'],
       });
     }
@@ -245,16 +247,17 @@ exports.listarGrupos = async (req, res) => {
         'estado_grupo',
         'created_at',
         'updated_at',
-        [cuposUsadosLiteral, 'cupos_usados'],
-        [literal(`"GrupoViaje"."capacidad_total" - ${cuposUsadosLiteral.val}`), 'cupos_disponibles'],
+        [literal(SUB_CUPOS), 'cupos_usados'],
+        [literal(`"GrupoViaje"."capacidad_total" - ${SUB_CUPOS}`), 'cupos_disponibles'],
+        [LIT_ES_MIEMBRO, 'es_miembro'],
+        [LIT_ES_PROPIETARIO, 'es_propietario'],
       ],
       include,
     });
 
     return res.json({ data: grupos });
   } catch (err) {
-    console.error('[grupos] ❌ Error listando grupos:', err?.message || err);
-    console.error('[grupos] STACK:', err);
+    console.error('[grupos] Error listando grupos:', err?.message || err);
     return res.status(500).json({ error: 'Error interno al listar grupos' });
   }
 };
@@ -262,10 +265,14 @@ exports.listarGrupos = async (req, res) => {
 /**
  * GET /api/grupos/:id
  * Detalle del grupo con sus miembros y viaje asociado.
+ * Query opcional: user_id=ID (devuelve es_miembro/es_propietario en attributes)
  */
 exports.obtenerGrupo = async (req, res) => {
   try {
     const id = Number(req.params.id);
+    const userId = Number(req.query.user_id);
+    const userIdValido = Number.isInteger(userId) && userId > 0;
+
     if (!Number.isInteger(id) || id <= 0) {
       return res.status(400).json({ error: 'Parámetro id inválido' });
     }
@@ -303,35 +310,58 @@ exports.obtenerGrupo = async (req, res) => {
       include.push({
         model: Viaje,
         as: 'viaje',
-        attributes: ['id_viaje_maestro', 'origen', 'destino', 'lat_destino', 'lon_destino', 'fecha_inicio'],
+        attributes: [
+          'id_viaje_maestro',
+          'origen',
+          'destino',
+          'lat_destino',
+          'lon_destino',
+          'fecha_inicio',
+          'estado_viaje',
+        ],
       });
     }
 
-    const grupo = await GrupoViaje.findByPk(id, {
-      attributes: [
-        'id_grupo',
-        'id_viaje_maestro',
-        'conductor_id',
-        'capacidad_total',
-        'precio_base',
-        'estado_grupo',
-        'notas',
-        'created_at',
-        'updated_at',
+    const SUB_CUPOS = `(SELECT COUNT(*) FROM grupo_miembro gm WHERE gm.id_grupo = "GrupoViaje"."id_grupo" AND gm.estado_solicitud = 'aprobado')`;
+
+    const attrs = [
+      'id_grupo',
+      'id_viaje_maestro',
+      'conductor_id',
+      'capacidad_total',
+      'precio_base',
+      'estado_grupo',
+      'notas',
+      'created_at',
+      'updated_at',
+      [literal(SUB_CUPOS), 'cupos_usados'],
+      [literal(`"GrupoViaje"."capacidad_total" - ${SUB_CUPOS}`), 'cupos_disponibles'],
+    ];
+
+    if (userIdValido) {
+      attrs.push(
         [
-          literal(
-            `(SELECT COUNT(*) FROM grupo_miembro gm WHERE gm.id_grupo = "GrupoViaje"."id_grupo" AND gm.estado_solicitud = 'aprobado')`
-          ),
-          'cupos_usados',
+          literal(`EXISTS (
+            SELECT 1 FROM grupo_miembro gm
+            WHERE gm.id_grupo = "GrupoViaje"."id_grupo"
+              AND gm.id_usuario = ${userId}
+              AND gm.estado_solicitud = 'aprobado'
+          )`),
+          'es_miembro',
         ],
-      ],
+        [literal(`("GrupoViaje"."conductor_id" = ${userId})`), 'es_propietario']
+      );
+    }
+
+    const grupo = await GrupoViaje.findByPk(id, {
+      attributes: attrs,
       include,
     });
 
     if (!grupo) return res.status(404).json({ error: 'Grupo no encontrado' });
     return res.json({ data: grupo });
   } catch (err) {
-    console.error('[grupos] ❌ Error obteniendo grupo:', err);
+    console.error('[grupos] Error obteniendo grupo:', err);
     return res.status(500).json({ error: 'Error interno al obtener grupo' });
   }
 };
@@ -339,7 +369,11 @@ exports.obtenerGrupo = async (req, res) => {
 /**
  * POST /api/grupos/:id/join
  * Un usuario se une al grupo si hay cupos. Pasa a estado_solicitud='aprobado'
- * Body: { id_usuario, monto_acordado? }  (monto_acordado no está en el esquema actual)
+ * Body: { id_usuario }
+ * Reglas:
+ *  - El grupo debe estar 'abierto'
+ *  - El usuario no puede ser el conductor del grupo
+ *  - El usuario no puede estar ya 'aprobado' en otro grupo activo (abierto o cerrado)
  */
 exports.unirseAGrupo = async (req, res) => {
   const id = Number(req.params.id);
@@ -354,7 +388,6 @@ exports.unirseAGrupo = async (req, res) => {
 
   const t = await sequelize.transaction();
   try {
-    // 1) Bloqueamos SOLO la fila del grupo (para estado y capacidad)
     const grupo = await GrupoViaje.findByPk(id, { transaction: t, lock: t.LOCK.UPDATE });
     if (!grupo) {
       await t.rollback();
@@ -365,25 +398,47 @@ exports.unirseAGrupo = async (req, res) => {
       return res.status(400).json({ error: 'El grupo no está abierto' });
     }
 
-    // 2) ¿Ya es miembro?
+    // 🚫 impedir que el conductor se una a su propio grupo
+    if (grupo.conductor_id === Number(id_usuario)) {
+      await t.rollback();
+      return res.status(400).json({ error: 'No puedes unirte a tu propio grupo' });
+    }
+
+    // 🚫 impedir pertenecer a múltiples grupos (aprobado) simultáneamente
+    const yaEnOtro = await GrupoMiembro.findOne({
+      where: { id_usuario: Number(id_usuario), estado_solicitud: 'aprobado' },
+      include: [
+        {
+          model: GrupoViaje,
+          as: 'grupo',
+          required: true,
+          where: { estado_grupo: { [Op.in]: ['abierto', 'cerrado'] } },
+          attributes: ['id_grupo'],
+        },
+      ],
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+    if (yaEnOtro && yaEnOtro.id_grupo !== id) {
+      await t.rollback();
+      return res.status(400).json({ error: 'Ya perteneces a otro grupo activo' });
+    }
+
     const ya = await GrupoMiembro.findOne({
       where: { id_grupo: id, id_usuario },
       transaction: t,
-      lock: t.LOCK.UPDATE, // lock solo sobre esta fila (si existe)
+      lock: t.LOCK.UPDATE,
     });
 
-    // 3) Chequeo de cupos (sin FOR UPDATE). El trigger de BD refuerza este límite igualmente.
     const aprobados = await GrupoMiembro.count({
       where: { id_grupo: id, estado_solicitud: 'aprobado' },
       transaction: t,
-      // ¡no usar lock aquí! Postgres prohíbe FOR UPDATE con agregados
     });
     if (aprobados >= grupo.capacidad_total) {
       await t.rollback();
       return res.status(400).json({ error: 'No hay cupos disponibles' });
     }
 
-    // 4) Aceptar/crear la membresía
     if (ya) {
       if (ya.estado_solicitud === 'aprobado') {
         await t.rollback();
@@ -407,13 +462,12 @@ exports.unirseAGrupo = async (req, res) => {
   } catch (err) {
     await t.rollback();
 
-    // Si el trigger de BD lanzó "El grupo ya no tiene cupos disponibles"
     const msg = String(err?.parent?.message || err?.message || '').toLowerCase();
     if (msg.includes('no tiene cupos') || msg.includes('cupos')) {
       return res.status(400).json({ error: 'No hay cupos disponibles' });
     }
 
-    console.error('[grupos] ❌ Error unirseAGrupo:', err);
+    console.error('[grupos] Error unirseAGrupo:', err);
     return res.status(500).json({ error: 'Error interno al unirse al grupo' });
   }
 };
@@ -460,15 +514,19 @@ exports.salirDeGrupo = async (req, res) => {
     return res.json({ message: 'Saliste del grupo' });
   } catch (err) {
     await t.rollback();
-    console.error('[grupos] ❌ Error salirDeGrupo:', err);
+    console.error('[grupos] Error salirDeGrupo:', err);
     return res.status(500).json({ error: 'Error interno al salir del grupo' });
   }
 };
 
 /**
  * POST /api/grupos/:id/cerrar
- * Cerrar o cancelar un grupo (solo conductor creador)
+ * Cerrar/cancelar/finalizar un grupo (solo conductor creador)
  * Body: { conductor_id, estado? = 'cerrado'|'cancelado'|'finalizado' }
+ * Reglas:
+ *   cerrado    <= solo desde 'abierto'
+ *   cancelado  <= desde 'abierto' o 'cerrado'
+ *   finalizado <= solo desde 'cerrado'
  */
 exports.cerrarGrupo = async (req, res) => {
   const id = Number(req.params.id);
@@ -492,16 +550,101 @@ exports.cerrarGrupo = async (req, res) => {
     if (grupo.conductor_id !== Number(conductor_id)) {
       return res.status(403).json({ error: 'No autorizado para cerrar este grupo' });
     }
-    if (!['abierto'].includes(grupo.estado_grupo) && estado !== 'finalizado') {
-      // permitir finalizar aunque estuviera cerrado?
-      // ajusta esta lógica si te conviene
-      return res.status(400).json({ error: 'El grupo no está en un estado cerrable' });
+
+    const from = grupo.estado_grupo;
+    if (estado === 'cerrado' && from !== 'abierto') {
+      return res.status(400).json({ error: 'Solo grupos abiertos pueden cerrarse' });
+    }
+    if (estado === 'cancelado' && !['abierto', 'cerrado'].includes(from)) {
+      return res.status(400).json({ error: 'Solo grupos abiertos/cerrados pueden cancelarse' });
+    }
+    if (estado === 'finalizado' && from !== 'cerrado') {
+      return res.status(400).json({ error: 'Solo grupos cerrados pueden finalizarse' });
     }
 
     await grupo.update({ estado_grupo: estado, updated_at: new Date() });
     return res.json({ message: `Grupo ${estado}`, data: grupo });
   } catch (err) {
-    console.error('[grupos] ❌ Error cerrarGrupo:', err);
+    console.error('[grupos] Error cerrarGrupo:', err);
     return res.status(500).json({ error: 'Error interno al cerrar grupo' });
+  }
+};
+
+/* ======================= Calificaciones (ancladas al grupo) ======================= */
+/**
+ * POST /api/grupos/:id/calificaciones
+ * Body: { id_usuario, puntuacion (1..5), comentario? }
+ * id_usuario = pasajero que califica
+ */
+exports.calificarConductor = async (req, res) => {
+  try {
+    const grupoId = Number(req.params.id);
+    const pasajeroId = Number(req.body.id_usuario);
+    const puntuacion = Number(req.body.puntuacion);
+    const comentario = req.body.comentario;
+
+    if (!Number.isInteger(grupoId) || grupoId <= 0) {
+      return res.status(400).json({ error: 'Parámetro id inválido' });
+    }
+    if (!isPosInt(pasajeroId)) {
+      return res.status(400).json({ error: 'id_usuario inválido' });
+    }
+    if (!Number.isInteger(puntuacion) || puntuacion < 1 || puntuacion > 5) {
+      return res.status(400).json({ error: 'puntuacion debe ser entero 1..5' });
+    }
+
+    const rating = await GrupoViaje.calificarConductor({
+      grupoId,
+      pasajeroId,
+      puntuacion,
+      comentario,
+    });
+
+    return res.status(201).json(rating);
+  } catch (e) {
+    const status = e.status || 500;
+    return res.status(status).json({ error: e.message || 'Error al calificar' });
+  }
+};
+
+/**
+ * GET /api/grupos/:id/calificaciones?limit=&offset=
+ */
+exports.listarCalificaciones = async (req, res) => {
+  try {
+    const grupoId = Number(req.params.id);
+    const limit = Number(req.query.limit ?? 10);
+    const offset = Number(req.query.offset ?? 0);
+
+    if (!Number.isInteger(grupoId) || grupoId <= 0) {
+      return res.status(400).json({ error: 'Parámetro id inválido' });
+    }
+
+    const data = await GrupoViaje.listarCalificaciones(grupoId, {
+      limit: Number.isInteger(limit) && limit > 0 ? limit : 10,
+      offset: Number.isInteger(offset) && offset >= 0 ? offset : 0,
+    });
+
+    return res.json(data);
+  } catch (e) {
+    const status = e.status || 500;
+    return res.status(status).json({ error: e.message || 'Error al listar calificaciones' });
+  }
+};
+
+/**
+ * GET /api/grupos/:id/calificacion-resumen
+ */
+exports.obtenerResumenConductor = async (req, res) => {
+  try {
+    const grupoId = Number(req.params.id);
+    if (!Number.isInteger(grupoId) || grupoId <= 0) {
+      return res.status(400).json({ error: 'Parámetro id inválido' });
+    }
+    const resumen = await GrupoViaje.obtenerResumenConductor(grupoId);
+    return res.json(resumen);
+  } catch (e) {
+    const status = e.status || 500;
+    return res.status(status).json({ error: e.message || 'Error al obtener resumen' });
   }
 };

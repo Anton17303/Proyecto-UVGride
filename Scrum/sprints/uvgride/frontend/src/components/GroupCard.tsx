@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { memo, useMemo } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 
 type Props = {
   destino: string;
@@ -13,9 +13,26 @@ type Props = {
   onPressPrimary?: () => void; // Unirse / Cerrar
   primaryLabel?: string;
   disabledPrimary?: boolean;
+  /** opcional: promedio 0..5 */
+  rating?: number;
+  /** opcional: slot para botones/acciones extra (p.ej. cerrar/cancelar) */
+  rightActions?: React.ReactNode;
+  testID?: string;
 };
 
-export default function GroupCard({
+function fmtCurrencyGTQ(n: number) {
+  return new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ', maximumFractionDigits: 2 }).format(n);
+}
+
+function fmtDateGT(s: string) {
+  const d = new Date(s);
+  return d.toLocaleString('es-GT', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+}
+
+const GroupCard = memo(function GroupCard({
   destino,
   cuposDisponibles,
   cuposTotales,
@@ -27,19 +44,36 @@ export default function GroupCard({
   onPressPrimary,
   primaryLabel,
   disabledPrimary,
+  rating,
+  rightActions,
+  testID,
 }: Props) {
-  return (
-    <View style={styles.card}>
-      <TouchableOpacity onPress={onPressConductor} activeOpacity={0.7}>
-        <Text style={styles.conductor} numberOfLines={1}>
-          👤 {conductorNombre}
-        </Text>
-      </TouchableOpacity>
+  const costoTxt = useMemo(() => {
+    if (typeof costoEstimado === 'number' && Number.isFinite(costoEstimado)) {
+      return fmtCurrencyGTQ(costoEstimado);
+    }
+    return null;
+  }, [costoEstimado]);
 
-      <Text style={styles.destino}>📍 {destino}</Text>
+  return (
+    <View style={styles.card} testID={testID}>
+      <View style={styles.headerRow}>
+        <TouchableOpacity onPress={onPressConductor} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Ver perfil del conductor">
+          <Text style={styles.conductor} numberOfLines={1}>👤 {conductorNombre}</Text>
+        </TouchableOpacity>
+        {rightActions}
+      </View>
+
+      <Text style={styles.destino} numberOfLines={2}>📍 {destino}</Text>
+
+      {typeof rating === 'number' && (
+        <Text style={styles.rating} accessibilityLabel={`Calificación ${rating} de 5`}>
+          ⭐ {rating.toFixed(1)} / 5
+        </Text>
+      )}
 
       {vehiculo ? (
-        <Text style={styles.vehiculo}>
+        <Text style={styles.vehiculo} numberOfLines={1}>
           🚗 {vehiculo.marca} {vehiculo.modelo} ({vehiculo.placa})
         </Text>
       ) : null}
@@ -48,26 +82,23 @@ export default function GroupCard({
         🪑 Cupos: {cuposDisponibles}/{cuposTotales}
       </Text>
 
-      {typeof costoEstimado === 'number' ? (
-        <Text style={styles.meta}>💵 Estimado: Q{costoEstimado.toFixed(2)}</Text>
-      ) : null}
-
-      {fechaSalida ? (
-        <Text style={styles.meta}>🕒 {new Date(fechaSalida).toLocaleString()}</Text>
-      ) : null}
+      {costoTxt ? <Text style={styles.meta}>💵 {costoTxt}</Text> : null}
+      {fechaSalida ? <Text style={styles.meta}>🕒 {fmtDateGT(fechaSalida)}</Text> : null}
 
       {primaryLabel ? (
         <TouchableOpacity
           style={[styles.primaryBtn, disabledPrimary && { opacity: 0.6 }]}
           onPress={onPressPrimary}
           disabled={disabledPrimary}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !!disabledPrimary }}
         >
           <Text style={styles.primaryTxt}>{primaryLabel}</Text>
         </TouchableOpacity>
       ) : null}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {
@@ -75,10 +106,20 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 14,
     marginBottom: 12,
-    elevation: 2,
+    ...Platform.select({
+      android: { elevation: 2 },
+      ios: {
+        shadowColor: '#000',
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 2 },
+      },
+    }),
   },
-  conductor: { fontWeight: '700', fontSize: 16, marginBottom: 6 },
-  destino: { fontSize: 15, marginBottom: 4 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  conductor: { fontWeight: '700', fontSize: 16 },
+  destino: { fontSize: 15, marginTop: 6, marginBottom: 4 },
+  rating: { fontSize: 14, color: '#444', marginBottom: 4 },
   vehiculo: { fontSize: 14, opacity: 0.85, marginBottom: 4 },
   cupos: { fontSize: 14, marginBottom: 4 },
   meta: { fontSize: 13, opacity: 0.8, marginBottom: 2 },
@@ -91,3 +132,5 @@ const styles = StyleSheet.create({
   },
   primaryTxt: { color: '#fff', fontWeight: '700' },
 });
+
+export default GroupCard;

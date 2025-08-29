@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -22,72 +22,115 @@ import { lightColors, darkColors } from '../constants/colors';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'GroupCreate'>;
 
+function clampInt(v: number, min = 1, max = 99) {
+  if (!Number.isFinite(v)) return NaN;
+  return Math.max(min, Math.min(max, Math.trunc(v)));
+}
+
+function parseCurrency2dec(raw: string): number | null {
+  if (raw.trim() === '') return null;
+  const cleaned = raw.replace(',', '.').replace(/[^\d.]/g, '');
+  const parts = cleaned.split('.');
+  const normalized = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : cleaned;
+  const n = Number(normalized);
+  if (!Number.isFinite(n) || n < 0) return NaN;
+  return Math.round(n * 100) / 100;
+}
+
+function isIso(str: string) {
+  if (!str) return false;
+  const d = new Date(str);
+  return !Number.isNaN(d.getTime());
+}
+
 export default function GroupCreateScreen() {
   const navigation = useNavigation<Nav>();
   const { user } = useUser();
   const { theme } = useTheme();
   const colors = theme === 'light' ? lightColors : darkColors;
 
+  const destinoRef = useRef<TextInput>(null);
+  const cuposRef = useRef<TextInput>(null);
+  const fechaRef = useRef<TextInput>(null);
+  const costoRef = useRef<TextInput>(null);
+
   const [destino, setDestino] = useState('');
   const [cupos, setCupos] = useState<string>('3');
-  const [fecha, setFecha] = useState<string>(''); // ISO opcional
-  const [costo, setCosto] = useState<string>('');
+  const [fecha, setFecha] = useState<string>('');  // ISO opcional
+  const [costo, setCosto] = useState<string>('');  // máscara
   const [loading, setLoading] = useState(false);
 
+  /* ---------- Validaciones ---------- */
+  const destinoErr = useMemo(() => (destino.trim() ? '' : 'Ingresa un destino.'), [destino]);
+
+  const cuposErr = useMemo(() => {
+    if (cupos.trim() === '') return 'Ingresa el número de cupos.';
+    const n = clampInt(Number(cupos), 1, 99);
+    if (!Number.isFinite(n)) return 'Debe ser un entero.';
+    if (n <= 0) return 'Debe ser un entero > 0.';
+    return '';
+  }, [cupos]);
+
+  const costoErr = useMemo(() => {
+    if (costo.trim() === '') return '';
+    const n = parseCurrency2dec(costo);
+    if (n === null) return '';
+    if (Number.isNaN(n) || n < 0) return 'Ingresa un costo válido (>= 0).';
+    return '';
+  }, [costo]);
+
+  const fechaErr = useMemo(() => {
+    if (fecha.trim() === '') return '';
+    return isIso(fecha) ? '' : 'Fecha inválida. Usa ISO, e.g. 2025-08-26T18:30:00Z';
+  }, [fecha]);
+
+  const isFormValid = useMemo(
+    () => !destinoErr && !cuposErr && !costoErr && !fechaErr,
+    [destinoErr, cuposErr, costoErr, fechaErr]
+  );
+
+  /* ---------- Helpers UI ---------- */
+  const setCuposMasked = (t: string) => setCupos(t.replace(/[^\d]/g, ''));
+  const setCostoMasked = (t: string) => {
+    let v = t.replace(/[^\d.,]/g, '');
+    const parts = v.replace(',', '.').split('.');
+    if (parts.length > 2) v = `${parts[0]}.${parts.slice(1).join('')}`;
+    const [ent, dec] = v.split(/[.,]/);
+    if (dec && dec.length > 2) v = `${ent}.${dec.slice(0, 2)}`;
+    setCosto(v);
+  };
+  const fillNowPlus30 = () => setFecha(new Date(Date.now() + 30 * 60 * 1000).toISOString());
+
+  /* ---------- Submit ---------- */
   const onSubmit = async () => {
     if (!user?.id) {
       Alert.alert('Sesión', 'Inicia sesión nuevamente.');
       return;
     }
-
-    const destinoNorm = destino.trim();
-    if (!destinoNorm) {
-      Alert.alert('Destino', 'Ingresa un destino.');
+    if (!isFormValid) {
+      Alert.alert('Revisa el formulario', [destinoErr, cuposErr, costoErr, fechaErr].filter(Boolean).join('\n'));
       return;
     }
 
-    // normaliza cupos (solo enteros positivos)
-    const nCupos = Number.parseInt(cupos, 10);
-    if (!Number.isInteger(nCupos) || nCupos <= 0) {
-      Alert.alert('Cupos', 'Debe ser un entero mayor a 0.');
-      return;
-    }
-
-    // normaliza costo (opcional >= 0)
-    const nCosto =
-      costo.trim() === '' ? null : Number(costo.replace(',', '.'));
-    if (nCosto != null && (!Number.isFinite(nCosto) || nCosto < 0)) {
-      Alert.alert('Costo', 'Ingresa un costo válido (>= 0).');
-      return;
-    }
-
-    // fecha opcional: si viene, intentamos parsear
+    const nCupos = clampInt(Number(cupos), 1, 99);
+    const nCosto = parseCurrency2dec(costo); // puede ser null
     const fechaOut = fecha.trim();
-    if (fechaOut) {
-      const d = new Date(fechaOut);
-      if (Number.isNaN(d.getTime())) {
-        Alert.alert('Fecha', 'Fecha inválida. Usa formato ISO (p. ej. 2025-08-26T18:30:00Z).');
-        return;
-      }
-    }
 
     try {
       setLoading(true);
 
-      // Enviamos ambos nombres por compatibilidad con el backend:
-      const payload: any = {
-        conductor_id: user.id,
-        destino_nombre: destinoNorm, // backend también acepta 'destino'
-        capacidad_total: nCupos,     // nombre preferido
-        cupos_totales: nCupos,       // alias aceptado
-      };
-      if (fechaOut) payload.fecha_salida = fechaOut;
-      if (nCosto != null) payload.costo_estimado = nCosto;
+      await createGroup({
+        conductor_id: Number(user.id),
+        destino_nombre: destino.trim(),
+        cupos_totales: nCupos,
+        fecha_salida: fechaOut || undefined,
+        costo_estimado: nCosto ?? undefined,
+      });
 
-      await createGroup(payload);
-
-      Alert.alert('Éxito', 'Grupo creado.');
-      navigation.goBack();
+      // Mostrar confirmación y volver a la lista (que refresca con useFocusEffect)
+      Alert.alert('Éxito', 'Grupo creado.', [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
     } catch (e: any) {
       console.error('crear grupo error:', e?.response?.data || e?.message);
       const msg =
@@ -109,61 +152,85 @@ export default function GroupCreateScreen() {
         <View style={{ padding: 16 }}>
           <Text style={[styles.title, { color: colors.text }]}>Crear grupo</Text>
 
+          {/* Destino */}
           <Text style={[styles.label, { color: colors.text }]}>Destino</Text>
           <TextInput
+            ref={destinoRef}
             value={destino}
             onChangeText={setDestino}
             placeholder="Ej. Cayalá"
             style={[styles.input, { backgroundColor: colors.card, color: colors.text }]}
             placeholderTextColor="#888"
             autoCapitalize="sentences"
+            returnKeyType="next"
+            onSubmitEditing={() => cuposRef.current?.focus()}
           />
+          {!!destinoErr && <Text style={styles.err}>{destinoErr}</Text>}
 
+          {/* Cupos */}
           <Text style={[styles.label, { color: colors.text }]}>Cupos totales</Text>
           <TextInput
+            ref={cuposRef}
             value={cupos}
-            onChangeText={(t) => setCupos(t.replace(/[^\d]/g, ''))}
+            onChangeText={setCuposMasked}
             keyboardType="number-pad"
             style={[styles.input, { backgroundColor: colors.card, color: colors.text }]}
             placeholder="3"
             placeholderTextColor="#888"
+            returnKeyType="next"
+            onSubmitEditing={() => fechaRef.current?.focus()}
           />
+          {!!cuposErr && <Text style={styles.err}>{cuposErr}</Text>}
 
-          <Text style={[styles.label, { color: colors.text }]}>Fecha de salida (opcional, ISO)</Text>
+          {/* Fecha */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={[styles.label, { color: colors.text, flex: 1 }]}>
+              Fecha de salida (opcional, ISO)
+            </Text>
+            <TouchableOpacity onPress={fillNowPlus30} style={styles.chip}>
+              <Text style={styles.chipTxt}>+30 min</Text>
+            </TouchableOpacity>
+          </View>
           <TextInput
+            ref={fechaRef}
             value={fecha}
             onChangeText={setFecha}
             placeholder="2025-08-26T18:30:00Z"
             style={[styles.input, { backgroundColor: colors.card, color: colors.text }]}
             placeholderTextColor="#888"
             autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="next"
+            onSubmitEditing={() => costoRef.current?.focus()}
           />
+          {!!fechaErr && <Text style={styles.err}>{fechaErr}</Text>}
 
+          {/* Costo */}
           <Text style={[styles.label, { color: colors.text }]}>Costo estimado (opcional)</Text>
           <TextInput
+            ref={costoRef}
             value={costo}
-            onChangeText={setCosto}
+            onChangeText={setCostoMasked}
             keyboardType="decimal-pad"
             placeholder="50"
             style={[styles.input, { backgroundColor: colors.card, color: colors.text }]}
             placeholderTextColor="#888"
+            returnKeyType="done"
+            onSubmitEditing={onSubmit}
           />
+          {!!costoErr && <Text style={styles.err}>{costoErr}</Text>}
 
           <TouchableOpacity
             style={[
               styles.btn,
               { backgroundColor: colors.primary },
-              loading && { opacity: 0.6 },
+              (loading || !isFormValid) && { opacity: 0.6 },
             ]}
             onPress={onSubmit}
-            disabled={loading}
+            disabled={loading || !isFormValid}
             activeOpacity={0.85}
           >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.btnTxt}>Crear grupo</Text>
-            )}
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnTxt}>Crear grupo</Text>}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -174,17 +241,10 @@ export default function GroupCreateScreen() {
 const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: '800', marginBottom: 12 },
   label: { fontSize: 14, marginTop: 10, marginBottom: 6 },
-  input: {
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 4,
-  },
-  btn: {
-    marginTop: 18,
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
+  input: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 4 },
+  err: { color: '#d32f2f', fontSize: 12, marginTop: 2 },
+  chip: { backgroundColor: '#eee', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16 },
+  chipTxt: { fontWeight: '700', color: '#444', fontSize: 12 },
+  btn: { marginTop: 18, paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
   btnTxt: { color: '#fff', fontWeight: '800' },
 });

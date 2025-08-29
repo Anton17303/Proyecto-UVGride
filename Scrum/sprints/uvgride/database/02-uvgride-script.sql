@@ -1,5 +1,3 @@
--- ======================  ESQUEMA BASE  ======================
--- Usuarios
 CREATE TABLE IF NOT EXISTS usuario (
   id_usuario SERIAL PRIMARY KEY,
   nombre VARCHAR(255) NOT NULL,
@@ -7,14 +5,15 @@ CREATE TABLE IF NOT EXISTS usuario (
   correo_institucional VARCHAR(255) UNIQUE NOT NULL,
   contrasenia VARCHAR(255) NOT NULL,
   telefono VARCHAR(20) NOT NULL,
-  tipo_usuario VARCHAR(255) NOT NULL, -- "Pasajero" o "Conductor"
+  tipo_usuario VARCHAR(255) NOT NULL,
   licencia_conducir VARCHAR(255),
   estado_disponibilidad VARCHAR(255),
   activo BOOLEAN NOT NULL DEFAULT TRUE,
-  preferencia_tema VARCHAR(10) DEFAULT 'light'
+  preferencia_tema VARCHAR(10) DEFAULT 'light',
+  calif_conductor_avg NUMERIC(3,2) NOT NULL DEFAULT 0,
+  calif_conductor_count INTEGER NOT NULL DEFAULT 0
 );
 
--- Vehículos
 CREATE TABLE IF NOT EXISTS vehiculo (
   id_vehiculo SERIAL PRIMARY KEY,
   id_usuario INT NOT NULL,
@@ -28,7 +27,6 @@ CREATE TABLE IF NOT EXISTS vehiculo (
     ON DELETE CASCADE ON UPDATE CASCADE
 );
 
--- Viajes (normales y programados en una sola tabla)
 CREATE TABLE IF NOT EXISTS viaje_maestro (
   id_viaje_maestro SERIAL PRIMARY KEY,
   origen VARCHAR(255) NOT NULL,
@@ -38,7 +36,7 @@ CREATE TABLE IF NOT EXISTS viaje_maestro (
   lat_destino DECIMAL(9,6),
   lon_destino DECIMAL(9,6),
   hora_solicitud TIMESTAMP NOT NULL DEFAULT NOW(),
-  fecha_inicio TIMESTAMP, -- se usa si es programado
+  fecha_inicio TIMESTAMP,
   fecha_fin TIMESTAMP,
   costo_total DECIMAL(10,2) NOT NULL,
   distancia_km DECIMAL(8,2),
@@ -54,27 +52,34 @@ CREATE TABLE IF NOT EXISTS viaje_maestro (
   calificacion INTEGER,
   CONSTRAINT fk_viaje_usuario
     FOREIGN KEY (usuario_id) REFERENCES usuario(id_usuario)
-      ON DELETE SET NULL ON UPDATE CASCADE,
+    ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT fk_viaje_conductor
     FOREIGN KEY (conductor_id) REFERENCES usuario(id_usuario)
-      ON DELETE SET NULL ON UPDATE CASCADE
+    ON DELETE SET NULL ON UPDATE CASCADE
 );
 
--- Calificaciones maestro
 CREATE TABLE IF NOT EXISTS calificacion_maestro (
   id_calificacion_maestro SERIAL PRIMARY KEY,
   id_viaje_maestro INT NOT NULL,
   id_usuario INT NOT NULL,
   puntuacion INT NOT NULL,
+  objetivo_usuario_id INT NOT NULL,
+  comentario TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT fk_calif_viaje
     FOREIGN KEY (id_viaje_maestro) REFERENCES viaje_maestro(id_viaje_maestro)
     ON DELETE CASCADE,
   CONSTRAINT fk_calif_usuario
     FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
-    ON DELETE CASCADE
+    ON DELETE CASCADE,
+  CONSTRAINT fk_calif_objetivo
+    FOREIGN KEY (objetivo_usuario_id) REFERENCES usuario(id_usuario)
+    ON DELETE CASCADE,
+  CONSTRAINT chk_calif_puntuacion CHECK (puntuacion BETWEEN 1 AND 5),
+  CONSTRAINT uq_calif_viaje_usuario_objetivo UNIQUE (id_viaje_maestro, id_usuario, objetivo_usuario_id)
 );
 
--- Calificaciones detalle
 CREATE TABLE IF NOT EXISTS calificacion_detalle (
   id_calificacion_detalle SERIAL PRIMARY KEY,
   id_calificacion_maestro INT NOT NULL,
@@ -82,10 +87,10 @@ CREATE TABLE IF NOT EXISTS calificacion_detalle (
   puntuacion INT NOT NULL,
   CONSTRAINT fk_calif_det_maestro
     FOREIGN KEY (id_calificacion_maestro) REFERENCES calificacion_maestro(id_calificacion_maestro)
-    ON DELETE CASCADE
+    ON DELETE CASCADE,
+  CONSTRAINT chk_calif_detalle_puntuacion CHECK (puntuacion BETWEEN 1 AND 5)
 );
 
--- Tarifas
 CREATE TABLE IF NOT EXISTS tarifa_maestro (
   id_tarifa_maestro SERIAL PRIMARY KEY,
   tipo_servicio VARCHAR(255) NOT NULL,
@@ -103,7 +108,6 @@ CREATE TABLE IF NOT EXISTS tarifa_detalle (
     ON DELETE CASCADE
 );
 
--- Métodos de pago
 CREATE TABLE IF NOT EXISTS metodo_pago (
   id_metodo_pago SERIAL PRIMARY KEY,
   id_usuario INT NOT NULL,
@@ -115,7 +119,6 @@ CREATE TABLE IF NOT EXISTS metodo_pago (
     ON DELETE CASCADE
 );
 
--- Transacciones
 CREATE TABLE IF NOT EXISTS transaccion (
   id_transaccion SERIAL PRIMARY KEY,
   id_usuario INT NOT NULL,
@@ -135,7 +138,6 @@ CREATE TABLE IF NOT EXISTS transaccion (
     ON DELETE CASCADE
 );
 
--- Historial de viajes
 CREATE TABLE IF NOT EXISTS historial_viajes (
   id_historial_viajes SERIAL PRIMARY KEY,
   id_usuario INT NOT NULL,
@@ -150,7 +152,6 @@ CREATE TABLE IF NOT EXISTS historial_viajes (
     ON DELETE CASCADE
 );
 
--- Reportes
 CREATE TABLE IF NOT EXISTS reporte (
   id_reporte SERIAL PRIMARY KEY,
   id_viaje_maestro INT NOT NULL,
@@ -167,7 +168,6 @@ CREATE TABLE IF NOT EXISTS reporte (
     ON DELETE CASCADE
 );
 
--- Notificaciones
 CREATE TABLE IF NOT EXISTS notificacion (
   id_notificacion SERIAL PRIMARY KEY,
   id_usuario INT NOT NULL,
@@ -180,7 +180,6 @@ CREATE TABLE IF NOT EXISTS notificacion (
     ON DELETE CASCADE
 );
 
--- Lugares favoritos
 CREATE TABLE IF NOT EXISTS lugar_favorito (
   id_lugar_favorito SERIAL PRIMARY KEY,
   id_usuario INT NOT NULL,
@@ -193,7 +192,6 @@ CREATE TABLE IF NOT EXISTS lugar_favorito (
     ON DELETE CASCADE
 );
 
--- Bitácora
 CREATE TABLE IF NOT EXISTS bitacora (
   id_bitacora SERIAL PRIMARY KEY,
   fecha_hora TIMESTAMP NOT NULL,
@@ -206,7 +204,6 @@ CREATE TABLE IF NOT EXISTS bitacora (
     ON DELETE CASCADE
 );
 
--- Seguro de vehículo
 CREATE TABLE IF NOT EXISTS seguro_vehiculo (
   id_seguro SERIAL PRIMARY KEY,
   id_vehiculo INT NOT NULL,
@@ -219,9 +216,6 @@ CREATE TABLE IF NOT EXISTS seguro_vehiculo (
     ON DELETE CASCADE
 );
 
--- ===================   GRUPOS DE VIAJE   ===================
-
--- 0) Función genérica para updated_at
 CREATE OR REPLACE FUNCTION trg_touch_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
@@ -230,67 +224,57 @@ BEGIN
 END;
 $$;
 
--- 1) Tabla de grupos
 CREATE TABLE IF NOT EXISTS grupo_viaje (
-  id_grupo          SERIAL PRIMARY KEY,
-  id_viaje_maestro  INTEGER NOT NULL,
-  conductor_id      INTEGER NOT NULL,
-  capacidad_total   INTEGER NOT NULL CHECK (capacidad_total > 0),
-  precio_base       DECIMAL(10,2) NOT NULL DEFAULT 0,
-  estado_grupo      VARCHAR(20) NOT NULL DEFAULT 'abierto'
-                    CHECK (estado_grupo IN ('abierto','cerrado','cancelado','finalizado')),
-  notas             TEXT,
-  created_at        TIMESTAMP NOT NULL DEFAULT NOW(),
-  updated_at        TIMESTAMP NOT NULL DEFAULT NOW(),
-
+  id_grupo SERIAL PRIMARY KEY,
+  id_viaje_maestro INTEGER NOT NULL,
+  conductor_id INTEGER NOT NULL,
+  capacidad_total INTEGER NOT NULL CHECK (capacidad_total > 0),
+  precio_base DECIMAL(10,2) NOT NULL DEFAULT 0,
+  estado_grupo VARCHAR(20) NOT NULL DEFAULT 'abierto'
+    CHECK (estado_grupo IN ('abierto','cerrado','cancelado','finalizado')),
+  notas TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
   CONSTRAINT fk_grupo_viaje_maestro
     FOREIGN KEY (id_viaje_maestro) REFERENCES viaje_maestro(id_viaje_maestro)
-      ON DELETE CASCADE ON UPDATE CASCADE,
-
+    ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT fk_grupo_conductor
     FOREIGN KEY (conductor_id) REFERENCES usuario(id_usuario)
-      ON DELETE CASCADE ON UPDATE CASCADE,
-
-  -- Un grupo por viaje (ajusta si quieres permitir varios grupos por viaje)
+    ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT uq_grupo_por_viaje UNIQUE (id_viaje_maestro)
 );
 
-CREATE INDEX IF NOT EXISTS idx_grupo_estado    ON grupo_viaje(estado_grupo);
+CREATE INDEX IF NOT EXISTS idx_grupo_estado ON grupo_viaje(estado_grupo);
 CREATE INDEX IF NOT EXISTS idx_grupo_conductor ON grupo_viaje(conductor_id);
-CREATE INDEX IF NOT EXISTS idx_grupo_viaje     ON grupo_viaje(id_viaje_maestro);
+CREATE INDEX IF NOT EXISTS idx_grupo_viaje ON grupo_viaje(id_viaje_maestro);
 
 DROP TRIGGER IF EXISTS grupo_viaje_touch_updated ON grupo_viaje;
 CREATE TRIGGER grupo_viaje_touch_updated
 BEFORE UPDATE ON grupo_viaje
 FOR EACH ROW EXECUTE FUNCTION trg_touch_updated_at();
 
--- 2) Tabla de miembros
 CREATE TABLE IF NOT EXISTS grupo_miembro (
-  id_grupo_miembro  SERIAL PRIMARY KEY,
-  id_grupo          INTEGER NOT NULL,
-  id_usuario        INTEGER NOT NULL,
-  rol               VARCHAR(20) NOT NULL DEFAULT 'pasajero'
-                    CHECK (rol IN ('conductor','pasajero')),
-  estado_solicitud  VARCHAR(20) NOT NULL DEFAULT 'pendiente'
-                    CHECK (estado_solicitud IN ('pendiente','aprobado','rechazado','baja')),
-  joined_at         TIMESTAMP NOT NULL DEFAULT NOW(),
-
+  id_grupo_miembro SERIAL PRIMARY KEY,
+  id_grupo INTEGER NOT NULL,
+  id_usuario INTEGER NOT NULL,
+  rol VARCHAR(20) NOT NULL DEFAULT 'pasajero'
+    CHECK (rol IN ('conductor','pasajero')),
+  estado_solicitud VARCHAR(20) NOT NULL DEFAULT 'pendiente'
+    CHECK (estado_solicitud IN ('pendiente','aprobado','rechazado','baja')),
+  joined_at TIMESTAMP NOT NULL DEFAULT NOW(),
   CONSTRAINT fk_miembro_grupo
     FOREIGN KEY (id_grupo) REFERENCES grupo_viaje(id_grupo)
-      ON DELETE CASCADE ON UPDATE CASCADE,
-
+    ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT fk_miembro_usuario
     FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
-      ON DELETE CASCADE ON UPDATE CASCADE,
-
+    ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT uq_usuario_en_grupo UNIQUE (id_grupo, id_usuario)
 );
 
 CREATE INDEX IF NOT EXISTS idx_miembro_estado ON grupo_miembro(estado_solicitud);
-CREATE INDEX IF NOT EXISTS idx_miembro_grupo  ON grupo_miembro(id_grupo);
-CREATE INDEX IF NOT EXISTS idx_miembro_user   ON grupo_miembro(id_usuario);
+CREATE INDEX IF NOT EXISTS idx_miembro_grupo ON grupo_miembro(id_grupo);
+CREATE INDEX IF NOT EXISTS idx_miembro_user ON grupo_miembro(id_usuario);
 
--- 3) Trigger: no permitir aprobar si no hay cupos
 CREATE OR REPLACE FUNCTION check_cupos_disponibles()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE
@@ -308,7 +292,6 @@ BEGIN
     INTO capacidad, aprobados
     FROM grupo_viaje g
     WHERE g.id_grupo = NEW.id_grupo;
-
     IF aprobados >= capacidad THEN
       RAISE EXCEPTION 'El grupo ya no tiene cupos disponibles';
     END IF;
@@ -322,7 +305,6 @@ CREATE TRIGGER grupo_miembro_check_cupos
 BEFORE INSERT OR UPDATE OF estado_solicitud ON grupo_miembro
 FOR EACH ROW EXECUTE FUNCTION check_cupos_disponibles();
 
--- 4) Trigger: cerrar grupo automáticamente cuando se llena
 CREATE OR REPLACE FUNCTION close_group_when_full()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE
@@ -339,7 +321,6 @@ BEGIN
     INTO capacidad, aprobados
     FROM grupo_viaje g
     WHERE g.id_grupo = NEW.id_grupo;
-
     IF aprobados >= capacidad THEN
       UPDATE grupo_viaje
       SET estado_grupo = 'cerrado', updated_at = NOW()
@@ -356,11 +337,7 @@ CREATE TRIGGER grupo_miembro_autoclose
 AFTER INSERT OR UPDATE OF estado_solicitud ON grupo_miembro
 FOR EACH ROW EXECUTE FUNCTION close_group_when_full();
 
--- 5) Vistas para la UI
 DROP VIEW IF EXISTS v_grupos_abiertos;
-DROP VIEW IF EXISTS v_grupos_cards;
-
--- Vista de grupos abiertos con cupos usados y disponibles
 CREATE OR REPLACE VIEW v_grupos_abiertos AS
 SELECT
   g.id_grupo,
@@ -386,10 +363,10 @@ SELECT
   g.updated_at
 FROM grupo_viaje g
 JOIN viaje_maestro v ON v.id_viaje_maestro = g.id_viaje_maestro
-JOIN usuario u        ON u.id_usuario = g.conductor_id
+JOIN usuario u ON u.id_usuario = g.conductor_id
 WHERE g.estado_grupo = 'abierto';
 
--- Vista “cards”: incluye vehículo “principal” del conductor (más reciente)
+DROP VIEW IF EXISTS v_grupos_cards;
 CREATE OR REPLACE VIEW v_grupos_cards AS
 WITH vehiculo_principal AS (
   SELECT DISTINCT ON (ve.id_usuario)
@@ -406,13 +383,13 @@ WITH vehiculo_principal AS (
 SELECT
   g.id_grupo,
   g.id_viaje_maestro,
-  u.id_usuario       AS conductor_id,
-  u.nombre           AS conductor_nombre,
-  u.apellido         AS conductor_apellido,
-  vp.marca           AS vehiculo_marca,
-  vp.modelo          AS vehiculo_modelo,
-  vp.placa           AS vehiculo_placa,
-  vp.color           AS vehiculo_color,
+  u.id_usuario AS conductor_id,
+  u.nombre AS conductor_nombre,
+  u.apellido AS conductor_apellido,
+  vp.marca AS vehiculo_marca,
+  vp.modelo AS vehiculo_modelo,
+  vp.placa AS vehiculo_placa,
+  vp.color AS vehiculo_color,
   vp.capacidad_pasajeros AS vehiculo_capacidad_pasajeros,
   v.origen,
   v.destino,
@@ -431,11 +408,104 @@ SELECT
   g.created_at,
   g.updated_at
 FROM grupo_viaje g
-JOIN viaje_maestro v   ON v.id_viaje_maestro = g.id_viaje_maestro
-JOIN usuario u         ON u.id_usuario = g.conductor_id
+JOIN viaje_maestro v ON v.id_viaje_maestro = g.id_viaje_maestro
+JOIN usuario u ON u.id_usuario = g.conductor_id
 LEFT JOIN vehiculo_principal vp ON vp.id_usuario = u.id_usuario
 WHERE g.estado_grupo = 'abierto';
 
--- Índices útiles para consultas por fecha/destino en viajes
 CREATE INDEX IF NOT EXISTS idx_viaje_fecha_inicio ON viaje_maestro(fecha_inicio);
-CREATE INDEX IF NOT EXISTS idx_viaje_destino      ON viaje_maestro(destino);
+CREATE INDEX IF NOT EXISTS idx_viaje_destino ON viaje_maestro(destino);
+
+CREATE INDEX IF NOT EXISTS idx_calif_objetivo ON calificacion_maestro(objetivo_usuario_id);
+CREATE INDEX IF NOT EXISTS idx_calif_viaje ON calificacion_maestro(id_viaje_maestro);
+
+CREATE OR REPLACE FUNCTION validate_driver_rating()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+  v_usuario_id INT;
+  v_conductor_id INT;
+  v_estado VARCHAR(255);
+BEGIN
+  SELECT usuario_id, conductor_id, estado_viaje
+  INTO v_usuario_id, v_conductor_id, v_estado
+  FROM viaje_maestro
+  WHERE id_viaje_maestro = NEW.id_viaje_maestro;
+
+  IF NEW.id_usuario IS DISTINCT FROM v_usuario_id THEN
+    RAISE EXCEPTION 'Solo el pasajero del viaje puede calificar';
+  END IF;
+
+  IF NEW.objetivo_usuario_id IS DISTINCT FROM v_conductor_id THEN
+    RAISE EXCEPTION 'Solo puedes calificar al conductor del viaje';
+  END IF;
+
+  IF NEW.id_usuario = NEW.objetivo_usuario_id THEN
+    RAISE EXCEPTION 'No puedes calificarte a ti mismo';
+  END IF;
+
+  IF v_estado NOT IN ('finalizado','completado') THEN
+    RAISE EXCEPTION 'Solo se puede calificar un viaje finalizado';
+  END IF;
+
+  NEW.updated_at := NOW();
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS calif_validate_before ON calificacion_maestro;
+CREATE TRIGGER calif_validate_before
+BEFORE INSERT OR UPDATE OF puntuacion, comentario, objetivo_usuario_id, id_viaje_maestro, id_usuario
+ON calificacion_maestro
+FOR EACH ROW EXECUTE FUNCTION validate_driver_rating();
+
+CREATE OR REPLACE FUNCTION recalc_conductor_cache(p_conductor_id INT)
+RETURNS VOID LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE usuario u
+  SET calif_conductor_avg = COALESCE(sub.avg_score, 0),
+      calif_conductor_count = COALESCE(sub.cnt, 0)
+  FROM (
+    SELECT objetivo_usuario_id AS conductor_id,
+           AVG(puntuacion)::NUMERIC(3,2) AS avg_score,
+           COUNT(*) AS cnt
+    FROM calificacion_maestro
+    WHERE objetivo_usuario_id = p_conductor_id
+    GROUP BY objetivo_usuario_id
+  ) sub
+  WHERE u.id_usuario = sub.conductor_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION trg_calif_conductor_cache()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+DECLARE
+  target_id INT;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    target_id := OLD.objetivo_usuario_id;
+  ELSE
+    target_id := NEW.objetivo_usuario_id;
+  END IF;
+
+  IF target_id IS NOT NULL THEN
+    PERFORM recalc_conductor_cache(target_id);
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS calif_aiud_cache ON calificacion_maestro;
+CREATE TRIGGER calif_aiud_cache
+AFTER INSERT OR UPDATE OR DELETE ON calificacion_maestro
+FOR EACH ROW EXECUTE FUNCTION trg_calif_conductor_cache();
+
+DROP VIEW IF EXISTS v_conductor_rating_summary;
+CREATE OR REPLACE VIEW v_conductor_rating_summary AS
+SELECT
+  u.id_usuario AS conductor_id,
+  u.nombre,
+  u.apellido,
+  u.calif_conductor_avg AS rating_avg,
+  u.calif_conductor_count AS rating_count
+FROM usuario u;

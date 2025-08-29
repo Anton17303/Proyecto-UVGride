@@ -12,6 +12,11 @@ import AddFavoriteScreen from '../screens/AddFavoriteScreen';
 import ScheduledTripScreen from '../screens/ScheduledTripScreen';
 import VehicleFormScreen from '../screens/VehicleFormScreen';
 
+// 👇 NUEVOS imports
+import GroupCreateScreen from '../screens/GroupCreateScreen';
+import GroupDetailScreen from '../screens/GroupDetailScreen';
+import DriverProfileScreen from '../screens/DriverProfileScreen';
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function Navigation() {
@@ -29,12 +34,23 @@ export default function Navigation() {
       <Stack.Screen name="TripFormScreen" component={TripFormScreen} />
       <Stack.Screen name="ScheduledTripScreen" component={ScheduledTripScreen} />
 
-      {/* Favoritos (nombres alineados con el type) */}
+      {/* Favoritos */}
       <Stack.Screen name="Favorite" component={FavoriteScreen} />
       <Stack.Screen name="AddFavorite" component={AddFavoriteScreen} />
 
-      {/* Vehículos (si lo usas desde Perfil) */}
+      {/* Vehículos */}
       <Stack.Screen name="VehicleForm" component={VehicleFormScreen} />
+
+      {/* Grupos */}
+      <Stack.Screen name="GroupCreate" component={GroupCreateScreen} />
+      <Stack.Screen
+        name="GroupDetail"
+        component={GroupDetailScreen}
+        options={{ headerShown: true, title: 'Detalle del grupo' }}
+      />
+
+      {/* Perfil de conductor */}
+      <Stack.Screen name="DriverProfile" component={DriverProfileScreen} />
     </Stack.Navigator>
   );
 }

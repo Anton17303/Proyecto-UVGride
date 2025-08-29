@@ -9,38 +9,46 @@ const { initDB } = require('./models');
 const app = express();
 const port = process.env.PORT || 3001;
 
-/* ---------- Middlewares ---------- */
+/* ---------- Middlewares base ---------- */
+app.disable('x-powered-by');
 app.set('trust proxy', true);
 
 // CORS: si no defines CORS_ORIGIN, reflejamos el origin (válido con credenciales)
 const allowedOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map(s => s.trim())
+  ? process.env.CORS_ORIGIN.split(',').map((s) => s.trim())
   : null;
 
 app.use(
   cors({
-    origin: allowedOrigins || true, // true => refleja el Origin de la request
+    origin: (origin, callback) => {
+      // requests sin Origin (curl/healthchecks) => permitir
+      if (!origin) return callback(null, true);
+      if (!allowedOrigins) return callback(null, true); // reflect origin
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error(`Origin bloqueado por CORS: ${origin}`));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
-    preflightContinue: false,       // ✅ deja que cors responda a OPTIONS
-    optionsSuccessStatus: 204,      // ✅ status para preflight
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
   })
 );
 
-// ⛔️ NO usar app.options('*', cors()) ni app.options('(.*)', cors()) en Express 5
+// Body parsers
 app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: false }));
 
 /* ---------- helper: require defensivo ---------- */
 const tryRequire = (name, path) => {
   try {
     console.log(`📦 Cargando rutas: ${name} (${path})`);
+    // eslint-disable-next-line import/no-dynamic-require, global-require
     const mod = require(path);
     console.log(`✅ Rutas cargadas: ${name}`);
     return mod;
   } catch (e) {
-    console.error(`❌ Falló al cargar rutas ${name} (${path}):`);
-    console.error(e);
+    console.error(`❌ Falló al cargar rutas ${name} (${path}):`, e?.message || e);
     throw e;
   }
 };
@@ -55,6 +63,7 @@ const pagoRoutes     = tryRequire('pagos',     './routes/pago.routes');
 const driverRoutes   = tryRequire('driver',    './routes/driver.routes');
 const grupoRoutes    = tryRequire('grupos',    './routes/grupo.routes');
 
+/* ---------- Mount ---------- */
 app.use('/api/auth',       authRoutes);
 app.use('/api/example',    exampleRoutes);
 app.use('/api/viajes',     viajeRoutes);
@@ -64,12 +73,11 @@ app.use('/api/pagos',      pagoRoutes);
 app.use('/api',            driverRoutes);
 app.use('/api/grupos',     grupoRoutes);
 
-// Healthcheck simple
+/* ---------- Health & root ---------- */
 app.get('/health', (_req, res) => {
   res.status(200).json({ ok: true, uptime: process.uptime() });
 });
 
-// Ruta raíz
 app.get('/', (_req, res) => {
   res.send('API funcionando ✅');
 });
@@ -82,7 +90,8 @@ app.use((req, res) => {
 // eslint-disable-next-line no-unused-vars
 app.use((err, _req, res, _next) => {
   console.error('❌ Error no manejado:', err);
-  res.status(500).json({ error: 'Error interno del servidor' });
+  const code = err.status || 500;
+  res.status(code).json({ error: err.message || 'Error interno del servidor' });
 });
 
 /* ---------- Levantar servidor tras init DB ---------- */
@@ -91,7 +100,7 @@ app.use((err, _req, res, _next) => {
     await initDB();
     app.listen(port, () => {
       console.log(`🚀 Servidor corriendo en http://localhost:${port}`);
-      if (allowedOrigins) {
+      if (allowedOrigins && allowedOrigins.length) {
         console.log(`🌐 CORS permitido para: ${allowedOrigins.join(', ')}`);
       } else {
         console.log('🌐 CORS origin reflejado (dev friendly)');

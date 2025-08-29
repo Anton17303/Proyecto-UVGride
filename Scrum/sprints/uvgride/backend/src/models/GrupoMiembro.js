@@ -41,17 +41,31 @@ const GrupoMiembro = sequelize.define(
       defaultValue: DataTypes.NOW,
       field: 'joined_at',
     },
-    // ⚠️ No existe updated_at en la tabla -> NO lo declares aquí
   },
   {
     tableName: 'grupo_miembro',
-    timestamps: false, // usamos joined_at; no hay updated_at
+    timestamps: false,
     indexes: [
       { fields: ['id_grupo'] },
       { fields: ['id_usuario'] },
       { fields: ['estado_solicitud'] },
       { unique: true, fields: ['id_grupo', 'id_usuario'] }, // uq_usuario_en_grupo
     ],
+    defaultScope: {
+      order: [['joined_at', 'DESC']],
+    },
+    scopes: {
+      aprobados: { where: { estado_solicitud: 'aprobado' } },
+      pendientes: { where: { estado_solicitud: 'pendiente' } },
+      pasajeros: { where: { rol: 'pasajero' } },
+      conductores: { where: { rol: 'conductor' } },
+    },
+    hooks: {
+      beforeValidate: (m) => {
+        if (typeof m.rol === 'string') m.rol = m.rol.trim().toLowerCase();
+        if (typeof m.estado_solicitud === 'string') m.estado_solicitud = m.estado_solicitud.trim().toLowerCase();
+      },
+    },
   }
 );
 
