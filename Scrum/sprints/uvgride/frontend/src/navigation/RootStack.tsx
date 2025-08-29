@@ -11,6 +11,7 @@ import TripFormScreen from '../screens/TripFormScreen';
 import ScheduledTripScreen from '../screens/ScheduledTripScreen';
 import DriverProfileScreen from '../screens/DriverProfileScreen';
 import GroupCreateScreen from '../screens/GroupCreateScreen';
+import PaymentScreen from '../screens/PaymentScreen'; // creacion del metodo de pago
 import GroupDetailScreen from '../screens/GroupDetailScreen'; // 👈 NUEVO
 import { useUser } from '../context/UserContext';
 import { RootStackParamList } from './type';
@@ -37,6 +38,7 @@ export default function RootStack() {
           <Stack.Screen name="ScheduledTripScreen" component={ScheduledTripScreen} />
           <Stack.Screen name="GroupCreate" component={GroupCreateScreen} />
           <Stack.Screen name="DriverProfile" component={DriverProfileScreen} />
+          <Stack.Screen name="Payment" component={PaymentScreen} /> {/* Pantalla de pago */}
           {/* 👇 Detalle del grupo con header visible */}
           <Stack.Screen
             name="GroupDetail"
