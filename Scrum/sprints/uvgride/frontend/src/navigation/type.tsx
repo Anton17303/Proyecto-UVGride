@@ -5,9 +5,9 @@ export type RootStackParamList = {
   Register: undefined;
   Home: undefined;
 
-  // Opcionales
-  Profile?: undefined;
-  Settings?: undefined;
+  // Opcionales (sin params)
+  Profile: undefined;
+  Settings: undefined;
 
   // Favoritos / Vehículos
   Favorite: undefined;
@@ -39,11 +39,11 @@ export type RootStackParamList = {
   Payment: undefined;
 
   // Conductores
-  // driverId puede venir como number o string desde params; rateForGroupId es opcional
+  // driverId puede venir como number o string; rateForGroupId es opcional
   DriverProfile: { driverId: number | string; rateForGroupId?: number | string };
 
   // 🚀 Grupos
-  // Hacemos ambos opcionales para soportar el fallback groupId/grupoId usado en la screen
+  // Ambos opcionales para soportar fallback groupId/grupoId que usa la screen
   GroupDetail: { groupId?: number | string; grupoId?: number | string };
   GroupCreate: undefined;
 };

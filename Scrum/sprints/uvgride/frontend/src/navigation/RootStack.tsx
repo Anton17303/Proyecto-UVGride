@@ -1,5 +1,7 @@
+// src/navigation/RootStack.tsx
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+
 import BottomTabs from './BottomTabs';
 import FavoriteScreen from '../screens/FavoriteScreen';
 import AddFavoriteScreen from '../screens/AddFavoriteScreen';
@@ -11,8 +13,8 @@ import TripFormScreen from '../screens/TripFormScreen';
 import ScheduledTripScreen from '../screens/ScheduledTripScreen';
 import DriverProfileScreen from '../screens/DriverProfileScreen';
 import GroupCreateScreen from '../screens/GroupCreateScreen';
-import PaymentScreen from '../screens/PaymentScreen'; // creacion del metodo de pago
-import GroupDetailScreen from '../screens/GroupDetailScreen'; // 👈 NUEVO
+import PaymentScreen from '../screens/PaymentScreen';
+import GroupDetailScreen from '../screens/GroupDetailScreen';
 import { useUser } from '../context/UserContext';
 import { RootStackParamList } from './type';
 
@@ -29,7 +31,10 @@ export default function RootStack() {
     >
       {user ? (
         <Stack.Group>
+          {/* Tabs principales */}
           <Stack.Screen name="Home" component={BottomTabs} />
+
+          {/* Pantallas de la app */}
           <Stack.Screen name="Favorite" component={FavoriteScreen} />
           <Stack.Screen name="AddFavorite" component={AddFavoriteScreen} />
           <Stack.Screen name="Travel" component={TravelScreen} />
@@ -38,8 +43,9 @@ export default function RootStack() {
           <Stack.Screen name="ScheduledTripScreen" component={ScheduledTripScreen} />
           <Stack.Screen name="GroupCreate" component={GroupCreateScreen} />
           <Stack.Screen name="DriverProfile" component={DriverProfileScreen} />
-          <Stack.Screen name="Payment" component={PaymentScreen} /> {/* Pantalla de pago */}
-          {/* 👇 Detalle del grupo con header visible */}
+          <Stack.Screen name="Payment" component={PaymentScreen} />
+
+          {/* Detalle del grupo con header visible */}
           <Stack.Screen
             name="GroupDetail"
             component={GroupDetailScreen}
