@@ -21,6 +21,22 @@ import { lightColors, darkColors } from '../constants/colors';
 import { useUser } from '../context/UserContext';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
+type EstadoFilter = 'todos' | 'abierto' | 'cerrado' | 'cancelado' | 'finalizado';
+type CupoFilter = 'cualquiera' | 'con' | 'sin';
+
+const ESTADO_OPTIONS: { label: string; value: EstadoFilter }[] = [
+  { label: 'Todos', value: 'todos' },
+  { label: 'Abiertos', value: 'abierto' },
+  { label: 'Cerrados', value: 'cerrado' },
+  { label: 'Cancelados', value: 'cancelado' },
+  { label: 'Finalizados', value: 'finalizado' },
+];
+
+const CUPO_OPTIONS: { label: string; value: CupoFilter }[] = [
+  { label: 'Cualquiera', value: 'cualquiera' },
+  { label: 'Con cupos', value: 'con' },
+  { label: 'Sin cupos', value: 'sin' },
+];
 
 export default function PassengerScreen() {
   const navigation = useNavigation<Nav>();
@@ -33,10 +49,13 @@ export default function PassengerScreen() {
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [joiningId, setJoiningId] = useState<number | null>(null);
 
+  // Filtros
+  const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>('todos');
+  const [cupoFilter, setCupoFilter] = useState<CupoFilter>('cualquiera');
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      // Mandamos user_id para recibir es_miembro / es_propietario
       const data = await listGroups(user?.id ? { user_id: Number(user.id) } : undefined);
       setGrupos(data);
     } catch (e: any) {
@@ -78,7 +97,7 @@ export default function PassengerScreen() {
               : Math.max(cuposTotales - usados, 0);
           return {
             ...g,
-            es_miembro: true, // ahora perteneces a este grupo
+            es_miembro: true,
             cupos_disponibles: Math.max(dispActual - 1, 0),
             cupos_usados: typeof g.cupos_usados === 'number' ? g.cupos_usados + 1 : g.cupos_usados,
           };
@@ -124,6 +143,29 @@ export default function PassengerScreen() {
 
   const hasJoinedAny = useMemo(() => grupos.some((g) => g.es_miembro), [grupos]);
 
+  // Helpers para cálculo de cupos
+  const getCuposDisp = (g: Grupo) => {
+    const cuposTotales = Number(g.capacidad_total ?? g.cupos_totales ?? 0);
+    const cuposUsados = Number(g.cupos_usados ?? 0);
+    return typeof g.cupos_disponibles === 'number'
+      ? g.cupos_disponibles
+      : Math.max(0, cuposTotales - cuposUsados);
+  };
+
+  // Lista filtrada
+  const gruposFiltrados = useMemo(() => {
+    return grupos.filter((g) => {
+      const okEstado = estadoFilter === 'todos' ? true : g.estado === estadoFilter;
+      if (!okEstado) return false;
+
+      const disp = getCuposDisp(g);
+      if (cupoFilter === 'con' && disp <= 0) return false;
+      if (cupoFilter === 'sin' && disp > 0) return false;
+
+      return true;
+    });
+  }, [grupos, estadoFilter, cupoFilter]);
+
   const EstadoBadge = ({ estado }: { estado: Grupo['estado'] }) => {
     const bg =
       estado === 'abierto' ? '#2e7d32' :
@@ -137,16 +179,46 @@ export default function PassengerScreen() {
     );
   };
 
+  // === Filtro compact pill que rota opciones al tocar ===
+  const RotatingPill = ({
+    label,
+    valueLabel,
+    onPress,
+  }: {
+    label: string;
+    valueLabel: string;
+    onPress: () => void;
+  }) => (
+    <TouchableOpacity
+      onPress={onPress}
+      style={styles.pill}
+      activeOpacity={0.85}
+    >
+      <Text style={styles.pillText}>
+        {label}: <Text style={styles.pillValue}>{valueLabel}</Text>
+      </Text>
+    </TouchableOpacity>
+  );
+
+  // Ciclar opciones con un tap
+  const cycleEstado = () => {
+    const idx = ESTADO_OPTIONS.findIndex(o => o.value === estadoFilter);
+    const next = ESTADO_OPTIONS[(idx + 1) % ESTADO_OPTIONS.length].value;
+    setEstadoFilter(next);
+  };
+  const cycleCupo = () => {
+    const idx = CUPO_OPTIONS.findIndex(o => o.value === cupoFilter);
+    const next = CUPO_OPTIONS[(idx + 1) % CUPO_OPTIONS.length].value;
+    setCupoFilter(next);
+  };
+
+  // UI del item
   const renderItem = ({ item }: { item: Grupo }) => {
     const v = item.conductor?.vehiculos?.[0];
     const nombreConductor = `${item.conductor?.nombre ?? ''} ${item.conductor?.apellido ?? ''}`.trim();
 
     const cuposTotales = Number(item.capacidad_total ?? item.cupos_totales ?? 0);
-    const cuposUsados = Number(item.cupos_usados ?? 0);
-    const cuposDisp =
-      typeof item.cupos_disponibles === 'number'
-        ? item.cupos_disponibles
-        : Math.max(0, cuposTotales - cuposUsados);
+    const cuposDisp = getCuposDisp(item);
 
     const isOwner =
       Boolean(item.es_propietario) ||
@@ -160,7 +232,7 @@ export default function PassengerScreen() {
       !isOpen ||
       cuposDisp <= 0 ||
       (hasJoinedAny && !isMemberHere) ||
-      joiningId === item.id_grupo; // bloquea mientras se envía
+      joiningId === item.id_grupo;
 
     const joinLabel = isOwner
       ? 'Tu grupo'
@@ -235,7 +307,7 @@ export default function PassengerScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => navigation.navigate('GroupDetail', { grupoId: item.id_grupo })} // 👈 param correcto
+            onPress={() => navigation.navigate('GroupDetail', { grupoId: item.id_grupo })}
             disabled={!canSeeDetail}
             style={[
               styles.detailBtn,
@@ -261,17 +333,41 @@ export default function PassengerScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <Text style={[styles.title, { color: colors.text }]}>Todos los grupos</Text>
+      {/* Header + toolbar compacta */}
+      <View style={styles.topBar}>
+        <Text style={[styles.title, { color: colors.text }]}>Grupos</Text>
+
+        {/* Toolbar compacta: dos pills + limpiar (todo en una fila) */}
+        <View style={styles.toolbar}>
+          <RotatingPill
+            label="Estado"
+            valueLabel={ESTADO_OPTIONS.find(o => o.value === estadoFilter)?.label ?? 'Todos'}
+            onPress={cycleEstado}
+          />
+          <RotatingPill
+            label="Cupos"
+            valueLabel={CUPO_OPTIONS.find(o => o.value === cupoFilter)?.label ?? 'Cualquiera'}
+            onPress={cycleCupo}
+          />
+          <TouchableOpacity
+            onPress={() => { setEstadoFilter('todos'); setCupoFilter('cualquiera'); }}
+            style={styles.clearMini}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={[styles.clearMiniTxt, { color: colors.primary }]}>Limpiar</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
       {loading ? (
         <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 30 }} />
-      ) : grupos.length === 0 ? (
+      ) : gruposFiltrados.length === 0 ? (
         <Text style={[styles.noDataText, { color: colors.text }]}>
-          No hay grupos por ahora.
+          {grupos.length === 0 ? 'No hay grupos por ahora.' : 'No hay resultados con estos filtros.'}
         </Text>
       ) : (
         <FlatList
-          data={grupos}
+          data={gruposFiltrados}
           keyExtractor={(item) => String(item.id_grupo)}
           renderItem={renderItem}
           contentContainerStyle={{ paddingBottom: 20 }}
@@ -289,13 +385,44 @@ export default function PassengerScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  title: { fontSize: 20, fontWeight: '800', marginBottom: 12 },
+  container: { flex: 1, padding: 12 },
+  topBar: { gap: 6, marginBottom: 6 },
+  title: { fontSize: 20, fontWeight: '800' },
+
+  // Toolbar compacta
+  toolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  pill: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: '#d7d7d7',
+    backgroundColor: '#f7f7f7',
+  },
+  pillText: { fontSize: 12, fontWeight: '700', color: '#333' },
+  pillValue: { textDecorationLine: 'underline' },
+
+  clearMini: {
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    backgroundColor: '#ffffff',
+  },
+  clearMiniTxt: { fontSize: 12, fontWeight: '800' },
+
   noDataText: { textAlign: 'center', marginTop: 30, fontSize: 16 },
+
+  // Cards
   card: {
     padding: 16,
     borderRadius: 14,
-    marginBottom: 14,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOpacity: 0.08,
     shadowRadius: 6,
