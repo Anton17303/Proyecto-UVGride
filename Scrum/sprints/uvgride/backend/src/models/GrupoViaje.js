@@ -28,6 +28,20 @@ const GrupoViaje = sequelize.define(
       field: 'estado_grupo',
       validate: { isIn: [['abierto', 'cerrado', 'cancelado', 'finalizado']] },
     },
+
+    costo_estimado: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      field: 'costo_estimado',
+      validate: { min: 0 },
+    },
+    precio_sugerido_asiento: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      field: 'precio_sugerido_asiento',
+      validate: { min: 0 },
+    },
+
     notas: { type: DataTypes.TEXT, allowNull: true, field: 'notas' },
     created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW, field: 'created_at' },
     updated_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW, field: 'updated_at' },
