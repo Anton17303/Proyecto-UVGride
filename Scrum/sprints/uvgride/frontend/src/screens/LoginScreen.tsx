@@ -2,8 +2,6 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   StyleSheet,
   Alert,
   KeyboardAvoidingView,
@@ -17,6 +15,7 @@ import { API_URL } from "../services/api";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
+import { PrimaryButton, AnimatedInput, LinkText } from "../components";
 
 type RootStackParamList = {
   Login: undefined;
@@ -24,6 +23,7 @@ type RootStackParamList = {
   Home: undefined;
   Profile: undefined;
   Settings: undefined;
+  Tabs: undefined;
 };
 
 export default function LoginScreen() {
@@ -44,19 +44,14 @@ export default function LoginScreen() {
     }
 
     setLoading(true);
-
     try {
       const res = await axios.post(`${API_URL}/api/auth/login`, {
         correo_institucional,
         contrasenia,
       });
-
       setUserFromBackend(res.data.usuario);
       Alert.alert("¡Bienvenido!", `Hola ${res.data.usuario.nombre}`);
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "Tabs" }],
-      });
+      navigation.reset({ index: 0, routes: [{ name: "Tabs" }] });
     } catch (err: any) {
       console.error(err);
       Alert.alert(
@@ -74,60 +69,45 @@ export default function LoginScreen() {
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <Text style={[styles.title, { color: colors.text }]}>
-          Inicia sesión
+        <Text style={[styles.appName, { color: colors.primary }]}>
+          UVGride
         </Text>
 
-        <Text style={[styles.label, { color: colors.text }]}>
-          Correo institucional
+        <Text style={[styles.subtitle, { color: colors.text }]}>
+          Inicia sesión para continuar
         </Text>
-        <TextInput
-          style={[
-            styles.input,
-            {
-              backgroundColor: colors.card,
-              color: colors.text,
-              borderColor: colors.border,
-            },
-          ]}
-          placeholder="correo@uvg.edu.gt"
+
+        <AnimatedInput
+          placeholder="Correo institucional"
           value={correo_institucional}
           onChangeText={setCorreo}
-          placeholderTextColor="#999"
-          autoCapitalize="none"
+          textColor={colors.text}
+          borderColor={colors.border}
+          color={colors.primary}
         />
 
-        <Text style={[styles.label, { color: colors.text }]}>Contraseña</Text>
-        <TextInput
-          style={[
-            styles.input,
-            {
-              backgroundColor: colors.card,
-              color: colors.text,
-              borderColor: colors.border,
-            },
-          ]}
-          placeholder="*******"
+        <AnimatedInput
+          placeholder="Contraseña"
           value={contrasenia}
           onChangeText={setContrasenia}
-          placeholderTextColor="#999"
           secureTextEntry
+          textColor={colors.text}
+          borderColor={colors.border}
+          color={colors.primary}
         />
 
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: colors.primary }]}
+        <PrimaryButton
+          title="Iniciar Sesión"
           onPress={handleLogin}
-        >
-          <Text style={styles.buttonText}>
-            {loading ? "Cargando..." : "Iniciar sesión"}
-          </Text>
-        </TouchableOpacity>
+          loading={loading}
+          color={colors.primary}
+        />
 
-        <TouchableOpacity onPress={() => navigation.navigate("Register")}>
-          <Text style={[styles.linkText, { color: colors.primary }]}>
-            ¿No tienes cuenta? Regístrate
-          </Text>
-        </TouchableOpacity>
+        <LinkText
+          text="¿No tienes cuenta? Regístrate"
+          onPress={() => navigation.navigate("Register")}
+          color={colors.primary}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -136,41 +116,21 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   container: { flex: 1, padding: 24, justifyContent: "center" },
+  appName: {
+    fontSize: 44,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 40,
+  },
   title: {
-    fontSize: 32,
-    fontWeight: "bold",
+    fontSize: 24,
+    fontWeight: "600",
     textAlign: "center",
-    marginBottom: 30,
-    textTransform: "uppercase",
   },
-  label: {
-    marginBottom: 6,
-    marginTop: 12,
-    fontSize: 14,
-  },
-  input: {
-    borderRadius: 12,
-    padding: 12,
+  subtitle: {
     fontSize: 16,
-    marginBottom: 8,
-    borderWidth: 1,
-  },
-  button: {
-    marginTop: 24,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
-    textTransform: "uppercase",
-  },
-  linkText: {
-    fontSize: 14,
     textAlign: "center",
-    marginTop: 16,
-    textDecorationLine: "underline",
+    marginBottom: 20,
+    opacity: 0.7,
   },
 });
