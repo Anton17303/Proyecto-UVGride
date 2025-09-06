@@ -2,14 +2,13 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   StyleSheet,
   Alert,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
   Modal,
+  TouchableOpacity,
 } from "react-native";
 import axios from "axios";
 import { useNavigation } from "@react-navigation/native";
@@ -18,6 +17,7 @@ import { API_URL } from "../services/api";
 import { RootStackParamList } from "../type";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
+import { PrimaryButton, AnimatedInput, LinkText } from "../components";
 
 export default function RegisterScreen() {
   const navigation =
@@ -29,6 +29,7 @@ export default function RegisterScreen() {
   const [telefono, setTelefono] = useState("");
   const [tipo_usuario, setTipoUsuario] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const { theme } = useTheme();
   const colors = theme === "light" ? lightColors : darkColors;
@@ -47,6 +48,7 @@ export default function RegisterScreen() {
     }
 
     try {
+      setLoading(true);
       const res = await axios.post(`${API_URL}/api/auth/register`, {
         nombre,
         apellido,
@@ -61,6 +63,8 @@ export default function RegisterScreen() {
     } catch (err: any) {
       console.error(err);
       Alert.alert("Error", err.response?.data?.error || "Error al registrar");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -70,115 +74,77 @@ export default function RegisterScreen() {
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <Text style={[styles.title, { color: colors.text }]}>
-          Crea una cuenta
+        <Text style={[styles.title, { color: colors.primary }]}>
+          Crear cuenta
+        </Text>
+        <Text style={[styles.subtitle, { color: colors.text }]}>
+          Completa los campos para registrarte
         </Text>
 
-        <Text style={[styles.label, { color: colors.text }]}>Nombre</Text>
-        <TextInput
-          style={[
-            styles.input,
-            {
-              backgroundColor: colors.card,
-              color: colors.text,
-              borderColor: colors.border,
-            },
-          ]}
+        {/* Inputs reutilizables */}
+        <AnimatedInput
+          placeholder="Nombre"
           value={nombre}
           onChangeText={setNombre}
-          placeholder="Nombre"
-          placeholderTextColor="#999"
+          textColor={colors.text}
+          borderColor={colors.border}
+          color={colors.primary}
         />
 
-        <Text style={[styles.label, { color: colors.text }]}>Apellido</Text>
-        <TextInput
-          style={[
-            styles.input,
-            {
-              backgroundColor: colors.card,
-              color: colors.text,
-              borderColor: colors.border,
-            },
-          ]}
+        <AnimatedInput
+          placeholder="Apellido"
           value={apellido}
           onChangeText={setApellido}
-          placeholder="Apellido"
-          placeholderTextColor="#999"
+          textColor={colors.text}
+          borderColor={colors.border}
+          color={colors.primary}
         />
 
-        <Text style={[styles.label, { color: colors.text }]}>
-          Correo institucional
-        </Text>
-        <TextInput
-          style={[
-            styles.input,
-            {
-              backgroundColor: colors.card,
-              color: colors.text,
-              borderColor: colors.border,
-            },
-          ]}
+        <AnimatedInput
+          placeholder="Correo institucional"
           value={correo_institucional}
           onChangeText={setCorreo}
-          placeholder="correo@uvg.edu.gt"
-          autoCapitalize="none"
-          placeholderTextColor="#999"
+          textColor={colors.text}
+          borderColor={colors.border}
+          color={colors.primary}
         />
 
-        <Text style={[styles.label, { color: colors.text }]}>Contraseña</Text>
-        <TextInput
-          style={[
-            styles.input,
-            {
-              backgroundColor: colors.card,
-              color: colors.text,
-              borderColor: colors.border,
-            },
-          ]}
+        <AnimatedInput
+          placeholder="Contraseña"
           value={contrasenia}
           onChangeText={setContrasenia}
           secureTextEntry
-          placeholder="*******"
-          placeholderTextColor="#999"
+          textColor={colors.text}
+          borderColor={colors.border}
+          color={colors.primary}
         />
 
-        <Text style={[styles.label, { color: colors.text }]}>Teléfono</Text>
-        <TextInput
-          style={[
-            styles.input,
-            {
-              backgroundColor: colors.card,
-              color: colors.text,
-              borderColor: colors.border,
-            },
-          ]}
+        <AnimatedInput
+          placeholder="Teléfono"
           value={telefono}
           onChangeText={setTelefono}
-          placeholder="12345678"
-          keyboardType="phone-pad"
-          placeholderTextColor="#999"
+          textColor={colors.text}
+          borderColor={colors.border}
+          color={colors.primary}
         />
 
-        <Text style={[styles.label, { color: colors.text }]}>
-          Tipo de usuario
-        </Text>
+        {/* Selector de tipo de usuario */}
         <TouchableOpacity
           onPress={() => setModalVisible(true)}
           style={[
-            styles.input,
+            styles.selector,
             {
-              backgroundColor: colors.card,
               borderColor: colors.border,
-              justifyContent: "center",
+              backgroundColor: colors.card,
             },
           ]}
         >
           <Text style={{ color: tipo_usuario ? colors.text : "#999" }}>
-            {tipo_usuario || "Selecciona un tipo..."}
+            {tipo_usuario || "Selecciona un tipo de usuario"}
           </Text>
         </TouchableOpacity>
 
-        {/* Modal para seleccionar tipo de usuario */}
+        {/* Modal */}
         <Modal
           visible={modalVisible}
           transparent
@@ -211,21 +177,20 @@ export default function RegisterScreen() {
           </TouchableOpacity>
         </Modal>
 
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: colors.primary }]}
+        {/* Botón reutilizable */}
+        <PrimaryButton
+          title="Registrarse"
           onPress={handleRegister}
-        >
-          <Text style={styles.buttonText}>Registrarse</Text>
-        </TouchableOpacity>
+          loading={loading}
+          color={colors.primary}
+        />
 
-        <TouchableOpacity
-          style={styles.loginLink}
-          onPress={() => navigation.navigate("Login")}
-        >
-          <Text style={[styles.loginText, { color: colors.primary }]}>
-            ¿Ya tienes cuenta? Inicia sesión
-          </Text>
-        </TouchableOpacity>
+        {/* Link reutilizable */}
+        <LinkText
+          text="¿Ya tienes cuenta? Inicia sesión"
+          onPress={() => navigation.goBack()}
+          color={colors.primary}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -236,42 +201,21 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 24, justifyContent: "center" },
   title: {
     fontSize: 32,
-    fontWeight: "bold",
+    fontWeight: "700",
     textAlign: "center",
     marginBottom: 8,
-    textTransform: "uppercase",
   },
-  label: {
-    marginBottom: 6,
-    marginTop: 12,
+  subtitle: {
     fontSize: 14,
+    textAlign: "center",
+    marginBottom: 24,
+    opacity: 0.7,
   },
-  input: {
+  selector: {
+    borderWidth: 2,
     borderRadius: 12,
-    padding: 12,
-    fontSize: 16,
-    marginBottom: 8,
-    borderWidth: 1,
-  },
-  button: {
-    marginTop: 24,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
-    textTransform: "uppercase",
-  },
-  loginLink: {
-    marginTop: 16,
-    alignItems: "center",
-  },
-  loginText: {
-    textDecorationLine: "underline",
-    fontSize: 14,
+    padding: 14,
+    marginBottom: 16,
   },
   modalBackground: {
     flex: 1,
