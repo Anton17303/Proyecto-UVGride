@@ -49,9 +49,11 @@ export default function LoginScreen() {
         correo_institucional,
         contrasenia,
       });
+
       setUserFromBackend(res.data.usuario);
+
       Alert.alert("¡Bienvenido!", `Hola ${res.data.usuario.nombre}`);
-      navigation.reset({ index: 0, routes: [{ name: "Tabs" }] });
+
     } catch (err: any) {
       console.error(err);
       Alert.alert(
