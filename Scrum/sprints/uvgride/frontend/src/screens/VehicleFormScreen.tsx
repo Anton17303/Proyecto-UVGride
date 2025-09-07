@@ -1,37 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   StyleSheet,
   Alert,
-  ScrollView
-} from 'react-native';
-import axios from 'axios';
-import { API_URL } from '../services/api';
-import { useUser } from '../context/UserContext';
-import { useTheme } from '../context/ThemeContext';
-import { lightColors, darkColors } from '../constants/colors';
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+} from "react-native";
+import axios from "axios";
+import { API_URL } from "../services/api";
+import { useUser } from "../context/UserContext";
+import { useTheme } from "../context/ThemeContext";
+import { lightColors, darkColors } from "../constants/colors";
+import { PrimaryButton, AnimatedInput, LinkText } from "../components";
 
 export default function VehicleFormScreen({ navigation }: any) {
   const { user } = useUser();
   const { theme } = useTheme();
-  const colors = theme === 'light' ? lightColors : darkColors;
+  const colors = theme === "light" ? lightColors : darkColors;
 
-  const [marca, setMarca] = useState('');
-  const [modelo, setModelo] = useState('');
-  const [placa, setPlaca] = useState('');
-  const [color, setColor] = useState('');
-  const [capacidad, setCapacidad] = useState('');
+  const [marca, setMarca] = useState("");
+  const [modelo, setModelo] = useState("");
+  const [placa, setPlaca] = useState("");
+  const [color, setColor] = useState("");
+  const [capacidad, setCapacidad] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
     if (!marca || !modelo || !placa || !color || !capacidad) {
-      Alert.alert('Campos incompletos', 'Por favor completa todos los campos.');
+      Alert.alert("Campos incompletos", "Por favor completa todos los campos.");
       return;
     }
 
     try {
+      setLoading(true);
       await axios.post(`${API_URL}/api/vehiculos`, {
         id_usuario: user?.id,
         marca,
@@ -41,107 +45,113 @@ export default function VehicleFormScreen({ navigation }: any) {
         capacidad_pasajeros: parseInt(capacidad),
       });
 
-      Alert.alert('Éxito', 'Vehículo registrado correctamente');
+      Alert.alert("Éxito", "Vehículo registrado correctamente");
       navigation.goBack();
     } catch (error) {
-      console.error('❌ Error registrando vehículo:', error);
-      Alert.alert('Error', 'No se pudo registrar el vehículo');
+      console.error("❌ Error registrando vehículo:", error);
+      Alert.alert("Error", "No se pudo registrar el vehículo");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <ScrollView contentContainerStyle={[styles.container, { backgroundColor: colors.background }]}>
-      <Text style={[styles.title, { color: colors.text }]}>Registrar Vehículo</Text>
-
-      <TextInput
-        style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-        placeholder="Marca"
-        placeholderTextColor={colors.textPlaceholder}
-        value={marca}
-        onChangeText={setMarca}
-      />
-
-      <TextInput
-        style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-        placeholder="Modelo"
-        placeholderTextColor={colors.textPlaceholder}
-        value={modelo}
-        onChangeText={setModelo}
-      />
-
-      <TextInput
-        style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-        placeholder="Placa"
-        placeholderTextColor={colors.textPlaceholder}
-        value={placa}
-        onChangeText={setPlaca}
-      />
-
-      <TextInput
-        style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-        placeholder="Color"
-        placeholderTextColor={colors.textPlaceholder}
-        value={color}
-        onChangeText={setColor}
-      />
-
-      <TextInput
-        style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-        placeholder="Capacidad de pasajeros"
-        placeholderTextColor={colors.textPlaceholder}
-        value={capacidad}
-        onChangeText={setCapacidad}
-        keyboardType="numeric"
-      />
-
-      <TouchableOpacity
-        style={[styles.button, { backgroundColor: colors.primary }]}
-        onPress={handleRegister}
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <Text style={styles.buttonText}>Registrar vehículo</Text>
-      </TouchableOpacity>
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Text style={[styles.title, { color: colors.primary }]}>
+            Registrar vehículo
+          </Text>
+          <Text style={[styles.subtitle, { color: colors.text }]}>
+            Completa la información de tu vehículo
+          </Text>
 
-      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.cancelButton}>
-        <Text style={[styles.cancelText, { color: colors.primary }]}>Cancelar</Text>
-      </TouchableOpacity>
-    </ScrollView>
+          <AnimatedInput
+            placeholder="Marca"
+            value={marca}
+            onChangeText={setMarca}
+            textColor={colors.text}
+            borderColor={colors.border}
+            color={colors.primary}
+          />
+
+          <AnimatedInput
+            placeholder="Modelo"
+            value={modelo}
+            onChangeText={setModelo}
+            textColor={colors.text}
+            borderColor={colors.border}
+            color={colors.primary}
+          />
+
+          <AnimatedInput
+            placeholder="Placa"
+            value={placa}
+            onChangeText={setPlaca}
+            textColor={colors.text}
+            borderColor={colors.border}
+            color={colors.primary}
+          />
+
+          <AnimatedInput
+            placeholder="Color"
+            value={color}
+            onChangeText={setColor}
+            textColor={colors.text}
+            borderColor={colors.border}
+            color={colors.primary}
+          />
+
+          <AnimatedInput
+            placeholder="Capacidad de pasajeros"
+            value={capacidad}
+            onChangeText={setCapacidad}
+            textColor={colors.text}
+            borderColor={colors.border}
+            color={colors.primary}
+          />
+
+          <PrimaryButton
+            title="Registrar vehículo"
+            onPress={handleRegister}
+            loading={loading}
+            color={colors.primary}
+          />
+
+          <LinkText
+            text="Cancelar"
+            onPress={() => navigation.goBack()}
+            color={colors.primary}
+          />
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    padding: 20,
+  safe: { flex: 1 },
+  scrollContainer: {
+    padding: 24,
     flexGrow: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 14,
+    textAlign: "center",
     marginBottom: 24,
-    textAlign: 'center',
-    fontWeight: 'bold',
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 16,
-  },
-  button: {
-    padding: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  cancelButton: {
-    marginTop: 12,
-    alignItems: 'center',
-  },
-  cancelText: {
-    textDecorationLine: 'underline',
-    fontWeight: 'bold',
+    opacity: 0.7,
   },
 });
