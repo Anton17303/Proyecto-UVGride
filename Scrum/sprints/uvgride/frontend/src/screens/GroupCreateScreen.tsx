@@ -142,7 +142,7 @@ export default function GroupCreateScreen() {
         destino_nombre: destino.trim(),
         cupos_totales: nCupos,
         fecha_salida: fechaIso ?? undefined,
-        costo_estimado: nCosto ?? undefined,
+        precio_base: nCosto ?? undefined,
       });
 
       Alert.alert('Éxito', 'Grupo creado.', [
