@@ -1,34 +1,35 @@
-import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
-import MapView, { Marker, Polyline, MapPressEvent } from 'react-native-maps';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RouteProp } from '@react-navigation/core';
-import axios from 'axios';
-import * as Location from 'expo-location';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import React, { useEffect, useState } from "react";
+import { View, StyleSheet, Alert, Platform } from "react-native";
+import MapView, { Marker, Polyline, MapPressEvent } from "react-native-maps";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RouteProp } from "@react-navigation/core";
+import axios from "axios";
+import * as Location from "expo-location";
 
-import { RootStackParamList } from '../navigation/type';
-import { useTheme } from '../context/ThemeContext';
-import { lightColors, darkColors } from '../constants/colors';
+import { RootStackParamList } from "../navigation/type";
+import { useTheme } from "../context/ThemeContext";
+import { lightColors, darkColors } from "../constants/colors";
+import {
+  FloatingActionButton,
+  ZoomControls,
+  RouteInfoCard,
+  LoadingModal,
+} from "../components";
 
 const OPENROUTESERVICE_API_KEY =
-  '5b3ce3597851110001cf62486825133970f449ebbc374649ee03b5eb';
+  "5b3ce3597851110001cf62486825133970f449ebbc374649ee03b5eb";
 
-type TravelRouteProp = RouteProp<RootStackParamList, 'Travel'>;
+type TravelRouteProp = RouteProp<RootStackParamList, "Travel">;
 
 export default function TravelScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { params } = useRoute<TravelRouteProp>();
   const { theme } = useTheme();
-  const colors = theme === 'light' ? lightColors : darkColors;
+  const colors = theme === "light" ? lightColors : darkColors;
+
+  const STATUS_OFFSET = Platform.OS === "ios" ? 52 : 24;
 
   const [region, setRegion] = useState({
     latitude: 14.604361,
@@ -42,25 +43,20 @@ export default function TravelScreen() {
   const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
   const [loadingRoute, setLoadingRoute] = useState(false);
   const [routeDrawn, setRouteDrawn] = useState(false);
-
-  // 👇 NEW: resumen de ruta (tiempo/distancia)
   const [summary, setSummary] = useState<{ durationSec: number; distanceKm: number } | null>(null);
 
   const requestUserLocation = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permiso denegado', 'Activa los permisos de ubicación para continuar.');
+      if (status !== "granted") {
+        Alert.alert("Permiso denegado", "Activa los permisos de ubicación para continuar.");
         return null;
       }
       const location = await Location.getCurrentPositionAsync({});
-      return {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      };
+      return { latitude: location.coords.latitude, longitude: location.coords.longitude };
     } catch (error) {
-      console.error('Error obteniendo ubicación:', error);
-      Alert.alert('Error', 'No se pudo obtener la ubicación.');
+      console.error("Error obteniendo ubicación:", error);
+      Alert.alert("Error", "No se pudo obtener la ubicación.");
       return null;
     }
   };
@@ -72,33 +68,20 @@ export default function TravelScreen() {
     try {
       setLoadingRoute(true);
       const res = await axios.post(
-        'https://api.openrouteservice.org/v2/directions/driving-car/geojson',
-        {
-          coordinates: [
-            [origin.longitude, origin.latitude],
-            [destination.longitude, destination.latitude],
-          ],
-        },
-        {
-          headers: {
-            Authorization: OPENROUTESERVICE_API_KEY,
-            'Content-Type': 'application/json',
-          },
-        }
+        "https://api.openrouteservice.org/v2/directions/driving-car/geojson",
+        { coordinates: [[origin.longitude, origin.latitude], [destination.longitude, destination.latitude]] },
+        { headers: { Authorization: OPENROUTESERVICE_API_KEY, "Content-Type": "application/json" } }
       );
 
       const feature = res.data?.features?.[0];
-      const coords = feature.geometry.coordinates.map(
-        ([lng, lat]: [number, number]) => ({
-          latitude: lat,
-          longitude: lng,
-        })
-      );
+      const coords = feature.geometry.coordinates.map(([lng, lat]: [number, number]) => ({
+        latitude: lat,
+        longitude: lng,
+      }));
 
       setRouteCoords(coords);
       setRouteDrawn(true);
 
-      // 👇 NEW: guardar summary (duration en segundos, distance en metros)
       const sum = feature?.properties?.summary;
       if (sum) {
         setSummary({
@@ -109,8 +92,8 @@ export default function TravelScreen() {
         setSummary(null);
       }
     } catch (error) {
-      console.error('Error al obtener la ruta:', error);
-      Alert.alert('Error', 'No se pudo calcular la ruta');
+      console.error("Error al obtener la ruta:", error);
+      Alert.alert("Error", "No se pudo calcular la ruta");
       setSummary(null);
     } finally {
       setLoadingRoute(false);
@@ -127,10 +110,7 @@ export default function TravelScreen() {
         !routeDrawn
       ) {
         const origin = { latitude: params.latitude, longitude: params.longitude };
-        const destination = {
-          latitude: params.destinationLatitude,
-          longitude: params.destinationLongitude,
-        };
+        const destination = { latitude: params.destinationLatitude, longitude: params.destinationLongitude };
 
         setOriginMarker(origin);
         setDestinationMarker(destination);
@@ -145,7 +125,6 @@ export default function TravelScreen() {
       }
     };
     setup();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleMapPress = (event: MapPressEvent) => {
@@ -155,40 +134,20 @@ export default function TravelScreen() {
 
   const goToTripForm = () => {
     if (!originMarker) {
-      Alert.alert('Por favor selecciona un punto válido en el mapa.');
+      Alert.alert("Por favor selecciona un punto válido en el mapa.");
       return;
     }
-
-    navigation.navigate('TripFormScreen', {
-      origin: 'Origen desde el mapa',
+    navigation.navigate("TripFormScreen", {
+      origin: "Origen desde el mapa",
       latitude: originMarker.latitude,
       longitude: originMarker.longitude,
     });
   };
 
-  const goToScheduledList = () => {
-    navigation.navigate('ScheduledTripScreen');
-  };
-
-  // 👇 NEW: formateador de duración
-  const formatDuration = (sec: number) => {
-    const h = Math.floor(sec / 3600);
-    const m = Math.round((sec % 3600) / 60);
-    return h > 0 ? `${h}h ${m}m` : `${m} min`;
-  };
+  const goToScheduledList = () => navigation.navigate("ScheduledTripScreen");
 
   return (
     <View style={styles.container}>
-      {/* Botón flotante arriba-izquierda: calendario */}
-      <TouchableOpacity
-        onPress={goToScheduledList}
-        style={[styles.calendarBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="calendar-outline" size={20} color={colors.text} />
-        <Text style={[styles.calendarText, { color: colors.text }]}>Programados</Text>
-      </TouchableOpacity>
-
       <MapView
         style={styles.map}
         region={region}
@@ -208,59 +167,62 @@ export default function TravelScreen() {
         />
       </MapView>
 
-      {/* 👇 NEW: Tarjeta con duración y distancia */}
+      {/* Resumen de ruta */}
       {summary && (
-        <View style={[styles.routeInfo, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Ionicons name="time-outline" size={16} color={colors.text} />
-          <Text style={[styles.routeInfoText, { color: colors.text }]}>
-            {formatDuration(summary.durationSec)} · {summary.distanceKm.toFixed(1)} km
-          </Text>
-        </View>
+        <RouteInfoCard
+          durationSec={summary.durationSec}
+          distanceKm={summary.distanceKm}
+          backgroundColor={colors.card}
+          borderColor={colors.border}
+          textColor={colors.text}
+          style={{ position: "absolute", top: STATUS_OFFSET + 20, alignSelf: "center" }}
+        />
       )}
 
-      <View style={[styles.zoomContainer, { backgroundColor: colors.card }]}>
-        <TouchableOpacity
-          style={styles.zoomButton}
-          onPress={() =>
-            setRegion(prev => ({
-              ...prev,
-              latitudeDelta: prev.latitudeDelta / 2,
-              longitudeDelta: prev.longitudeDelta / 2,
-            }))
-          }
-        >
-          <Text style={[styles.zoomText, { color: colors.text }]}>＋</Text>
-        </TouchableOpacity>
+      {/* Zoom abajo a la izquierda */}
+      <ZoomControls
+        onZoomIn={() =>
+          setRegion(prev => ({
+            ...prev,
+            latitudeDelta: prev.latitudeDelta / 2,
+            longitudeDelta: prev.longitudeDelta / 2,
+          }))
+        }
+        onZoomOut={() =>
+          setRegion(prev => ({
+            ...prev,
+            latitudeDelta: prev.latitudeDelta * 2,
+            longitudeDelta: prev.longitudeDelta * 2,
+          }))
+        }
+        buttonColor={`${colors.primary}CC`}
+        style={{ position: "absolute", bottom: 50, left: 25 }}
+      />
 
-        <TouchableOpacity
-          style={styles.zoomButton}
-          onPress={() =>
-            setRegion(prev => ({
-              ...prev,
-              latitudeDelta: prev.latitudeDelta * 2,
-              longitudeDelta: prev.longitudeDelta * 2,
-            }))
-          }
-        >
-          <Text style={[styles.zoomText, { color: colors.text }]}>−</Text>
-        </TouchableOpacity>
-      </View>
-
-      <TouchableOpacity
-        style={[styles.startButton, { backgroundColor: colors.primary }]}
+      {/* FAB principal */}
+      <FloatingActionButton
+        icon="navigate"
+        backgroundColor={colors.primary}
         onPress={goToTripForm}
-      >
-        <Text style={styles.buttonText}>Seleccionar destino</Text>
-      </TouchableOpacity>
+        style={{ position: "absolute", bottom: 40, right: 20 }}
+      />
 
-      {loadingRoute && (
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalBox, { backgroundColor: colors.card }]}>
-            <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={[styles.modalText, { color: colors.text, marginTop: 12 }]}>Recalculando ruta...</Text>
-          </View>
-        </View>
-      )}
+      {/* FAB secundario */}
+      <FloatingActionButton
+        icon="calendar-outline"
+        backgroundColor={colors.primary}
+        onPress={goToScheduledList}
+        style={{ position: "absolute", bottom: 110, right: 25, width: 48, height: 48, borderRadius: 24 }}
+      />
+
+      {/* Loading modal */}
+      <LoadingModal
+        visible={loadingRoute}
+        message="Recalculando ruta..."
+        backgroundColor={colors.card}
+        textColor={colors.text}
+        spinnerColor={colors.primary}
+      />
     </View>
   );
 }
@@ -268,75 +230,4 @@ export default function TravelScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { flex: 1 },
-
-  // Botón flotante de calendario (arriba-izquierda)
-  calendarBtn: {
-    position: 'absolute',
-    top: 50,
-    left: 16,
-    zIndex: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  calendarText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-
-  // 👇 NEW: Tarjeta de info de ruta
-  routeInfo: {
-    position: 'absolute',
-    left: 20,
-    right: 20,
-    bottom: 100, // queda arriba del botón principal
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    zIndex: 15,
-  },
-  routeInfoText: { fontSize: 14, fontWeight: '600' },
-
-  startButton: {
-    position: 'absolute',
-    bottom: 40,
-    left: 20,
-    right: 20,
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  buttonText: { color: '#fff', fontWeight: 'bold' },
-
-  zoomContainer: {
-    position: 'absolute',
-    top: 100,
-    right: 20,
-    borderRadius: 8,
-    padding: 5,
-    zIndex: 10,
-  },
-  zoomButton: { padding: 10 },
-  zoomText: { fontSize: 24, fontWeight: 'bold' },
-
-  modalOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#00000077',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalBox: {
-    padding: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  modalText: { fontSize: 16, fontWeight: '600' },
 });

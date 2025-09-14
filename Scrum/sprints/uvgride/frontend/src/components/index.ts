@@ -5,4 +5,8 @@ export { default as ProfileHeader } from "./ProfileHeader";
 export { default as SectionCard } from "./SectionCard";
 export { default as SettingsItem } from "./SettingsItem";
 export { default as LogoutButton } from "./LogoutButton";
+export { default as FloatingActionButton } from "./FloatingActionButton";
+export { default as ZoomControls } from "./ZoomControls";
+export { default as RouteInfoCard } from "./RouteInfoCard";
+export { default as LoadingModal } from "./LoadingModal";
 
