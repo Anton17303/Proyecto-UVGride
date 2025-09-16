@@ -12,14 +12,18 @@ type Props = {
   onZoomIn: () => void;
   onZoomOut: () => void;
   style?: ViewStyle;
+  buttonColor?: string; // ✅ color para ícono y borde
+  backgroundColor?: string; // ✅ color para la card
 };
 
 function ZoomButton({
   icon,
   onPress,
+  color = "#000",
 }: {
   icon: string;
   onPress: () => void;
+  color?: string;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -48,24 +52,41 @@ function ZoomButton({
       onPressOut={handlePressOut}
     >
       <Animated.View style={[styles.smallFab, { transform: [{ scale }] }]}>
-        <Ionicons name={icon} size={22} color="#000" />
+        <Ionicons name={icon} size={22} color={color} />
       </Animated.View>
     </TouchableWithoutFeedback>
   );
 }
 
-export default function ZoomControls({ onZoomIn, onZoomOut, style }: Props) {
+export default function ZoomControls({
+  onZoomIn,
+  onZoomOut,
+  style,
+  buttonColor = "#000",
+  backgroundColor = "#fff",
+}: Props) {
   return (
-    <View style={[styles.container, style]}>
-      <ZoomButton icon="add" onPress={onZoomIn} />
-      <ZoomButton icon="remove" onPress={onZoomOut} />
+    <View style={[styles.card, { backgroundColor }, style]}>
+      <ZoomButton icon="add" onPress={onZoomIn} color={buttonColor} />
+      <ZoomButton icon="remove" onPress={onZoomOut} color={buttonColor} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  card: {
+    flexDirection: "column",
     gap: 10,
+    borderRadius: 28,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    elevation: 4, // Android
+    shadowColor: "#000", // iOS
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    alignItems: "center",
+    justifyContent: "center",
   },
   smallFab: {
     width: 44,
@@ -74,12 +95,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#000",
-    backgroundColor: "#fff",
-    elevation: 3, // Android
-    shadowColor: "#000", // iOS
-    shadowOpacity: 0.15,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 3,
   },
 });

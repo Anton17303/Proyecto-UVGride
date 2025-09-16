@@ -11,8 +11,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useUser } from "../context/UserContext";
 
 type Props = {
+  id: string;                 // ✅ identificador único del FAB
   icon: string;
-  label?: string;              // Texto opcional
+  label?: string;             // Texto opcional
   size?: number;
   color?: string;
   backgroundColor?: string;
@@ -21,6 +22,7 @@ type Props = {
 };
 
 export default function FloatingActionButton({
+  id,
   icon,
   label = "Acción",
   size = 24,
@@ -34,19 +36,19 @@ export default function FloatingActionButton({
 
   const [extended, setExtended] = useState(true);
 
-  // 🚀 Cargar preferencia por usuario
+  // 🚀 Cargar preferencia por usuario y FAB
   useEffect(() => {
     const loadFabPref = async () => {
       if (!user?.id) return;
       try {
-        const seen = await AsyncStorage.getItem(`fabSeen_${user.id}`);
+        const seen = await AsyncStorage.getItem(`fabSeen_${id}_${user.id}`);
         if (seen === "true") setExtended(false);
       } catch (e) {
         console.error("Error cargando preferencia FAB", e);
       }
     };
     loadFabPref();
-  }, [user?.id]);
+  }, [user?.id, id]);
 
   const handlePressIn = () => {
     Animated.spring(scale, {
@@ -68,7 +70,7 @@ export default function FloatingActionButton({
     // ✅ Guardar que ya se mostró extendido al menos una vez
     if (extended && user?.id) {
       try {
-        await AsyncStorage.setItem(`fabSeen_${user.id}`, "true");
+        await AsyncStorage.setItem(`fabSeen_${id}_${user.id}`, "true");
         setExtended(false);
       } catch (e) {
         console.error("Error guardando preferencia FAB", e);
