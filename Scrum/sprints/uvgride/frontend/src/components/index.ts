@@ -9,4 +9,6 @@ export { default as FloatingActionButton } from "./FloatingActionButton";
 export { default as ZoomControls } from "./ZoomControls";
 export { default as RouteInfoCard } from "./RouteInfoCard";
 export { default as LoadingModal } from "./LoadingModal";
+export { default as TripCard } from "./TripCard";
+export { default as EmptyState } from "./EmptyState";
 
