@@ -1,25 +1,29 @@
 // components/AnimatedInput.tsx
 import React, { useRef } from "react";
-import { TextInput, StyleSheet, Animated } from "react-native";
+import { TextInput, StyleSheet, Animated, Text } from "react-native";
+
+type Variant = "text" | "email" | "password" | "short" | "long";
 
 type Props = {
   placeholder: string;
   value: string;
   onChangeText: (text: string) => void;
-  secureTextEntry?: boolean;
+  variant?: Variant;
   color?: string;
   borderColor?: string;
   textColor?: string;
+  errorMessage?: string; // opcional
 };
 
 export default function AnimatedInput({
   placeholder,
   value,
   onChangeText,
-  secureTextEntry = false,
+  variant = "text",
   color = "#4F46E5",
   borderColor = "#ccc",
   textColor = "#000",
+  errorMessage,
 }: Props) {
   const borderAnim = useRef(new Animated.Value(0)).current;
 
@@ -30,6 +34,54 @@ export default function AnimatedInput({
       useNativeDriver: false,
     }).start();
   };
+
+  // Config según el tipo de input
+  const getConfig = () => {
+    switch (variant) {
+      case "email":
+        return {
+          keyboardType: "email-address" as const,
+          secureTextEntry: false,
+          autoCapitalize: "none" as const,
+          multiline: false,
+          maxLength: 100,
+        };
+      case "password":
+        return {
+          keyboardType: "default" as const,
+          secureTextEntry: true,
+          autoCapitalize: "none" as const,
+          multiline: false,
+          maxLength: 50,
+        };
+      case "short":
+        return {
+          keyboardType: "default" as const,
+          secureTextEntry: false,
+          autoCapitalize: "sentences" as const,
+          multiline: false,
+          maxLength: 50,
+        };
+      case "long":
+        return {
+          keyboardType: "default" as const,
+          secureTextEntry: false,
+          autoCapitalize: "sentences" as const,
+          multiline: true,
+          maxLength: 500,
+        };
+      default:
+        return {
+          keyboardType: "default" as const,
+          secureTextEntry: false,
+          autoCapitalize: "sentences" as const,
+          multiline: false,
+          maxLength: 200,
+        };
+    }
+  };
+
+  const config = getConfig();
 
   return (
     <Animated.View
@@ -44,15 +96,23 @@ export default function AnimatedInput({
       ]}
     >
       <TextInput
-        style={[styles.input, { color: textColor }]}
+        style={[
+          styles.input,
+          { color: textColor, height: config.multiline ? 100 : undefined },
+        ]}
         placeholder={placeholder}
         value={value}
         onChangeText={onChangeText}
         placeholderTextColor="#888"
-        secureTextEntry={secureTextEntry}
+        secureTextEntry={config.secureTextEntry}
+        keyboardType={config.keyboardType}
+        autoCapitalize={config.autoCapitalize}
+        multiline={config.multiline}
+        maxLength={config.maxLength}
         onFocus={() => animateBorder(1)}
         onBlur={() => animateBorder(0)}
       />
+      {errorMessage && <Text style={styles.error}>{errorMessage}</Text>}
     </Animated.View>
   );
 }
@@ -67,5 +127,12 @@ const styles = StyleSheet.create({
   input: {
     fontSize: 16,
     paddingVertical: 12,
+    textAlignVertical: "top", // importante para multiline
+  },
+  error: {
+    marginTop: 4,
+    color: "#d9534f",
+    fontSize: 13,
+    fontWeight: "500",
   },
 });
