@@ -161,7 +161,7 @@ export default function FavoriteScreen() {
         label="Agregar lugar"
         backgroundColor={colors.primary}
         onPress={() => navigation.navigate("AddFavorite")}
-        style={{ position: "absolute", bottom: 30, right: 20 }}
+        style={{ position: "absolute", bottom: 50, right: 20 }}
       />
     </SafeAreaView>
   );

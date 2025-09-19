@@ -1,23 +1,23 @@
-// src/screens/ScheduledTripScreen.tsx
 import React, { useCallback, useState } from "react";
 import {
-  View,
-  Text,
+  SafeAreaView,
   StyleSheet,
   FlatList,
-  TouchableOpacity,
-  SafeAreaView,
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Text,
 } from "react-native";
 import axios from "axios";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
 
 import { API_URL } from "../services/api";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
+
+import ScheduledTripCard from "../components/ScheduledTripCard";
+import EmptyState from "../components/EmptyState";
 
 type TripItem = {
   id_viaje_maestro: number;
@@ -29,7 +29,6 @@ type TripItem = {
 };
 
 export default function ScheduledTripScreen() {
-  const navigation = useNavigation<any>();
   const { user } = useUser();
   const { theme } = useTheme();
   const colors = theme === "light" ? lightColors : darkColors;
@@ -41,7 +40,9 @@ export default function ScheduledTripScreen() {
   const fetchTrips = async () => {
     if (!user?.id) return;
     try {
-      const { data } = await axios.get(`${API_URL}/api/viajes/usuario/${user.id}`);
+      const { data } = await axios.get(
+        `${API_URL}/api/viajes/usuario/${user.id}`
+      );
       const all: TripItem[] = data?.viajes ?? [];
 
       const now = new Date();
@@ -111,93 +112,53 @@ export default function ScheduledTripScreen() {
     );
   };
 
-  const handleEdit = (trip: TripItem) => {
-    navigation.navigate("Home", {
-      screen: "Viaje",
-      params: {
-        screen: "TripFormScreen",
-        params: {
-          origin: "Ubicación actual",
-          latitude: null,
-          longitude: null,
-          destinationName: trip.destino,
-        },
-      },
-    });
-  };
-
   const renderItem = ({ item }: { item: TripItem }) => (
-    <View style={[styles.card, { backgroundColor: colors.card }]}>
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
-          {item.destino}
-        </Text>
-        <Text style={[styles.subtitle, { color: colors.text }]}>
-          Programado: {formatDateTime(item.fecha_inicio)}
-        </Text>
-        {!!item.costo_total && (
-          <Text style={[styles.subtitle, { color: colors.text }]}>
-            Estimado: Q{Number(item.costo_total).toFixed(2)}
-          </Text>
-        )}
-      </View>
-
-      <View style={styles.actions}>
-        <TouchableOpacity
-          style={[styles.actionBtn, { borderColor: colors.primary }]}
-          onPress={() => handleEdit(item)}
-        >
-          <Text style={[styles.actionText, { color: colors.primary }]}>Editar</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.actionBtn, { borderColor: "#d9534f" }]}
-          onPress={() => handleDelete(item.id_viaje_maestro)}
-        >
-          <Text style={[styles.actionText, { color: "#d9534f" }]}>Eliminar</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+    <ScheduledTripCard
+      destino={item.destino}
+      fecha={formatDateTime(item.fecha_inicio)}
+      costo={item.costo_total}
+      colorText={colors.text}
+      backgroundColor={colors.card}
+      onDelete={() => handleDelete(item.id_viaje_maestro)}
+    />
   );
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
-
-      <Text style={[styles.header, { color: colors.text }]}>Viajes programados</Text>
+      {/* Encabezado */}
+      <Text style={[styles.header, { color: colors.text }]}>
+        Viajes Programados
+      </Text>
 
       {loading ? (
-        <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 20 }} />
+        <ActivityIndicator
+          size="large"
+          color={colors.primary}
+          style={{ marginTop: 20 }}
+        />
       ) : trips.length === 0 ? (
-        <View style={styles.emptyBox}>
-          <Text style={{ color: colors.text, textAlign: "center" }}>
-            No tienes viajes programados.
-          </Text>
-          <Text style={{ color: colors.text, marginTop: 6, textAlign: "center" }}>
-            Programa uno desde el formulario de viajes.
-          </Text>
-        </View>
+        <EmptyState
+          icon="calendar-outline"
+          title="No tienes viajes programados"
+          subtitle="Programa uno desde el formulario de viajes."
+          color={colors.primary}
+          textColor={colors.text}
+        />
       ) : (
         <FlatList
           data={trips}
           keyExtractor={(it) => String(it.id_viaje_maestro)}
           renderItem={renderItem}
-          contentContainerStyle={{ paddingBottom: 24, paddingHorizontal: 12 }}
+          contentContainerStyle={styles.listContent}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+            />
           }
         />
       )}
-
-      {/* Botón estilo FavoriteScreen */}
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={() => navigation.goBack()}
-      >
-        <Text style={[styles.backButtonText, { color: colors.primary }]}>
-          ← Volver al menú
-        </Text>
-      </TouchableOpacity>
-
     </SafeAreaView>
   );
 }
@@ -208,44 +169,11 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "700",
     textAlign: "center",
-    marginBottom: 10,
-  },
-  emptyBox: {
-    marginTop: 30,
-    marginHorizontal: 24,
-  },
-  card: {
-    flexDirection: "row",
-    padding: 14,
-    borderRadius: 12,
-    marginVertical: 8,
-    alignItems: "center",
-    elevation: 2,
-  },
-  title: { fontSize: 16, fontWeight: "700" },
-  subtitle: { fontSize: 13, marginTop: 2 },
-  actions: {
-    flexDirection: "row",
-    gap: 8,
-    marginLeft: 12,
-  },
-  actionBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  actionText: { fontWeight: "700", fontSize: 13 },
-
-  // Estilo botón de volver (igual que FavoriteScreen)
-  backButton: {
+    marginBottom: 16,
     marginTop: 10,
-    padding: 10,
-    alignItems: "center",
   },
-  backButtonText: {
-    fontSize: 14,
-    fontWeight: "bold",
-    textDecorationLine: "underline",
+  listContent: {
+    paddingBottom: 24,
+    paddingHorizontal: 12, // espacio lateral
   },
 });

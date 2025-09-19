@@ -12,4 +12,5 @@ export { default as LoadingModal } from "./LoadingModal";
 export { default as TripCard } from "./TripCard";
 export { default as EmptyState } from "./EmptyState";
 export { default as FavoriteCard } from "./FavoriteCard"
+export { default as ScheduledTripCard } from "./ScheduledTripCard"
 

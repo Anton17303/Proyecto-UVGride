@@ -1,3 +1,4 @@
+// src/components/FavoriteCard.tsx
 import React from "react";
 import {
   View,
@@ -11,7 +12,7 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 type Props = {
   nombre: string;
   descripcion?: string;
-  color?: string;
+  color?: string; // 🎨 color personalizado para borde
   textColor?: string;
   backgroundColor?: string;
   onPress: () => void;
@@ -30,8 +31,14 @@ export default function FavoriteCard({
   style,
 }: Props) {
   return (
-    <View style={[styles.card, { backgroundColor }, style]}>
-      {/* Zona clickeable principal */}
+    <View
+      style={[
+        styles.card,
+        { backgroundColor, borderLeftColor: color },
+        style,
+      ]}
+    >
+      {/* Zona clickeable */}
       <TouchableOpacity
         onPress={onPress}
         style={{ flex: 1 }}
@@ -39,15 +46,7 @@ export default function FavoriteCard({
         accessibilityLabel={`Seleccionar ${nombre}`}
       >
         <View>
-          {/* Nombre + círculo de color */}
-          <View style={styles.nameRow}>
-            <View
-              style={[styles.colorCircle, { backgroundColor: color }]}
-            />
-            <Text style={[styles.name, { color: textColor }]}>{nombre}</Text>
-          </View>
-
-          {/* Descripción */}
+          <Text style={[styles.name, { color: textColor }]}>{nombre}</Text>
           {descripcion && (
             <Text style={[styles.description, { color: textColor }]}>
               {descripcion}
@@ -56,7 +55,7 @@ export default function FavoriteCard({
         </View>
       </TouchableOpacity>
 
-      {/* Botón eliminar */}
+      {/* Botón eliminar circular rojo */}
       <TouchableOpacity
         onPress={onDelete}
         style={styles.deleteButton}
@@ -64,7 +63,7 @@ export default function FavoriteCard({
         accessibilityLabel={`Eliminar ${nombre}`}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
-        <Ionicons name="trash-outline" size={20} color="#d9534f" />
+        <Ionicons name="trash-outline" size={20} color="#fff" />
       </TouchableOpacity>
     </View>
   );
@@ -78,26 +77,17 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     marginBottom: 14,
     marginHorizontal: 12,
+    borderLeftWidth: 6, // 👈 color personalizado aquí
     shadowColor: "#000",
     shadowOpacity: 0.06,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  nameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  colorCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    marginRight: 10,
-  },
   name: {
     fontSize: 18,
     fontWeight: "600",
+    marginBottom: 4,
   },
   description: {
     fontSize: 14,
@@ -105,8 +95,10 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     marginLeft: 12,
-    padding: 6,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#d9534f", // 🔴 rojo
     justifyContent: "center",
     alignItems: "center",
   },
