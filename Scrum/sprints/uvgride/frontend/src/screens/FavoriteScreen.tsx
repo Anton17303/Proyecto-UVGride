@@ -4,7 +4,6 @@ import {
   Text,
   FlatList,
   StyleSheet,
-  TouchableOpacity,
   SafeAreaView,
   ActivityIndicator,
   Alert,
@@ -12,10 +11,15 @@ import {
 import * as Location from "expo-location";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import axios from "axios";
+
 import { API_URL } from "../services/api";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
+
+import FloatingActionButton from "../components/FloatingActionButton";
+import FavoriteCard from "../components/FavoriteCard";
+import EmptyState from "../components/EmptyState";
 
 type LugarFavorito = {
   id_lugar_favorito: number;
@@ -33,57 +37,52 @@ export default function FavoriteScreen() {
   const [favoritos, setFavoritos] = useState<LugarFavorito[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // 📌 Cargar favoritos del backend
   const cargarFavoritos = async () => {
     if (!user?.id) return;
-
     try {
       const response = await axios.get(
         `${API_URL}/api/favoritos/usuario/${user.id}`
       );
       setFavoritos(response.data.favoritos || []);
     } catch (err) {
-      console.error("Error al cargar favoritos:", err);
+      console.error("❌ Error al cargar favoritos:", err);
       Alert.alert("Error", "No se pudieron cargar los lugares favoritos");
     } finally {
       setLoading(false);
     }
   };
 
+  // 📌 Eliminar favorito
   const eliminarFavorito = async (id: number) => {
-    Alert.alert(
-      "Eliminar favorito",
-      "¿Estás seguro de que deseas eliminar este lugar?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Eliminar",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await axios.delete(`${API_URL}/api/favoritos/${id}`);
-              setFavoritos((prev) =>
-                prev.filter((fav) => fav.id_lugar_favorito !== id)
-              );
-              Alert.alert(
-                "Eliminado",
-                "Lugar favorito eliminado correctamente"
-              );
-            } catch (err) {
-              console.error("Error al eliminar favorito:", err);
-              Alert.alert("Error", "No se pudo eliminar el lugar");
-            }
-          },
+    Alert.alert("Eliminar favorito", "¿Quieres eliminar este lugar?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Eliminar",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await axios.delete(`${API_URL}/api/favoritos/${id}`);
+            setFavoritos((prev) =>
+              prev.filter((fav) => fav.id_lugar_favorito !== id)
+            );
+          } catch (err) {
+            console.error("❌ Error al eliminar favorito:", err);
+            Alert.alert("Error", "No se pudo eliminar el lugar");
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
+  // 📌 Refrescar al volver a la pantalla
   useFocusEffect(
     useCallback(() => {
       cargarFavoritos();
     }, [user?.id])
   );
 
+  // 📌 Iniciar un viaje hacia el lugar favorito
   const handleStartTrip = async (lugar: LugarFavorito) => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -91,7 +90,6 @@ export default function FavoriteScreen() {
         Alert.alert("Permiso denegado", "No se puede obtener la ubicación");
         return;
       }
-
       const location = await Location.getCurrentPositionAsync({});
       const { latitude, longitude } = location.coords;
 
@@ -108,48 +106,21 @@ export default function FavoriteScreen() {
         },
       });
     } catch (err) {
-      console.error("❌ Error obteniendo ubicación:", err);
-      Alert.alert("Error", "No se pudo obtener la ubicación");
+      console.error("❌ Error iniciando viaje:", err);
+      Alert.alert("Error", "No se pudo iniciar el viaje");
     }
   };
-
-  const renderItem = ({ item }: { item: LugarFavorito }) => (
-    <TouchableOpacity
-      onPress={() => handleStartTrip(item)}
-      style={[
-        styles.card,
-        {
-          backgroundColor: colors.card,
-          borderLeftColor: item.color_hex || colors.primary,
-        },
-      ]}
-    >
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.name, { color: item.color_hex || colors.text }]}>
-          {item.nombre_lugar}
-        </Text>
-        {item.descripcion && (
-          <Text style={[styles.description, { color: colors.text }]}>
-            {item.descripcion}
-          </Text>
-        )}
-      </View>
-      <TouchableOpacity
-        onPress={() => eliminarFavorito(item.id_lugar_favorito)}
-      >
-        <Text style={styles.deleteButton}>🗑</Text>
-      </TouchableOpacity>
-    </TouchableOpacity>
-  );
 
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
     >
+      {/* Header */}
       <Text style={[styles.title, { color: colors.text }]}>
         Lugares Favoritos
       </Text>
 
+      {/* Lista o estado vacío */}
       {loading ? (
         <ActivityIndicator
           size="large"
@@ -157,33 +128,41 @@ export default function FavoriteScreen() {
           style={{ marginTop: 20 }}
         />
       ) : favoritos.length === 0 ? (
-        <Text style={[styles.emptyText, { color: colors.text }]}>
-          No tienes lugares favoritos aún.
-        </Text>
+        <EmptyState
+          icon="star-outline"
+          title="No tienes lugares favoritos aún"
+          subtitle="Agrega un lugar para tenerlo siempre a la mano"
+          color={colors.primary}
+          textColor={colors.text}
+        />
       ) : (
         <FlatList
           data={favoritos}
           keyExtractor={(item) => item.id_lugar_favorito.toString()}
-          renderItem={renderItem}
-          contentContainerStyle={{ paddingBottom: 16 }}
+          renderItem={({ item }) => (
+            <FavoriteCard
+              nombre={item.nombre_lugar}
+              descripcion={item.descripcion}
+              color={item.color_hex || colors.primary}
+              textColor={colors.text}
+              backgroundColor={colors.card}
+              onPress={() => handleStartTrip(item)}
+              onDelete={() => eliminarFavorito(item.id_lugar_favorito)}
+            />
+          )}
+          contentContainerStyle={{ paddingBottom: 100 }}
         />
       )}
 
-      <TouchableOpacity
-        style={[styles.addButton, { backgroundColor: colors.primary }]}
+      {/* FAB para agregar */}
+      <FloatingActionButton
+        id={`fab_addFavorite_${user?.id}`}
+        icon="add"
+        label="Agregar lugar"
+        backgroundColor={colors.primary}
         onPress={() => navigation.navigate("AddFavorite")}
-      >
-        <Text style={styles.addButtonText}>+ Agregar nuevo</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={() => navigation.navigate("Home")}
-      >
-        <Text style={[styles.backButtonText, { color: colors.primary }]}>
-          ← Volver al menú
-        </Text>
-      </TouchableOpacity>
+        style={{ position: "absolute", bottom: 30, right: 20 }}
+      />
     </SafeAreaView>
   );
 }
@@ -195,59 +174,5 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 16,
     textAlign: "center",
-  },
-  card: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-    borderRadius: 14,
-    marginBottom: 14,
-    marginHorizontal: 8,
-    borderLeftWidth: 6,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
-  },
-  name: {
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  description: {
-    fontSize: 14,
-    marginTop: 4,
-  },
-  deleteButton: {
-    fontSize: 20,
-    color: "#d9534f",
-    marginLeft: 12,
-  },
-  addButton: {
-    padding: 12,
-    borderRadius: 12,
-    alignItems: "center",
-    marginHorizontal: 40,
-    marginTop: 12,
-  },
-  addButtonText: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "bold",
-  },
-  backButton: {
-    marginTop: 10,
-    padding: 10,
-    alignItems: "center",
-  },
-  backButtonText: {
-    fontSize: 14,
-    fontWeight: "bold",
-    textDecorationLine: "underline",
-  },
-  emptyText: {
-    textAlign: "center",
-    fontSize: 16,
-    marginTop: 30,
   },
 });

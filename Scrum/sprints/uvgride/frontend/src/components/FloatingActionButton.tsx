@@ -5,21 +5,22 @@ import {
   TouchableWithoutFeedback,
   ViewStyle,
   Text,
+  AccessibilityProps,
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useUser } from "../context/UserContext";
 
 type Props = {
-  id: string;                 // ✅ identificador único del FAB
+  id: string; // ✅ identificador único del FAB
   icon: string;
-  label?: string;             // Texto opcional
+  label?: string; // Texto opcional
   size?: number;
   color?: string;
   backgroundColor?: string;
   onPress: () => void;
   style?: ViewStyle;
-};
+} & AccessibilityProps;
 
 export default function FloatingActionButton({
   id,
@@ -30,11 +31,13 @@ export default function FloatingActionButton({
   backgroundColor = "#4CAF50",
   onPress,
   style,
+  accessibilityLabel,
+  accessibilityHint,
 }: Props) {
   const scale = useRef(new Animated.Value(1)).current;
   const { user } = useUser();
 
-  const [extended, setExtended] = useState(true);
+  const [extended, setExtended] = useState<boolean | null>(null); // 👈 null para evitar parpadeo inicial
 
   // 🚀 Cargar preferencia por usuario y FAB
   useEffect(() => {
@@ -42,9 +45,10 @@ export default function FloatingActionButton({
       if (!user?.id) return;
       try {
         const seen = await AsyncStorage.getItem(`fabSeen_${id}_${user.id}`);
-        if (seen === "true") setExtended(false);
+        setExtended(seen !== "true"); // si nunca lo ha usado → mostrar extendido
       } catch (e) {
         console.error("Error cargando preferencia FAB", e);
+        setExtended(true); // fallback
       }
     };
     loadFabPref();
@@ -80,10 +84,17 @@ export default function FloatingActionButton({
     onPress();
   };
 
+  // Mientras carga AsyncStorage, no renderizamos nada (evita parpadeo)
+  if (extended === null) return null;
+
   return (
     <TouchableWithoutFeedback
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel || label}
+      accessibilityHint={accessibilityHint || "Activa esta acción rápida"}
+      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} // ✅ más área táctil
     >
       <Animated.View
         style={[
@@ -105,7 +116,7 @@ export default function FloatingActionButton({
 const styles = StyleSheet.create({
   fab: {
     flexDirection: "row",
-    width: 56,
+    minWidth: 56,
     height: 56,
     borderRadius: 28,
     justifyContent: "center",
@@ -115,11 +126,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowOffset: { width: 0, height: 3 },
     shadowRadius: 4,
+    paddingHorizontal: 16,
   },
   extendedFab: {
-    width: "auto",
     paddingHorizontal: 20,
-    borderRadius: 28,
   },
   label: {
     marginLeft: 8,
