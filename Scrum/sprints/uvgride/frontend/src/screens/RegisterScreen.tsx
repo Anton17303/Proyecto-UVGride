@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import {
-  View,
   Text,
   StyleSheet,
   Alert,
@@ -9,10 +8,12 @@ import {
   SafeAreaView,
   Modal,
   TouchableOpacity,
+  View,
 } from "react-native";
 import axios from "axios";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+
 import { API_URL } from "../services/api";
 import { RootStackParamList } from "../type";
 import { useTheme } from "../context/ThemeContext";
@@ -74,6 +75,7 @@ export default function RegisterScreen() {
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
+        {/* Header */}
         <Text style={[styles.title, { color: colors.primary }]}>
           Crear cuenta
         </Text>
@@ -81,11 +83,12 @@ export default function RegisterScreen() {
           Completa los campos para registrarte
         </Text>
 
-        {/* Inputs reutilizables */}
+        {/* Inputs */}
         <AnimatedInput
           placeholder="Nombre"
           value={nombre}
           onChangeText={setNombre}
+          variant="short"
           textColor={colors.text}
           borderColor={colors.border}
           color={colors.primary}
@@ -95,6 +98,7 @@ export default function RegisterScreen() {
           placeholder="Apellido"
           value={apellido}
           onChangeText={setApellido}
+          variant="short"
           textColor={colors.text}
           borderColor={colors.border}
           color={colors.primary}
@@ -104,6 +108,7 @@ export default function RegisterScreen() {
           placeholder="Correo institucional"
           value={correo_institucional}
           onChangeText={setCorreo}
+          variant="email"
           textColor={colors.text}
           borderColor={colors.border}
           color={colors.primary}
@@ -113,7 +118,7 @@ export default function RegisterScreen() {
           placeholder="Contraseña"
           value={contrasenia}
           onChangeText={setContrasenia}
-          secureTextEntry
+          variant="password"
           textColor={colors.text}
           borderColor={colors.border}
           color={colors.primary}
@@ -123,12 +128,13 @@ export default function RegisterScreen() {
           placeholder="Teléfono"
           value={telefono}
           onChangeText={setTelefono}
+          variant="phone"
           textColor={colors.text}
           borderColor={colors.border}
           color={colors.primary}
         />
 
-        {/* Selector de tipo de usuario */}
+        {/* Selector tipo usuario */}
         <TouchableOpacity
           onPress={() => setModalVisible(true)}
           style={[
@@ -177,7 +183,7 @@ export default function RegisterScreen() {
           </TouchableOpacity>
         </Modal>
 
-        {/* Botón reutilizable */}
+        {/* Botón */}
         <PrimaryButton
           title="Registrarse"
           onPress={handleRegister}
@@ -185,7 +191,7 @@ export default function RegisterScreen() {
           color={colors.primary}
         />
 
-        {/* Link reutilizable */}
+        {/* Link */}
         <LinkText
           text="¿Ya tienes cuenta? Inicia sesión"
           onPress={() => navigation.goBack()}

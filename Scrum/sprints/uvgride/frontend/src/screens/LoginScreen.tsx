@@ -11,6 +11,7 @@ import {
 import axios from "axios";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+
 import { API_URL } from "../services/api";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
@@ -53,7 +54,6 @@ export default function LoginScreen() {
       setUserFromBackend(res.data.usuario);
 
       Alert.alert("¡Bienvenido!", `Hola ${res.data.usuario.nombre}`);
-
     } catch (err: any) {
       console.error(err);
       Alert.alert(
@@ -71,33 +71,39 @@ export default function LoginScreen() {
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
+        {/* App Name */}
         <Text style={[styles.appName, { color: colors.primary }]}>
           UVGride
         </Text>
 
+        {/* Subtitle */}
         <Text style={[styles.subtitle, { color: colors.text }]}>
           Inicia sesión para continuar
         </Text>
 
+        {/* Email */}
         <AnimatedInput
           placeholder="Correo institucional"
           value={correo_institucional}
           onChangeText={setCorreo}
+          variant="email"
           textColor={colors.text}
           borderColor={colors.border}
           color={colors.primary}
         />
 
+        {/* Password */}
         <AnimatedInput
           placeholder="Contraseña"
           value={contrasenia}
           onChangeText={setContrasenia}
-          secureTextEntry
+          variant="password"
           textColor={colors.text}
           borderColor={colors.border}
           color={colors.primary}
         />
 
+        {/* Button */}
         <PrimaryButton
           title="Iniciar Sesión"
           onPress={handleLogin}
@@ -105,6 +111,7 @@ export default function LoginScreen() {
           color={colors.primary}
         />
 
+        {/* Link */}
         <LinkText
           text="¿No tienes cuenta? Regístrate"
           onPress={() => navigation.navigate("Register")}
@@ -123,11 +130,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textAlign: "center",
     marginBottom: 40,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "600",
-    textAlign: "center",
   },
   subtitle: {
     fontSize: 16,

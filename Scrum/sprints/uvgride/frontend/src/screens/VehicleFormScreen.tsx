@@ -1,6 +1,6 @@
+// src/screens/VehicleFormScreen.tsx
 import React, { useState } from "react";
 import {
-  View,
   Text,
   StyleSheet,
   Alert,
@@ -42,7 +42,7 @@ export default function VehicleFormScreen({ navigation }: any) {
         modelo,
         placa,
         color,
-        capacidad_pasajeros: parseInt(capacidad),
+        capacidad_pasajeros: parseInt(capacidad, 10),
       });
 
       Alert.alert("Éxito", "Vehículo registrado correctamente");
@@ -65,6 +65,7 @@ export default function VehicleFormScreen({ navigation }: any) {
           contentContainerStyle={styles.scrollContainer}
           keyboardShouldPersistTaps="handled"
         >
+          {/* Header */}
           <Text style={[styles.title, { color: colors.primary }]}>
             Registrar vehículo
           </Text>
@@ -72,10 +73,12 @@ export default function VehicleFormScreen({ navigation }: any) {
             Completa la información de tu vehículo
           </Text>
 
+          {/* Inputs */}
           <AnimatedInput
             placeholder="Marca"
             value={marca}
             onChangeText={setMarca}
+            variant="short"
             textColor={colors.text}
             borderColor={colors.border}
             color={colors.primary}
@@ -85,6 +88,7 @@ export default function VehicleFormScreen({ navigation }: any) {
             placeholder="Modelo"
             value={modelo}
             onChangeText={setModelo}
+            variant="short"
             textColor={colors.text}
             borderColor={colors.border}
             color={colors.primary}
@@ -94,6 +98,7 @@ export default function VehicleFormScreen({ navigation }: any) {
             placeholder="Placa"
             value={placa}
             onChangeText={setPlaca}
+            variant="short"
             textColor={colors.text}
             borderColor={colors.border}
             color={colors.primary}
@@ -103,6 +108,7 @@ export default function VehicleFormScreen({ navigation }: any) {
             placeholder="Color"
             value={color}
             onChangeText={setColor}
+            variant="short"
             textColor={colors.text}
             borderColor={colors.border}
             color={colors.primary}
@@ -112,11 +118,13 @@ export default function VehicleFormScreen({ navigation }: any) {
             placeholder="Capacidad de pasajeros"
             value={capacidad}
             onChangeText={setCapacidad}
+            variant="number"
             textColor={colors.text}
             borderColor={colors.border}
             color={colors.primary}
           />
 
+          {/* Botón */}
           <PrimaryButton
             title="Registrar vehículo"
             onPress={handleRegister}
@@ -124,6 +132,7 @@ export default function VehicleFormScreen({ navigation }: any) {
             color={colors.primary}
           />
 
+          {/* Link regresar */}
           <LinkText
             text="Cancelar"
             onPress={() => navigation.goBack()}
