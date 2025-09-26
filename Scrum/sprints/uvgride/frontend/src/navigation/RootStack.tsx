@@ -25,7 +25,7 @@ export default function RootStack() {
 
   return (
     <Stack.Navigator
-      screenOptions={{ headerShown: false }}
+      screenOptions={{ headerShown: false }} // 🔥 quita headers globales
       key={user ? 'app' : 'auth'}
       initialRouteName={user ? 'Home' : 'Login'}
     >
@@ -45,11 +45,11 @@ export default function RootStack() {
           <Stack.Screen name="DriverProfile" component={DriverProfileScreen} />
           <Stack.Screen name="Payment" component={PaymentScreen} />
 
-          {/* Detalle del grupo con header visible */}
+          {/* Detalle del grupo con header oculto */}
           <Stack.Screen
             name="GroupDetail"
             component={GroupDetailScreen}
-            options={{ headerShown: true, title: 'Detalle del grupo' }}
+            options={{ headerShown: false }}
           />
         </Stack.Group>
       ) : (

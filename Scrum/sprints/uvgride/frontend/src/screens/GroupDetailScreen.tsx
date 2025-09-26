@@ -1,5 +1,5 @@
 // src/screens/GroupDetailScreen.tsx
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -9,28 +9,29 @@ import {
   SafeAreaView,
   Alert,
   TouchableOpacity,
-} from 'react-native';
-import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+  Image,
+} from "react-native";
+import { useRoute, useNavigation, RouteProp } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Ionicons } from "@expo/vector-icons";
 
-import { RootStackParamList } from '../navigation/type';
-import { getGroup, closeGroup, Grupo } from '../services/groups';
-import { useTheme } from '../context/ThemeContext';
-import { lightColors, darkColors } from '../constants/colors';
-import { useUser } from '../context/UserContext';
+import { RootStackParamList } from "../navigation/type";
+import { getGroup, closeGroup, Grupo } from "../services/groups";
+import { useTheme } from "../context/ThemeContext";
+import { lightColors, darkColors } from "../constants/colors";
+import { useUser } from "../context/UserContext";
 
-type Nav = NativeStackNavigationProp<RootStackParamList, 'GroupDetail'>;
-type Rt = RouteProp<RootStackParamList, 'GroupDetail'>;
+type Nav = NativeStackNavigationProp<RootStackParamList, "GroupDetail">;
+type Rt = RouteProp<RootStackParamList, "GroupDetail">;
 
 export default function GroupDetailScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Rt>();
-
   const rawParam = (route?.params as any)?.groupId ?? (route?.params as any)?.grupoId;
   const groupId = Number(rawParam);
 
   const { theme } = useTheme();
-  const colors = theme === 'light' ? lightColors : darkColors;
+  const colors = theme === "light" ? lightColors : darkColors;
   const { user } = useUser();
 
   const [loading, setLoading] = useState(true);
@@ -43,13 +44,18 @@ export default function GroupDetailScreen() {
 
   const fmtDate = useMemo(
     () => (s?: string | null) =>
-      s ? new Date(s).toLocaleString('es-GT', { dateStyle: 'medium', timeStyle: 'short' }) : '—',
+      s
+        ? new Date(s).toLocaleString("es-GT", {
+            dateStyle: "medium",
+            timeStyle: "short",
+          })
+        : "—",
     []
   );
 
   const fetchGroup = useCallback(async () => {
     if (!Number.isInteger(groupId) || groupId <= 0) {
-      setError('No se recibió un ID de grupo válido.');
+      setError("No se recibió un ID de grupo válido.");
       setLoading(false);
       return;
     }
@@ -63,8 +69,8 @@ export default function GroupDetailScreen() {
       setGroup(g);
     } catch (e: any) {
       if (!isMounted.current) return;
-      console.error('getGroup error:', e?.response?.data || e?.message);
-      setError(e?.response?.data?.error || 'No se pudo cargar el grupo.');
+      console.error("getGroup error:", e?.response?.data || e?.message);
+      setError(e?.response?.data?.error || "No se pudo cargar el grupo.");
     } finally {
       if (!isMounted.current) return;
       setLoading(false);
@@ -72,144 +78,129 @@ export default function GroupDetailScreen() {
     }
   }, [groupId, user?.id]);
 
-  const loadAll = useCallback(async () => {
-    await fetchGroup();
-  }, [fetchGroup]);
-
-  useEffect(() => {
-    loadAll();
-  }, [loadAll]);
+  useEffect(() => { fetchGroup(); }, [fetchGroup]);
 
   const isOwner = useMemo(
-    () => (user?.id != null && group ? Number(user.id) === Number(group.conductor_id) : false),
+    () => user?.id != null && group ? Number(user.id) === Number(group.conductor_id) : false,
     [user?.id, group]
   );
 
-  const nombreConductor = useMemo(() => {
-    if (!group?.conductor) return 'Conductor';
-    return `${group.conductor.nombre ?? ''} ${group.conductor.apellido ?? ''}`.trim() || 'Conductor';
-  }, [group]);
-
-  const v = group?.conductor?.vehiculos?.[0];
-
   const cuposTotales = Number(group?.capacidad_total ?? group?.cupos_totales ?? 0);
   const cuposUsados = Number(group?.cupos_usados ?? 0);
-  const cuposDisp = Number.isFinite(Number(group?.cupos_disponibles))
-    ? Number(group?.cupos_disponibles)
-    : Math.max(0, cuposTotales - cuposUsados);
-
+  const cuposDisp = Math.max(0, cuposTotales - cuposUsados);
   const members = group?.miembros ?? [];
 
-  const handleClose = async (estado: 'cerrado' | 'cancelado' | 'finalizado') => {
+  const handleClose = async (estado: "cerrado" | "cancelado" | "finalizado") => {
     try {
-      if (!group) return;
-      if (!user?.id) return Alert.alert('Sesión', 'Inicia sesión.');
+      if (!group || !user?.id) return;
       await closeGroup(group.id_grupo, { conductor_id: user.id, estado });
-      Alert.alert('Listo', `Grupo ${estado}`);
-      await loadAll();
+      Alert.alert("Listo", `Grupo ${estado}`);
+      await fetchGroup();
     } catch (e: any) {
-      console.error('closeGroup error:', e?.response?.data || e?.message);
-      Alert.alert('Error', e?.response?.data?.error || 'No se pudo actualizar el grupo');
+      console.error("closeGroup error:", e?.response?.data || e?.message);
+      Alert.alert("Error", e?.response?.data?.error || "No se pudo actualizar el grupo");
     }
   };
 
-  // 👇 IMPORTANTE: enviar SIEMPRE rateForGroupId
   const goToDriverProfile = () => {
     if (!group) return;
-    navigation.navigate('DriverProfile', {
+    navigation.navigate("DriverProfile", {
       driverId: group.conductor_id,
       rateForGroupId: group.id_grupo,
     } as any);
   };
 
+  // 🎨 Estado → label + colores adaptados
+  const estadoMap: Record<
+    string,
+    { label: string; color: string; bg: string }
+  > = {
+    abierto: { label: "Abierto", color: "#2e7d32", bg: "rgba(46,125,50,0.15)" },
+    cerrado: { label: "Iniciado", color: "#1565c0", bg: "rgba(21,101,192,0.15)" },
+    cancelado: { label: "Cancelado", color: "#c62828", bg: "rgba(198,40,40,0.15)" },
+    finalizado: { label: "Finalizado", color: "#616161", bg: "rgba(97,97,97,0.15)" },
+  };
+  const estadoInfo = estadoMap[group?.estado ?? ""] ?? {
+    label: group?.estado ?? "—",
+    color: colors.text,
+    bg: colors.card,
+  };
+
   const Header = () => (
-    <View style={[styles.headerBox, { backgroundColor: colors.card }]}>
-      <Text style={[styles.title, { color: colors.text }]}>Detalle del grupo</Text>
+    <>
+      {/* Header limpio */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Detalle del grupo</Text>
+      </View>
 
-      <Text style={[styles.item, { color: colors.text }]}>
-        <Text style={styles.label}>Conductor: </Text>
-        <Text style={[styles.link, { color: colors.primary }]} onPress={goToDriverProfile}>
-          {nombreConductor}
+      {/* Card de detalles */}
+      <View style={[styles.card, { backgroundColor: colors.card }]}>
+        <Text style={[styles.label, { color: colors.text }]}>Conductor</Text>
+        <Text style={[styles.value, { color: colors.text }]}>
+          {group?.conductor?.nombre} {group?.conductor?.apellido}
         </Text>
-      </Text>
 
-      {v && (
-        <Text style={[styles.item, { color: colors.text }]}>
-          <Text style={styles.label}>Vehículo: </Text>
-          {v.marca} {v.modelo} · {v.placa}
+        <Text style={[styles.label, { color: colors.text }]}>Destino</Text>
+        <Text style={[styles.value, { color: colors.text }]}>
+          {group?.viaje?.destino ?? group?.destino_nombre ?? "—"}
         </Text>
-      )}
 
-      <Text style={[styles.item, { color: colors.text }]}>
-        <Text style={styles.label}>Destino: </Text>
-        {group?.viaje?.destino ?? group?.destino_nombre ?? '—'}
-      </Text>
-
-      <Text style={[styles.item, { color: colors.text }]}>
-        <Text style={styles.label}>Estado: </Text>
-        {group?.estado}
-      </Text>
-
-      <Text style={[styles.item, { color: colors.text }]}>
-        <Text style={styles.label}>Cupos: </Text>
-        {cuposDisp} / {cuposTotales}
-      </Text>
-
-      <Text style={[styles.item, { color: colors.text }]}>
-        <Text style={styles.label}>Salida: </Text>
-        {fmtDate(group?.viaje?.fecha_inicio ?? group?.fecha_salida)}
-      </Text>
-
-      {isOwner && (
-        <View style={styles.actionsRow}>
-          <TouchableOpacity
-            onPress={() => handleClose('cerrado')}
-            disabled={group?.estado !== 'abierto'}
-            style={[
-              styles.actionBtn,
-              { backgroundColor: group?.estado === 'abierto' ? '#1565c0' : '#9e9e9e' },
-            ]}
-          >
-            <Text style={styles.actionTxt}>Cerrar</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => handleClose('cancelado')}
-            disabled={group?.estado !== 'abierto'}
-            style={[
-              styles.actionBtn,
-              { backgroundColor: group?.estado === 'abierto' ? '#c62828' : '#9e9e9e' },
-            ]}
-          >
-            <Text style={styles.actionTxt}>Cancelar</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => handleClose('finalizado')}
-            disabled={group?.estado !== 'cerrado'}
-            style={[
-              styles.actionBtn,
-              { backgroundColor: group?.estado === 'cerrado' ? '#2e7d32' : '#9e9e9e' },
-            ]}
-          >
-            <Text style={styles.actionTxt}>Finalizar</Text>
-          </TouchableOpacity>
+        <View style={[styles.estadoPill, { backgroundColor: estadoInfo.bg }]}>
+          <Text style={{ color: estadoInfo.color, fontWeight: "700" }}>
+            {estadoInfo.label}
+          </Text>
         </View>
-      )}
 
-      <Text style={[styles.subTitle, { color: colors.text, marginTop: 10 }]}>Miembros</Text>
-    </View>
+        <Text style={[styles.label, { color: colors.text }]}>Cupos</Text>
+        <Text style={[styles.value, { color: colors.text }]}>
+          {cuposDisp} / {cuposTotales}
+        </Text>
+
+        <Text style={[styles.label, { color: colors.text }]}>Salida</Text>
+        <Text style={[styles.value, { color: colors.text }]}>
+          {fmtDate(group?.viaje?.fecha_inicio ?? group?.fecha_salida)}
+        </Text>
+
+        {/* Botones dinámicos */}
+        {isOwner && (
+          <View style={styles.actionsRow}>
+            {group?.estado === "abierto" && (
+              <>
+                <TouchableOpacity onPress={() => handleClose("cerrado")} style={[styles.actionBtn, { backgroundColor: "#1565c0" }]}>
+                  <Text style={styles.actionTxt}>Iniciar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleClose("cancelado")} style={[styles.actionBtn, { backgroundColor: "#c62828" }]}>
+                  <Text style={styles.actionTxt}>Cancelar</Text>
+                </TouchableOpacity>
+              </>
+            )}
+            {group?.estado === "cerrado" && (
+              <>
+                <TouchableOpacity onPress={() => handleClose("finalizado")} style={[styles.actionBtn, { backgroundColor: "#616161" }]}>
+                  <Text style={styles.actionTxt}>Finalizar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleClose("cancelado")} style={[styles.actionBtn, { backgroundColor: "#c62828" }]}>
+                  <Text style={styles.actionTxt}>Cancelar</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        )}
+
+        {/* Botón pasajero calificar */}
+        {!isOwner && group?.estado === "finalizado" && (
+          <TouchableOpacity onPress={goToDriverProfile} style={[styles.rateBtn, { backgroundColor: "#2e7d32" }]}>
+            <Text style={styles.actionTxt}>Calificar conductor</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>Miembros</Text>
+    </>
   );
-
-  if (!Number.isInteger(groupId) || groupId <= 0) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        <Text style={[styles.title, { color: colors.text }]}>Detalle del grupo</Text>
-        <View style={[styles.headerBox, { backgroundColor: colors.card }]}>
-          <Text style={styles.errTitle}>Parámetro inválido</Text>
-          <Text style={{ color: colors.text }}>No se recibió un ID de grupo válido.</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
 
   if (loading) {
     return (
@@ -218,18 +209,10 @@ export default function GroupDetailScreen() {
       </SafeAreaView>
     );
   }
-
   if (error) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        <Text style={[styles.title, { color: colors.text }]}>Detalle del grupo</Text>
-        <View style={[styles.headerBox, { backgroundColor: colors.card }]}>
-          <Text style={styles.errTitle}>Error</Text>
-          <Text style={{ color: colors.text }}>{error}</Text>
-          <TouchableOpacity onPress={loadAll} style={[styles.retryBtn, { backgroundColor: colors.primary }]}>
-            <Text style={styles.actionTxt}>Reintentar</Text>
-          </TouchableOpacity>
-        </View>
+      <SafeAreaView style={[styles.center, { backgroundColor: colors.background }]}>
+        <Text style={{ color: colors.text }}>{error}</Text>
       </SafeAreaView>
     );
   }
@@ -242,18 +225,27 @@ export default function GroupDetailScreen() {
         ListHeaderComponent={<Header />}
         renderItem={({ item }: any) => (
           <View style={[styles.memberRow, { backgroundColor: colors.card }]}>
-            <Text style={[styles.memberName, { color: colors.text }]}>
-              {item.usuario?.nombre ?? ''} {item.usuario?.apellido ?? ''}
-            </Text>
-            <Text style={{ color: colors.text, opacity: 0.8 }}>
-              {item.rol} · {item.estado_solicitud}
-            </Text>
+            {/* Foto de perfil */}
+            {item.usuario?.foto_url ? (
+              <Image source={{ uri: item.usuario.foto_url }} style={styles.avatar} />
+            ) : (
+              <Ionicons name="person-circle-outline" size={36} color={colors.text} />
+            )}
+
+            {/* Info */}
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={[styles.memberName, { color: colors.text }]}>
+                {item.usuario?.nombre} {item.usuario?.apellido}
+              </Text>
+              <View style={[styles.memberPill, { backgroundColor: "rgba(0,0,0,0.08)" }]}>
+                <Text style={{ fontSize: 12, color: colors.text }}>
+                  {item.rol} · {item.estado_solicitud}
+                </Text>
+              </View>
+            </View>
           </View>
         )}
         contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 28 }}
-        removeClippedSubviews={false}
-        initialNumToRender={10}
-        windowSize={6}
       />
     </SafeAreaView>
   );
@@ -261,18 +253,54 @@ export default function GroupDetailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 20, fontWeight: '800', marginHorizontal: 16, marginTop: 12, marginBottom: 8 },
-  subTitle: { fontSize: 16, fontWeight: '700' },
-  headerBox: { borderRadius: 14, padding: 14, marginBottom: 8 },
-  item: { fontSize: 14, marginBottom: 4 },
-  label: { fontWeight: '700' },
-  link: { fontWeight: '700', textDecorationLine: 'underline' },
-  actionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  actionBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 },
-  actionTxt: { color: '#fff', fontWeight: '700' },
-  memberRow: { padding: 12, borderRadius: 12 },
-  memberName: { fontWeight: '700', marginBottom: 2 },
-  errTitle: { color: '#d32f2f', fontWeight: '800', marginBottom: 6, fontSize: 16 },
-  retryBtn: { marginTop: 10, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, alignSelf: 'flex-start' },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  backBtn: { padding: 4 },
+  headerTitle: { fontSize: 18, fontWeight: "700", marginLeft: 10 },
+  card: { borderRadius: 14, padding: 16, marginBottom: 12, elevation: 2 },
+  label: { fontSize: 13, opacity: 0.7, marginTop: 6 },
+  value: { fontSize: 15, fontWeight: "600", marginBottom: 4 },
+  estadoPill: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginVertical: 8,
+  },
+  actionsRow: { flexDirection: "row", gap: 10, marginTop: 12 },
+  actionBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  actionTxt: { color: "#fff", fontWeight: "700" },
+  rateBtn: {
+    marginTop: 12,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  sectionTitle: { fontSize: 16, fontWeight: "700", marginVertical: 10 },
+  memberRow: {
+    padding: 12,
+    borderRadius: 12,
+    elevation: 1,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  memberName: { fontWeight: "700", fontSize: 15 },
+  memberPill: {
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    alignSelf: "flex-start",
+    marginTop: 2,
+  },
+  avatar: { width: 36, height: 36, borderRadius: 18 },
 });
