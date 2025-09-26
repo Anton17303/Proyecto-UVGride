@@ -20,18 +20,12 @@ import { RootStackParamList } from "../navigation/type";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
 import { useUser } from "../context/UserContext";
-import { EmptyState } from "../components"
+import { EmptyState } from "../components";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
-type EstadoFilter =
-  | "todos"
-  | "abierto"
-  | "cerrado"
-  | "cancelado"
-  | "finalizado";
+type EstadoFilter = "todos" | "abierto" | "cerrado" | "cancelado" | "finalizado";
 type CupoFilter = "cualquiera" | "con" | "sin";
 
-// 👇 Cambiamos "Cerrados" → "Iniciados"
 const ESTADO_OPTIONS: { label: string; value: EstadoFilter }[] = [
   { label: "Todos", value: "todos" },
   { label: "Abiertos", value: "abierto" },
@@ -63,16 +57,11 @@ export default function PassengerScreen() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await listGroups(
-        user?.id ? { user_id: Number(user.id) } : undefined
-      );
+      const data = await listGroups(user?.id ? { user_id: Number(user.id) } : undefined);
       setGrupos(data);
     } catch (e: any) {
       console.error(e);
-      Alert.alert(
-        "Error",
-        e?.response?.data?.error || "No se pudieron cargar los grupos"
-      );
+      Alert.alert("Error", e?.response?.data?.error || "No se pudieron cargar los grupos");
     } finally {
       setLoading(false);
     }
@@ -125,15 +114,11 @@ export default function PassengerScreen() {
   };
 
   const currency = useMemo(
-    () =>
-      new Intl.NumberFormat("es-GT", { style: "currency", currency: "GTQ" }),
+    () => new Intl.NumberFormat("es-GT", { style: "currency", currency: "GTQ" }),
     []
   );
 
-  const hasJoinedAny = useMemo(
-    () => grupos.some((g) => g.es_miembro),
-    [grupos]
-  );
+  const hasJoinedAny = useMemo(() => grupos.some((g) => g.es_miembro), [grupos]);
 
   const getCuposDisp = (g: Grupo) => {
     const total = Number(g.capacidad_total ?? g.cupos_totales ?? 0);
@@ -143,8 +128,7 @@ export default function PassengerScreen() {
 
   const gruposFiltrados = useMemo(() => {
     return grupos.filter((g) => {
-      const okEstado =
-        estadoFilter === "todos" ? true : g.estado === estadoFilter;
+      const okEstado = estadoFilter === "todos" ? true : g.estado === estadoFilter;
       if (!okEstado) return false;
 
       const disp = getCuposDisp(g);
@@ -155,7 +139,6 @@ export default function PassengerScreen() {
     });
   }, [grupos, estadoFilter, cupoFilter]);
 
-  // 👇 Mostramos "INICIADO" en lugar de "CERRADO"
   const EstadoBadge = ({ estado }: { estado: Grupo["estado"] }) => {
     const map: Record<string, string> = {
       abierto: "#2e7d32",
@@ -163,16 +146,10 @@ export default function PassengerScreen() {
       cancelado: "#c62828",
       finalizado: "#616161",
     };
-
     const label = estado === "cerrado" ? "INICIADO" : estado.toUpperCase();
 
     return (
-      <View
-        style={[
-          styles.badge,
-          { backgroundColor: map[estado] || colors.border },
-        ]}
-      >
+      <View style={[styles.badge, { backgroundColor: map[estado] || colors.border }]}>
         <Text style={styles.badgeTxt}>{label}</Text>
       </View>
     );
@@ -187,10 +164,7 @@ export default function PassengerScreen() {
     valueLabel: string;
     onPress: () => void;
   }) => (
-    <TouchableOpacity
-      onPress={onPress}
-      style={[styles.pill, { borderColor: colors.primary }]}
-    >
+    <TouchableOpacity onPress={onPress} style={[styles.pill, { borderColor: colors.primary }]}>
       <Text style={[styles.pillText, { color: colors.text }]}>
         {label}: <Text style={{ color: colors.primary }}>{valueLabel}</Text>
       </Text>
@@ -207,17 +181,14 @@ export default function PassengerScreen() {
   };
 
   const renderItem = ({ item }: { item: Grupo }) => {
-    const cuposTotales = Number(
-      item.capacidad_total ?? item.cupos_totales ?? 0
-    );
+    const cuposTotales = Number(item.capacidad_total ?? item.cupos_totales ?? 0);
     const cuposDisp = getCuposDisp(item);
 
     const isOwner = Number(user?.id) === Number(item.conductor_id);
     const isMemberHere = Boolean(item.es_miembro);
     const isOpen = item.estado === "abierto";
 
-    const disabledJoin =
-      isOwner || !isOpen || cuposDisp <= 0 || (hasJoinedAny && !isMemberHere);
+    const disabledJoin = isOwner || !isOpen || cuposDisp <= 0 || (hasJoinedAny && !isMemberHere);
 
     const joinLabel = isOwner
       ? "Tu grupo"
@@ -247,19 +218,22 @@ export default function PassengerScreen() {
 
         {/* Info */}
         <Text style={{ color: colors.text, marginBottom: 2 }}>
-          Destino: {item.viaje?.destino ?? item.destino_nombre ?? "—"}
+          <Text style={styles.label}>Destino: </Text>
+          {item.viaje?.destino ?? item.destino_nombre ?? "—"}
         </Text>
         <Text style={{ color: colors.text, marginBottom: 2 }}>
-          Cupos: {cuposDisp} / {cuposTotales}
+          <Text style={styles.label}>Cupos: </Text>
+          {cuposDisp} / {cuposTotales}
         </Text>
         {item.costo_estimado != null && (
           <Text style={{ color: colors.text, marginBottom: 4 }}>
-            Estimado: {currency.format(Number(item.costo_estimado))}
+            <Text style={styles.label}>Estimado: </Text>
+            {currency.format(Number(item.costo_estimado))}
           </Text>
         )}
         {item.fecha_salida && (
           <Text style={{ color: colors.text, marginBottom: 6 }}>
-            Salida{" "}
+            <Text style={styles.label}>Salida: </Text>
             {new Date(item.fecha_salida).toLocaleString("es-GT", {
               dateStyle: "medium",
               timeStyle: "short",
@@ -286,8 +260,7 @@ export default function PassengerScreen() {
 
           <TouchableOpacity
             onPress={() =>
-              canSeeDetail &&
-              navigation.navigate("GroupDetail", { grupoId: item.id_grupo })
+              canSeeDetail && navigation.navigate("GroupDetail", { grupoId: item.id_grupo })
             }
             disabled={!canSeeDetail}
             style={[
@@ -299,10 +272,7 @@ export default function PassengerScreen() {
             ]}
           >
             <Text
-              style={[
-                styles.detailTxt,
-                { color: canSeeDetail ? colors.primary : "#aaa" },
-              ]}
+              style={[styles.detailTxt, { color: canSeeDetail ? colors.primary : "#aaa" }]}
             >
               Ver detalle
             </Text>
@@ -313,9 +283,7 @@ export default function PassengerScreen() {
   };
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: colors.background }]}
-    >
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <Text style={[styles.title, { color: colors.text }]}>Grupos</Text>
 
@@ -323,18 +291,12 @@ export default function PassengerScreen() {
       <View style={styles.toolbar}>
         <RotatingPill
           label="Estado"
-          valueLabel={
-            ESTADO_OPTIONS.find((o) => o.value === estadoFilter)?.label ??
-            "Todos"
-          }
+          valueLabel={ESTADO_OPTIONS.find((o) => o.value === estadoFilter)?.label ?? "Todos"}
           onPress={cycleEstado}
         />
         <RotatingPill
           label="Cupos"
-          valueLabel={
-            CUPO_OPTIONS.find((o) => o.value === cupoFilter)?.label ??
-            "Cualquiera"
-          }
+          valueLabel={CUPO_OPTIONS.find((o) => o.value === cupoFilter)?.label ?? "Cualquiera"}
           onPress={cycleCupo}
         />
         <TouchableOpacity
@@ -349,11 +311,7 @@ export default function PassengerScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator
-          size="large"
-          color={colors.primary}
-          style={{ marginTop: 30 }}
-        />
+        <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 30 }} />
       ) : gruposFiltrados.length === 0 ? (
         <EmptyState
           icon="car-outline"
@@ -373,11 +331,7 @@ export default function PassengerScreen() {
           renderItem={renderItem}
           contentContainerStyle={{ paddingBottom: 20 }}
           refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={colors.primary}
-            />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
           }
         />
       )}
@@ -438,6 +392,8 @@ const styles = StyleSheet.create({
 
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
   badgeTxt: { color: "#fff", fontWeight: "700", fontSize: 12 },
+
+  label: { fontWeight: "700" },
 
   actionsRow: { flexDirection: "row", gap: 10, marginTop: 10 },
   joinBtn: {
