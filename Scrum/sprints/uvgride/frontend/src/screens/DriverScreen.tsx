@@ -1,5 +1,5 @@
 // src/screens/PassengerScreen.tsx
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -10,38 +10,46 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Alert,
-} from 'react-native';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+} from "react-native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Ionicons } from "@expo/vector-icons";
 
-import { listGroups, joinGroup, Grupo } from '../services/groups';
-import { RootStackParamList } from '../navigation/type';
-import { useTheme } from '../context/ThemeContext';
-import { lightColors, darkColors } from '../constants/colors';
-import { useUser } from '../context/UserContext';
+import { listGroups, joinGroup, Grupo } from "../services/groups";
+import { RootStackParamList } from "../navigation/type";
+import { useTheme } from "../context/ThemeContext";
+import { lightColors, darkColors } from "../constants/colors";
+import { useUser } from "../context/UserContext";
+import { EmptyState } from "../components"
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
-type EstadoFilter = 'todos' | 'abierto' | 'cerrado' | 'cancelado' | 'finalizado';
-type CupoFilter = 'cualquiera' | 'con' | 'sin';
+type EstadoFilter =
+  | "todos"
+  | "abierto"
+  | "cerrado"
+  | "cancelado"
+  | "finalizado";
+type CupoFilter = "cualquiera" | "con" | "sin";
 
+// 👇 Cambiamos "Cerrados" → "Iniciados"
 const ESTADO_OPTIONS: { label: string; value: EstadoFilter }[] = [
-  { label: 'Todos', value: 'todos' },
-  { label: 'Abiertos', value: 'abierto' },
-  { label: 'Cerrados', value: 'cerrado' },
-  { label: 'Cancelados', value: 'cancelado' },
-  { label: 'Finalizados', value: 'finalizado' },
+  { label: "Todos", value: "todos" },
+  { label: "Abiertos", value: "abierto" },
+  { label: "Iniciados", value: "cerrado" },
+  { label: "Cancelados", value: "cancelado" },
+  { label: "Finalizados", value: "finalizado" },
 ];
 
 const CUPO_OPTIONS: { label: string; value: CupoFilter }[] = [
-  { label: 'Cualquiera', value: 'cualquiera' },
-  { label: 'Con cupos', value: 'con' },
-  { label: 'Sin cupos', value: 'sin' },
+  { label: "Cualquiera", value: "cualquiera" },
+  { label: "Con cupos", value: "con" },
+  { label: "Sin cupos", value: "sin" },
 ];
 
 export default function PassengerScreen() {
   const navigation = useNavigation<Nav>();
   const { theme } = useTheme();
-  const colors = theme === 'light' ? lightColors : darkColors;
+  const colors = theme === "light" ? lightColors : darkColors;
   const { user } = useUser();
 
   const [loading, setLoading] = useState(true);
@@ -49,18 +57,22 @@ export default function PassengerScreen() {
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [joiningId, setJoiningId] = useState<number | null>(null);
 
-  // Filtros
-  const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>('todos');
-  const [cupoFilter, setCupoFilter] = useState<CupoFilter>('cualquiera');
+  const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("todos");
+  const [cupoFilter, setCupoFilter] = useState<CupoFilter>("cualquiera");
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await listGroups(user?.id ? { user_id: Number(user.id) } : undefined);
+      const data = await listGroups(
+        user?.id ? { user_id: Number(user.id) } : undefined
+      );
       setGrupos(data);
     } catch (e: any) {
       console.error(e);
-      Alert.alert('Error', e?.response?.data?.error || 'No se pudieron cargar los grupos');
+      Alert.alert(
+        "Error",
+        e?.response?.data?.error || "No se pudieron cargar los grupos"
+      );
     } finally {
       setLoading(false);
     }
@@ -78,108 +90,94 @@ export default function PassengerScreen() {
     setRefreshing(false);
   }, [fetchData]);
 
-  // ↓↓↓ join con actualización optimista ↓↓↓
   const onJoin = async (id: number) => {
     try {
-      if (!user?.id) return Alert.alert('Sesión', 'Inicia sesión.');
-      if (joiningId) return; // evita doble toque
+      if (!user?.id) return Alert.alert("Sesión", "Inicia sesión.");
+      if (joiningId) return;
       setJoiningId(id);
 
-      // 1) actualización optimista local
+      // actualización optimista
       setGrupos((prev) =>
-        prev.map((g) => {
-          if (g.id_grupo !== id) return g;
-          const cuposTotales = Number(g.capacidad_total ?? g.cupos_totales ?? 0);
-          const usados = Number(g.cupos_usados ?? 0);
-          const dispActual =
-            typeof g.cupos_disponibles === 'number'
-              ? g.cupos_disponibles
-              : Math.max(cuposTotales - usados, 0);
-          return {
-            ...g,
-            es_miembro: true,
-            cupos_disponibles: Math.max(dispActual - 1, 0),
-            cupos_usados: typeof g.cupos_usados === 'number' ? g.cupos_usados + 1 : g.cupos_usados,
-          };
-        })
+        prev.map((g) =>
+          g.id_grupo !== id
+            ? g
+            : {
+                ...g,
+                es_miembro: true,
+                cupos_disponibles: Math.max(
+                  (g.cupos_disponibles ?? g.capacidad_total ?? 0) - 1,
+                  0
+                ),
+              }
+        )
       );
 
-      // 2) llamada real
       await joinGroup(id, { id_usuario: Number(user.id) });
-
-      // 3) feedback y sincronización
-      Alert.alert('¡Listo!', 'Te uniste al grupo');
+      Alert.alert("¡Listo!", "Te uniste al grupo");
       fetchData();
     } catch (e: any) {
       console.error(e);
-      // Revertir optimismo si falla
-      setGrupos((prev) =>
-        prev.map((g) => {
-          if (g.id_grupo !== id) return g;
-          const cuposTotales = Number(g.capacidad_total ?? g.cupos_totales ?? 0);
-          const usados = Number(g.cupos_usados ?? 0);
-          const dispActual =
-            typeof g.cupos_disponibles === 'number'
-              ? g.cupos_disponibles
-              : Math.max(cuposTotales - usados, 0);
-          return {
-            ...g,
-            es_miembro: false,
-            cupos_disponibles: dispActual + 1,
-            cupos_usados: typeof g.cupos_usados === 'number' ? Math.max(g.cupos_usados - 1, 0) : g.cupos_usados,
-          };
-        })
-      );
-      Alert.alert('Error', e?.response?.data?.error || 'No fue posible unirte');
+      Alert.alert("Error", e?.response?.data?.error || "No fue posible unirte");
+      fetchData();
     } finally {
       setJoiningId(null);
     }
   };
 
   const currency = useMemo(
-    () => new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' }),
+    () =>
+      new Intl.NumberFormat("es-GT", { style: "currency", currency: "GTQ" }),
     []
   );
 
-  const hasJoinedAny = useMemo(() => grupos.some((g) => g.es_miembro), [grupos]);
+  const hasJoinedAny = useMemo(
+    () => grupos.some((g) => g.es_miembro),
+    [grupos]
+  );
 
-  // Helpers para cálculo de cupos
   const getCuposDisp = (g: Grupo) => {
-    const cuposTotales = Number(g.capacidad_total ?? g.cupos_totales ?? 0);
-    const cuposUsados = Number(g.cupos_usados ?? 0);
-    return typeof g.cupos_disponibles === 'number'
-      ? g.cupos_disponibles
-      : Math.max(0, cuposTotales - cuposUsados);
+    const total = Number(g.capacidad_total ?? g.cupos_totales ?? 0);
+    const usados = Number(g.cupos_usados ?? 0);
+    return Math.max(0, total - usados);
   };
 
-  // Lista filtrada
   const gruposFiltrados = useMemo(() => {
     return grupos.filter((g) => {
-      const okEstado = estadoFilter === 'todos' ? true : g.estado === estadoFilter;
+      const okEstado =
+        estadoFilter === "todos" ? true : g.estado === estadoFilter;
       if (!okEstado) return false;
 
       const disp = getCuposDisp(g);
-      if (cupoFilter === 'con' && disp <= 0) return false;
-      if (cupoFilter === 'sin' && disp > 0) return false;
+      if (cupoFilter === "con" && disp <= 0) return false;
+      if (cupoFilter === "sin" && disp > 0) return false;
 
       return true;
     });
   }, [grupos, estadoFilter, cupoFilter]);
 
-  const EstadoBadge = ({ estado }: { estado: Grupo['estado'] }) => {
-    const bg =
-      estado === 'abierto' ? '#2e7d32' :
-      estado === 'cerrado' ? '#616161' :
-      estado === 'cancelado' ? '#b71c1c' :
-      '#1565c0';
+  // 👇 Mostramos "INICIADO" en lugar de "CERRADO"
+  const EstadoBadge = ({ estado }: { estado: Grupo["estado"] }) => {
+    const map: Record<string, string> = {
+      abierto: "#2e7d32",
+      cerrado: "#1565c0",
+      cancelado: "#c62828",
+      finalizado: "#616161",
+    };
+
+    const label = estado === "cerrado" ? "INICIADO" : estado.toUpperCase();
+
     return (
-      <View style={[styles.badge, { backgroundColor: bg }]}>
-        <Text style={styles.badgeTxt}>{estado.toUpperCase()}</Text>
+      <View
+        style={[
+          styles.badge,
+          { backgroundColor: map[estado] || colors.border },
+        ]}
+      >
+        <Text style={styles.badgeTxt}>{label}</Text>
       </View>
     );
   };
 
-  // === Filtro compact pill que rota opciones al tocar ===
   const RotatingPill = ({
     label,
     valueLabel,
@@ -191,128 +189,111 @@ export default function PassengerScreen() {
   }) => (
     <TouchableOpacity
       onPress={onPress}
-      style={styles.pill}
-      activeOpacity={0.85}
+      style={[styles.pill, { borderColor: colors.primary }]}
     >
-      <Text style={styles.pillText}>
-        {label}: <Text style={styles.pillValue}>{valueLabel}</Text>
+      <Text style={[styles.pillText, { color: colors.text }]}>
+        {label}: <Text style={{ color: colors.primary }}>{valueLabel}</Text>
       </Text>
     </TouchableOpacity>
   );
 
-  // Ciclar opciones con un tap
   const cycleEstado = () => {
-    const idx = ESTADO_OPTIONS.findIndex(o => o.value === estadoFilter);
-    const next = ESTADO_OPTIONS[(idx + 1) % ESTADO_OPTIONS.length].value;
-    setEstadoFilter(next);
+    const idx = ESTADO_OPTIONS.findIndex((o) => o.value === estadoFilter);
+    setEstadoFilter(ESTADO_OPTIONS[(idx + 1) % ESTADO_OPTIONS.length].value);
   };
   const cycleCupo = () => {
-    const idx = CUPO_OPTIONS.findIndex(o => o.value === cupoFilter);
-    const next = CUPO_OPTIONS[(idx + 1) % CUPO_OPTIONS.length].value;
-    setCupoFilter(next);
+    const idx = CUPO_OPTIONS.findIndex((o) => o.value === cupoFilter);
+    setCupoFilter(CUPO_OPTIONS[(idx + 1) % CUPO_OPTIONS.length].value);
   };
 
-  // UI del item
   const renderItem = ({ item }: { item: Grupo }) => {
-    const v = item.conductor?.vehiculos?.[0];
-    const nombreConductor = `${item.conductor?.nombre ?? ''} ${item.conductor?.apellido ?? ''}`.trim();
-
-    const cuposTotales = Number(item.capacidad_total ?? item.cupos_totales ?? 0);
+    const cuposTotales = Number(
+      item.capacidad_total ?? item.cupos_totales ?? 0
+    );
     const cuposDisp = getCuposDisp(item);
 
-    const isOwner =
-      Boolean(item.es_propietario) ||
-      (user?.id != null && Number(user.id) === Number(item.conductor_id));
-
-    const isOpen = item.estado === 'abierto';
+    const isOwner = Number(user?.id) === Number(item.conductor_id);
     const isMemberHere = Boolean(item.es_miembro);
+    const isOpen = item.estado === "abierto";
 
     const disabledJoin =
-      isOwner ||
-      !isOpen ||
-      cuposDisp <= 0 ||
-      (hasJoinedAny && !isMemberHere) ||
-      joiningId === item.id_grupo;
+      isOwner || !isOpen || cuposDisp <= 0 || (hasJoinedAny && !isMemberHere);
 
     const joinLabel = isOwner
-      ? 'Tu grupo'
+      ? "Tu grupo"
       : isMemberHere
-      ? 'Ya unido'
+      ? "Ya unido"
       : !isOpen
-      ? 'No disponible'
+      ? "No disponible"
       : cuposDisp <= 0
-      ? 'Sin cupos'
+      ? "Sin cupos"
       : hasJoinedAny
-      ? 'Unido en otro'
+      ? "Unido en otro"
       : joiningId === item.id_grupo
-      ? 'Uniendo...'
-      : 'Unirse';
+      ? "Uniendo..."
+      : "Unirse";
 
-    const canSeeDetail = isMemberHere || isOwner;
+    const canSeeDetail = isOwner || isMemberHere;
 
     return (
       <View style={[styles.card, { backgroundColor: colors.card }]}>
+        {/* Header */}
         <View style={styles.headerRow}>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('DriverProfile', { driverId: item.conductor_id })}
-            style={{ flexShrink: 1 }}
-          >
-            <Text style={[styles.cardTitle, { color: colors.primary }]} numberOfLines={1}>
-              {nombreConductor || 'Conductor'}
-            </Text>
-          </TouchableOpacity>
+          <Text style={[styles.cardTitle, { color: colors.primary }]}>
+            {item.conductor?.nombre} {item.conductor?.apellido}
+          </Text>
           <EstadoBadge estado={item.estado} />
         </View>
 
-        {v && (
-          <Text style={{ color: colors.text, marginBottom: 2 }}>
-            Vehículo: {v.marca} {v.modelo} · {v.placa}
-          </Text>
-        )}
-
+        {/* Info */}
         <Text style={{ color: colors.text, marginBottom: 2 }}>
-          Destino: {item.viaje?.destino ?? item.destino_nombre ?? '—'}
+          Destino: {item.viaje?.destino ?? item.destino_nombre ?? "—"}
         </Text>
-
-        <Text style={{ color: colors.text, marginBottom: 4 }}>
+        <Text style={{ color: colors.text, marginBottom: 2 }}>
           Cupos: {cuposDisp} / {cuposTotales}
         </Text>
-
         {item.costo_estimado != null && (
-          <Text style={{ color: colors.text, marginBottom: 8 }}>
+          <Text style={{ color: colors.text, marginBottom: 4 }}>
             Estimado: {currency.format(Number(item.costo_estimado))}
           </Text>
         )}
-
         {item.fecha_salida && (
-          <Text style={{ color: colors.text, marginBottom: 8 }}>
-            Salida{' '}
-            {new Date(item.fecha_salida).toLocaleString('es-GT', {
-              dateStyle: 'medium',
-              timeStyle: 'short',
+          <Text style={{ color: colors.text, marginBottom: 6 }}>
+            Salida{" "}
+            {new Date(item.fecha_salida).toLocaleString("es-GT", {
+              dateStyle: "medium",
+              timeStyle: "short",
             })}
           </Text>
         )}
 
+        {/* Acciones */}
         <View style={styles.actionsRow}>
           <TouchableOpacity
             onPress={() => onJoin(item.id_grupo)}
             style={[
               styles.joinBtn,
-              { backgroundColor: disabledJoin ? '#9e9e9e' : colors.primary },
+              { backgroundColor: disabledJoin ? "#9e9e9e" : colors.primary },
             ]}
             disabled={disabledJoin}
           >
-            <Text style={styles.joinBtnText}>{joinLabel}</Text>
+            {joiningId === item.id_grupo ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.joinBtnText}>{joinLabel}</Text>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => navigation.navigate('GroupDetail', { grupoId: item.id_grupo })}
+            onPress={() =>
+              canSeeDetail &&
+              navigation.navigate("GroupDetail", { grupoId: item.id_grupo })
+            }
             disabled={!canSeeDetail}
             style={[
               styles.detailBtn,
               {
-                borderColor: canSeeDetail ? colors.primary : '#cccccc',
+                borderColor: canSeeDetail ? colors.primary : "#ccc",
                 opacity: canSeeDetail ? 1 : 0.6,
               },
             ]}
@@ -320,7 +301,7 @@ export default function PassengerScreen() {
             <Text
               style={[
                 styles.detailTxt,
-                { color: canSeeDetail ? colors.primary : '#aaaaaa' },
+                { color: canSeeDetail ? colors.primary : "#aaa" },
               ]}
             >
               Ver detalle
@@ -332,39 +313,59 @@ export default function PassengerScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header + toolbar compacta */}
-      <View style={styles.topBar}>
-        <Text style={[styles.title, { color: colors.text }]}>Grupos</Text>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
+      {/* Header */}
+      <Text style={[styles.title, { color: colors.text }]}>Grupos</Text>
 
-        {/* Toolbar compacta: dos pills + limpiar (todo en una fila) */}
-        <View style={styles.toolbar}>
-          <RotatingPill
-            label="Estado"
-            valueLabel={ESTADO_OPTIONS.find(o => o.value === estadoFilter)?.label ?? 'Todos'}
-            onPress={cycleEstado}
-          />
-          <RotatingPill
-            label="Cupos"
-            valueLabel={CUPO_OPTIONS.find(o => o.value === cupoFilter)?.label ?? 'Cualquiera'}
-            onPress={cycleCupo}
-          />
-          <TouchableOpacity
-            onPress={() => { setEstadoFilter('todos'); setCupoFilter('cualquiera'); }}
-            style={styles.clearMini}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Text style={[styles.clearMiniTxt, { color: colors.primary }]}>Limpiar</Text>
-          </TouchableOpacity>
-        </View>
+      {/* Filtros */}
+      <View style={styles.toolbar}>
+        <RotatingPill
+          label="Estado"
+          valueLabel={
+            ESTADO_OPTIONS.find((o) => o.value === estadoFilter)?.label ??
+            "Todos"
+          }
+          onPress={cycleEstado}
+        />
+        <RotatingPill
+          label="Cupos"
+          valueLabel={
+            CUPO_OPTIONS.find((o) => o.value === cupoFilter)?.label ??
+            "Cualquiera"
+          }
+          onPress={cycleCupo}
+        />
+        <TouchableOpacity
+          onPress={() => {
+            setEstadoFilter("todos");
+            setCupoFilter("cualquiera");
+          }}
+          style={styles.clearMini}
+        >
+          <Ionicons name="refresh-outline" size={16} color={colors.primary} />
+        </TouchableOpacity>
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 30 }} />
+        <ActivityIndicator
+          size="large"
+          color={colors.primary}
+          style={{ marginTop: 30 }}
+        />
       ) : gruposFiltrados.length === 0 ? (
-        <Text style={[styles.noDataText, { color: colors.text }]}>
-          {grupos.length === 0 ? 'No hay grupos por ahora.' : 'No hay resultados con estos filtros.'}
-        </Text>
+        <EmptyState
+          icon="car-outline"
+          title={grupos.length === 0 ? "No hay grupos disponibles" : "Sin resultados"}
+          subtitle={
+            grupos.length === 0
+              ? "Aún no se han creado grupos de viaje. ¡Sé el primero en unirte cuando aparezcan!"
+              : "No se encontraron grupos con los filtros seleccionados."
+          }
+          color={colors.primary}
+          textColor={colors.text}
+        />
       ) : (
         <FlatList
           data={gruposFiltrados}
@@ -385,64 +386,74 @@ export default function PassengerScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 12 },
-  topBar: { gap: 6, marginBottom: 6 },
-  title: { fontSize: 20, fontWeight: '800' },
+  container: { flex: 1, paddingHorizontal: 16 },
+  title: {
+    fontSize: 22,
+    fontWeight: "800",
+    textAlign: "center",
+    marginVertical: 8,
+  },
 
-  // Toolbar compacta
   toolbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    marginBottom: 12,
   },
   pill: {
     paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     borderRadius: 999,
     borderWidth: 1.5,
-    borderColor: '#d7d7d7',
-    backgroundColor: '#f7f7f7',
   },
-  pillText: { fontSize: 12, fontWeight: '700', color: '#333' },
-  pillValue: { textDecorationLine: 'underline' },
+  pillText: { fontSize: 12, fontWeight: "700" },
 
   clearMini: {
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    backgroundColor: '#ffffff',
+    padding: 6,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    backgroundColor: "#fff",
   },
-  clearMiniTxt: { fontSize: 12, fontWeight: '800' },
 
-  noDataText: { textAlign: 'center', marginTop: 30, fontSize: 16 },
-
-  // Cards
   card: {
+    width: "93%",
+    alignSelf: "center",
     padding: 16,
     borderRadius: 14,
     marginBottom: 12,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOpacity: 0.08,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    elevation: 2,
   },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  cardTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 6, marginRight: 10 },
-  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, alignSelf: 'flex-start' },
-  badgeTxt: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  cardTitle: { fontSize: 16, fontWeight: "700" },
 
-  actionsRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
-  joinBtn: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10 },
-  joinBtnText: { color: '#fff', fontWeight: '700' },
+  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+  badgeTxt: { color: "#fff", fontWeight: "700", fontSize: 12 },
+
+  actionsRow: { flexDirection: "row", gap: 10, marginTop: 10 },
+  joinBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  joinBtnText: { color: "#fff", fontWeight: "700" },
 
   detailBtn: {
-    paddingVertical: 7,
-    paddingHorizontal: 12,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
     borderRadius: 10,
     borderWidth: 2,
+    alignItems: "center",
   },
-  detailTxt: { fontWeight: '800' },
+  detailTxt: { fontWeight: "700" },
 });

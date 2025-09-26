@@ -20,6 +20,7 @@ import { getGroup, closeGroup, Grupo } from "../services/groups";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
 import { useUser } from "../context/UserContext";
+import FloatingActionButton from "../components/FloatingActionButton";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "GroupDetail">;
 type Rt = RouteProp<RootStackParamList, "GroupDetail">;
@@ -27,7 +28,8 @@ type Rt = RouteProp<RootStackParamList, "GroupDetail">;
 export default function GroupDetailScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Rt>();
-  const rawParam = (route?.params as any)?.groupId ?? (route?.params as any)?.grupoId;
+  const rawParam =
+    (route?.params as any)?.groupId ?? (route?.params as any)?.grupoId;
   const groupId = Number(rawParam);
 
   const { theme } = useTheme();
@@ -39,8 +41,6 @@ export default function GroupDetailScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const isFetching = useRef(false);
-  const isMounted = useRef(true);
-  useEffect(() => () => { isMounted.current = false; }, []);
 
   const fmtDate = useMemo(
     () => (s?: string | null) =>
@@ -64,33 +64,42 @@ export default function GroupDetailScreen() {
     try {
       setLoading(true);
       setError(null);
-      const g = await getGroup(groupId, user?.id ? { user_id: Number(user.id) } : undefined);
-      if (!isMounted.current) return;
+      const g = await getGroup(
+        groupId,
+        user?.id ? { user_id: Number(user.id) } : undefined
+      );
       setGroup(g);
     } catch (e: any) {
-      if (!isMounted.current) return;
       console.error("getGroup error:", e?.response?.data || e?.message);
       setError(e?.response?.data?.error || "No se pudo cargar el grupo.");
     } finally {
-      if (!isMounted.current) return;
       setLoading(false);
       isFetching.current = false;
     }
   }, [groupId, user?.id]);
 
-  useEffect(() => { fetchGroup(); }, [fetchGroup]);
+  useEffect(() => {
+    fetchGroup();
+  }, [fetchGroup]);
 
   const isOwner = useMemo(
-    () => user?.id != null && group ? Number(user.id) === Number(group.conductor_id) : false,
+    () =>
+      user?.id != null && group
+        ? Number(user.id) === Number(group.conductor_id)
+        : false,
     [user?.id, group]
   );
 
-  const cuposTotales = Number(group?.capacidad_total ?? group?.cupos_totales ?? 0);
+  const cuposTotales = Number(
+    group?.capacidad_total ?? group?.cupos_totales ?? 0
+  );
   const cuposUsados = Number(group?.cupos_usados ?? 0);
   const cuposDisp = Math.max(0, cuposTotales - cuposUsados);
   const members = group?.miembros ?? [];
 
-  const handleClose = async (estado: "cerrado" | "cancelado" | "finalizado") => {
+  const handleClose = async (
+    estado: "cerrado" | "cancelado" | "finalizado"
+  ) => {
     try {
       if (!group || !user?.id) return;
       await closeGroup(group.id_grupo, { conductor_id: user.id, estado });
@@ -98,7 +107,10 @@ export default function GroupDetailScreen() {
       await fetchGroup();
     } catch (e: any) {
       console.error("closeGroup error:", e?.response?.data || e?.message);
-      Alert.alert("Error", e?.response?.data?.error || "No se pudo actualizar el grupo");
+      Alert.alert(
+        "Error",
+        e?.response?.data?.error || "No se pudo actualizar el grupo"
+      );
     }
   };
 
@@ -110,16 +122,30 @@ export default function GroupDetailScreen() {
     } as any);
   };
 
-  // 🎨 Estado → label + colores adaptados
-  const estadoMap: Record<
-    string,
-    { label: string; color: string; bg: string }
-  > = {
-    abierto: { label: "Abierto", color: "#2e7d32", bg: "rgba(46,125,50,0.15)" },
-    cerrado: { label: "Iniciado", color: "#1565c0", bg: "rgba(21,101,192,0.15)" },
-    cancelado: { label: "Cancelado", color: "#c62828", bg: "rgba(198,40,40,0.15)" },
-    finalizado: { label: "Finalizado", color: "#616161", bg: "rgba(97,97,97,0.15)" },
-  };
+  // 🎨 Estado → label + colores (cerrado = iniciado)
+  const estadoMap: Record<string, { label: string; color: string; bg: string }> =
+    {
+      abierto: {
+        label: "Abierto",
+        color: "#2e7d32",
+        bg: "rgba(46,125,50,0.15)",
+      },
+      cerrado: {
+        label: "Iniciado",
+        color: "#1565c0",
+        bg: "rgba(21,101,192,0.15)",
+      },
+      cancelado: {
+        label: "Cancelado",
+        color: "#c62828",
+        bg: "rgba(198,40,40,0.15)",
+      },
+      finalizado: {
+        label: "Finalizado",
+        color: "#616161",
+        bg: "rgba(97,97,97,0.15)",
+      },
+    };
   const estadoInfo = estadoMap[group?.estado ?? ""] ?? {
     label: group?.estado ?? "—",
     color: colors.text,
@@ -128,13 +154,10 @@ export default function GroupDetailScreen() {
 
   const Header = () => (
     <>
-      {/* Header limpio */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Detalle del grupo</Text>
-      </View>
+      {/* Header tipo ProfileScreen */}
+      <Text style={[styles.screenTitle, { color: colors.text }]}>
+        Detalle del grupo
+      </Text>
 
       {/* Card de detalles */}
       <View style={[styles.card, { backgroundColor: colors.card }]}>
@@ -164,80 +187,97 @@ export default function GroupDetailScreen() {
           {fmtDate(group?.viaje?.fecha_inicio ?? group?.fecha_salida)}
         </Text>
 
-        {/* Botones dinámicos */}
+        {/* Botones dinámicos (solo conductor) */}
         {isOwner && (
           <View style={styles.actionsRow}>
             {group?.estado === "abierto" && (
               <>
-                <TouchableOpacity onPress={() => handleClose("cerrado")} style={[styles.actionBtn, { backgroundColor: "#1565c0" }]}>
+                <TouchableOpacity
+                  onPress={() => handleClose("cerrado")}
+                  style={[styles.actionBtn, { backgroundColor: "#1565c0" }]}
+                >
                   <Text style={styles.actionTxt}>Iniciar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => handleClose("cancelado")} style={[styles.actionBtn, { backgroundColor: "#c62828" }]}>
+                <TouchableOpacity
+                  onPress={() => handleClose("cancelado")}
+                  style={[styles.actionBtn, { backgroundColor: "#c62828" }]}
+                >
                   <Text style={styles.actionTxt}>Cancelar</Text>
                 </TouchableOpacity>
               </>
             )}
             {group?.estado === "cerrado" && (
               <>
-                <TouchableOpacity onPress={() => handleClose("finalizado")} style={[styles.actionBtn, { backgroundColor: "#616161" }]}>
+                <TouchableOpacity
+                  onPress={() => handleClose("finalizado")}
+                  style={[styles.actionBtn, { backgroundColor: "#616161" }]}
+                >
                   <Text style={styles.actionTxt}>Finalizar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => handleClose("cancelado")} style={[styles.actionBtn, { backgroundColor: "#c62828" }]}>
+                <TouchableOpacity
+                  onPress={() => handleClose("cancelado")}
+                  style={[styles.actionBtn, { backgroundColor: "#c62828" }]}
+                >
                   <Text style={styles.actionTxt}>Cancelar</Text>
                 </TouchableOpacity>
               </>
             )}
           </View>
         )}
-
-        {/* Botón pasajero calificar */}
-        {!isOwner && group?.estado === "finalizado" && (
-          <TouchableOpacity onPress={goToDriverProfile} style={[styles.rateBtn, { backgroundColor: "#2e7d32" }]}>
-            <Text style={styles.actionTxt}>Calificar conductor</Text>
-          </TouchableOpacity>
-        )}
       </View>
 
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>Miembros</Text>
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>
+        Miembros
+      </Text>
     </>
   );
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.center, { backgroundColor: colors.background }]}>
+      <SafeAreaView
+        style={[styles.center, { backgroundColor: colors.background }]}
+      >
         <ActivityIndicator size="large" color={colors.primary} />
       </SafeAreaView>
     );
   }
   if (error) {
     return (
-      <SafeAreaView style={[styles.center, { backgroundColor: colors.background }]}>
+      <SafeAreaView
+        style={[styles.center, { backgroundColor: colors.background }]}
+      >
         <Text style={{ color: colors.text }}>{error}</Text>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
       <FlatList
         data={members}
-        keyExtractor={(m: any) => String(m.id_grupo_miembro ?? `${m.id_usuario}-${m.joined_at}`)}
+        keyExtractor={(m: any) =>
+          String(m.id_grupo_miembro ?? `${m.id_usuario}-${m.joined_at}`)
+        }
         ListHeaderComponent={<Header />}
         renderItem={({ item }: any) => (
           <View style={[styles.memberRow, { backgroundColor: colors.card }]}>
-            {/* Foto de perfil */}
             {item.usuario?.foto_url ? (
               <Image source={{ uri: item.usuario.foto_url }} style={styles.avatar} />
             ) : (
               <Ionicons name="person-circle-outline" size={36} color={colors.text} />
             )}
-
-            {/* Info */}
             <View style={{ flex: 1, marginLeft: 10 }}>
               <Text style={[styles.memberName, { color: colors.text }]}>
                 {item.usuario?.nombre} {item.usuario?.apellido}
               </Text>
-              <View style={[styles.memberPill, { backgroundColor: "rgba(0,0,0,0.08)" }]}>
+              <View
+                style={[
+                  styles.memberPill,
+                  { backgroundColor: "rgba(0,0,0,0.08)" },
+                ]}
+              >
                 <Text style={{ fontSize: 12, color: colors.text }}>
                   {item.rol} · {item.estado_solicitud}
                 </Text>
@@ -245,8 +285,20 @@ export default function GroupDetailScreen() {
             </View>
           </View>
         )}
-        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 28 }}
+        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}
       />
+
+      {/* FAB pasajero */}
+      {group?.estado === "finalizado" && !isOwner && (
+        <FloatingActionButton
+          id={`fab_rate_driver_${group.id_grupo}_${user?.id}`}
+          icon="thumbs-up"
+          label="Calificar conductor"
+          backgroundColor={colors.primary}
+          onPress={goToDriverProfile}
+          style={{ position: "absolute", bottom: 30, right: 20 }}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -254,15 +306,18 @@ export default function GroupDetailScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+  screenTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 16,
+    textAlign: "center",
   },
-  backBtn: { padding: 4 },
-  headerTitle: { fontSize: 18, fontWeight: "700", marginLeft: 10 },
-  card: { borderRadius: 14, padding: 16, marginBottom: 12, elevation: 2 },
+  card: {
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 12,
+    elevation: 2,
+  },
   label: { fontSize: 13, opacity: 0.7, marginTop: 6 },
   value: { fontSize: 15, fontWeight: "600", marginBottom: 4 },
   estadoPill: {
@@ -280,12 +335,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   actionTxt: { color: "#fff", fontWeight: "700" },
-  rateBtn: {
-    marginTop: 12,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: "center",
-  },
   sectionTitle: { fontSize: 16, fontWeight: "700", marginVertical: 10 },
   memberRow: {
     padding: 12,
