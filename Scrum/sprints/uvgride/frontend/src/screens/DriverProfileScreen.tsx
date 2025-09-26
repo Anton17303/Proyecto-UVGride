@@ -1,5 +1,5 @@
 // src/screens/DriverProfileScreen.tsx
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -11,26 +11,23 @@ import {
   Alert,
   SafeAreaView,
   TextInput,
-} from 'react-native';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import axios from 'axios';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+  Linking,
+} from "react-native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import axios from "axios";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons"; // ✅ ahora con Ionicons
 
-import { API_URL } from '../services/api';
-import { RootStackParamList } from '../navigation/type';
-import { useTheme } from '../context/ThemeContext';
-import { lightColors, darkColors } from '../constants/colors';
-import { useUser } from '../context/UserContext';
+import { API_URL } from "../services/api";
+import { RootStackParamList } from "../navigation/type";
+import { useTheme } from "../context/ThemeContext";
+import { lightColors, darkColors } from "../constants/colors";
+import { useUser } from "../context/UserContext";
+import { getDriverRatingSummary, rateDriverSimple } from "../services/groups";
 
-// ✅ nuevos servicios para rating global
-import {
-  getDriverRatingSummary,
-  rateDriverSimple,
-} from '../services/groups';
-
-type Nav = NativeStackNavigationProp<RootStackParamList, 'DriverProfile'>;
-type RouteProps = RouteProp<RootStackParamList, 'DriverProfile'>;
+type Nav = NativeStackNavigationProp<RootStackParamList, "DriverProfile">;
+type RouteProps = RouteProp<RootStackParamList, "DriverProfile">;
 
 type Vehiculo = {
   id_vehiculo: number;
@@ -49,9 +46,6 @@ type ConductorDTO = {
   correo_institucional: string;
   tipo_usuario: string;
   vehiculos: Vehiculo[];
-  // si tu endpoint trae cache global, lo mostramos:
-  calif_conductor_avg?: number;
-  calif_conductor_count?: number;
 };
 
 type ConductorResponse = { data: ConductorDTO };
@@ -60,12 +54,10 @@ export default function DriverProfileScreen() {
   const navigation = useNavigation<Nav>();
   const { params } = useRoute<RouteProps>();
   const insets = useSafeAreaInsets();
-
   const { theme } = useTheme();
-  const colors = theme === 'light' ? lightColors : darkColors;
+  const colors = theme === "light" ? lightColors : darkColors;
   const { user } = useUser();
 
-  // ID del conductor (obligatorio)
   const driverId = useMemo(() => {
     const raw = params?.driverId as any;
     const n = Number(raw);
@@ -75,110 +67,50 @@ export default function DriverProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [driver, setDriver] = useState<ConductorDTO | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-
-  // Resumen global de rating
-  const [ratingLoading, setRatingLoading] = useState(false);
-  const [ratingError, setRatingError] = useState<string | null>(null);
   const [ratingSummary, setRatingSummary] = useState<{ promedio: number; total: number } | null>(null);
 
-  // Formulario de rating global
-  const [stars, setStars] = useState<number>(5);
-  const [comment, setComment] = useState<string>('');
+  const [stars, setStars] = useState(5);
+  const [comment, setComment] = useState("");
   const [sending, setSending] = useState(false);
 
-  /* =========================
-     Fetch perfil
-     ========================= */
   const fetchDriver = useCallback(async () => {
-    if (!driverId) {
-      Alert.alert('Datos incompletos', 'No se recibió el ID del conductor.', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
-      return;
-    }
-
     try {
       if (!refreshing) setLoading(true);
-
       const res = await axios.get<ConductorResponse>(`${API_URL}/api/conductores/${driverId}`);
-      const data = res.data?.data ?? null;
-      setDriver(
-        data
-          ? { ...data, vehiculos: Array.isArray(data.vehiculos) ? data.vehiculos : [] }
-          : null
-      );
-    } catch (err: any) {
-      console.error('❌ Error cargando perfil de conductor:', err);
-      if (err?.response?.status === 404) {
-        Alert.alert('No encontrado', 'No se encontró al conductor o no tiene vehículos.', [
-          { text: 'OK', onPress: () => navigation.goBack() },
-        ]);
-      } else {
-        Alert.alert('Error', 'No se pudo cargar el perfil del conductor.');
-      }
+      setDriver(res.data?.data ?? null);
+    } catch (err) {
+      console.error("❌ Error cargando perfil:", err);
+      Alert.alert("Error", "No se pudo cargar el perfil del conductor.");
       setDriver(null);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [driverId, navigation, refreshing]);
+  }, [driverId, refreshing]);
 
-  /* =========================
-     Fetch resumen global
-     ========================= */
   const fetchSummary = useCallback(async () => {
-    if (!driverId) {
-      setRatingSummary(null);
-      setRatingError(null);
-      return;
-    }
     try {
-      setRatingLoading(true);
-      setRatingError(null);
-      const s = await getDriverRatingSummary(driverId);
-      const avg = Number(s?.promedio ?? 0);
-      const cnt = Number(s?.total ?? 0);
-      setRatingSummary({ promedio: avg, total: cnt });
-    } catch (e: any) {
-      console.error('getDriverRatingSummary error:', e?.response?.data || e?.message);
+      const s = await getDriverRatingSummary(Number(driverId));
+      setRatingSummary({
+        promedio: Number(s?.promedio ?? 0),
+        total: Number(s?.total ?? 0),
+      });
+    } catch (e) {
+      console.error("❌ Error fetch rating:", e);
       setRatingSummary(null);
-      setRatingError('No se pudo cargar el resumen de calificaciones.');
-    } finally {
-      setRatingLoading(false);
     }
   }, [driverId]);
 
   useEffect(() => {
     fetchDriver();
-  }, [fetchDriver]);
-
-  useEffect(() => {
     fetchSummary();
-  }, [fetchSummary]);
+  }, [fetchDriver, fetchSummary]);
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    Promise.all([fetchDriver(), fetchSummary()]).finally(() => setRefreshing(false));
-  };
-
-  /* =========================
-     Mostrar formulario?
-     Regla simple (global):
-     - usuario logueado
-     - no es el mismo conductor
-     ========================= */
   const showRatingForm = Boolean(user?.id && driverId && Number(user.id) !== Number(driverId));
 
-  /* =========================
-     Submit calificación global
-     ========================= */
   const submitRating = async () => {
     if (!showRatingForm || !user?.id || !driverId) return;
-    if (sending) return; // evitar doble tap
-    if (stars < 1 || stars > 5) {
-      Alert.alert('Calificación', 'Elige entre 1 y 5 estrellas.');
-      return;
-    }
+    if (sending) return;
     try {
       setSending(true);
       await rateDriverSimple(Number(driverId), {
@@ -186,28 +118,31 @@ export default function DriverProfileScreen() {
         puntuacion: stars,
         comentario: comment.trim() || undefined,
       });
-      Alert.alert('¡Gracias!', 'Tu calificación fue enviada.');
-      setComment('');
-      // Actualiza el resumen global
-      await fetchSummary();
-    } catch (e: any) {
-      console.error('rateDriverSimple error:', e?.response?.data || e?.message);
-      Alert.alert('Error', e?.response?.data?.error || 'No se pudo enviar la calificación.');
+      Alert.alert("¡Gracias!", "Tu calificación fue enviada.");
+      setComment("");
+      fetchSummary();
+    } catch (e) {
+      console.error("❌ rateDriverSimple error:", e);
+      Alert.alert("Error", "No se pudo enviar la calificación.");
     } finally {
       setSending(false);
     }
   };
 
+  const initials = driver ? `${driver.nombre[0] || ""}${driver.apellido[0] || ""}`.toUpperCase() : "?";
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top + 8 }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top }}>
+      {/* Back */}
       <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-        <Text style={[styles.backText, { color: colors.primary }]}>← Volver</Text>
+        <Ionicons name="arrow-back" size={22} color={colors.primary} />
+        <Text style={[styles.backText, { color: colors.primary }]}>Volver</Text>
       </TouchableOpacity>
 
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={{ color: colors.text, marginTop: 8 }}>Cargando perfil...</Text>
+          <Text style={{ color: colors.text, marginTop: 8 }}>Cargando perfil…</Text>
         </View>
       ) : !driver ? (
         <View style={styles.center}>
@@ -215,53 +150,39 @@ export default function DriverProfileScreen() {
         </View>
       ) : (
         <ScrollView
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
-          }
+          contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchDriver} />}
         >
-          {/* Perfil */}
+          {/* Card de perfil */}
           <View style={[styles.card, { backgroundColor: colors.card }]}>
-            <Text style={[styles.name, { color: colors.text }]}>
-              {driver.nombre} {driver.apellido}
-            </Text>
-            <Text style={[styles.info, { color: colors.text }]}>📞 {driver.telefono}</Text>
-            <Text style={[styles.info, { color: colors.text }]} numberOfLines={1}>
-              ✉️ {driver.correo_institucional}
-            </Text>
-            <Text style={[styles.badge, { borderColor: colors.primary, color: colors.primary }]}>
-              {driver.tipo_usuario}
-            </Text>
-          </View>
-
-          {/* Resumen de calificaciones (GLOBAL) */}
-          <View style={[styles.card, { backgroundColor: colors.card }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Calificación del conductor</Text>
-
-            {ratingLoading && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <ActivityIndicator color={colors.primary} />
-                <Text style={{ color: colors.text }}>Cargando resumen…</Text>
+            <View style={styles.row}>
+              <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
+                <Text style={styles.avatarTxt}>{initials}</Text>
               </View>
-            )}
-
-            {!ratingLoading && ratingError && (
-              <Text style={{ color: '#d32f2f' }}>{ratingError}</Text>
-            )}
-
-            {!ratingLoading && ratingSummary && (
-              <Text style={{ color: colors.text }}>
-                Promedio global:{' '}
-                <Text style={{ fontWeight: '800' }}>
-                  {ratingSummary.promedio.toFixed(1)} ⭐
-                </Text>{' '}
-                ({ratingSummary.total} opiniones)
-              </Text>
-            )}
-
-            {!ratingLoading && !ratingSummary && !ratingError && driver.calif_conductor_count === undefined && (
-              <Text style={{ color: colors.text, opacity: 0.7 }}>Sin calificaciones todavía.</Text>
-            )}
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.name, { color: colors.text }]}>
+                  {driver.nombre} {driver.apellido}
+                </Text>
+                {ratingSummary ? (
+                  <Text style={{ color: colors.text, marginTop: 4 }}>
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Text key={i}>{i < ratingSummary.promedio ? "⭐" : "☆"}</Text>
+                    ))}{" "}
+                    {ratingSummary.promedio.toFixed(1)} ({ratingSummary.total})
+                  </Text>
+                ) : (
+                  <Text style={{ color: colors.text, opacity: 0.6 }}>Sin calificaciones aún</Text>
+                )}
+              </View>
+            </View>
+            <TouchableOpacity style={styles.infoRow} onPress={() => Linking.openURL(`tel:${driver.telefono}`)}>
+              <Ionicons name="call-outline" size={18} color={colors.primary} style={{ marginRight: 8 }} />
+              <Text style={[styles.info, { color: colors.text }]}>{driver.telefono}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.infoRow} onPress={() => Linking.openURL(`mailto:${driver.correo_institucional}`)}>
+              <Ionicons name="mail-outline" size={18} color={colors.primary} style={{ marginRight: 8 }} />
+              <Text style={[styles.info, { color: colors.text }]}>{driver.correo_institucional}</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Vehículos */}
@@ -269,9 +190,12 @@ export default function DriverProfileScreen() {
           {driver.vehiculos?.length ? (
             driver.vehiculos.map((v) => (
               <View key={v.id_vehiculo} style={[styles.vehicleCard, { backgroundColor: colors.card }]}>
-                <Text style={[styles.vehicleTitle, { color: colors.text }]}>
-                  {v.marca} {v.modelo}
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
+                  <Ionicons name="car-outline" size={18} color={colors.primary} style={{ marginRight: 6 }} />
+                  <Text style={[styles.vehicleTitle, { color: colors.text }]}>
+                    {v.marca} {v.modelo}
+                  </Text>
+                </View>
                 <Text style={[styles.vehicleLine, { color: colors.text }]}>Placa: {v.placa}</Text>
                 <Text style={[styles.vehicleLine, { color: colors.text }]}>Color: {v.color}</Text>
                 <Text style={[styles.vehicleLine, { color: colors.text }]}>
@@ -280,21 +204,23 @@ export default function DriverProfileScreen() {
               </View>
             ))
           ) : (
-            <Text style={{ color: colors.text, opacity: 0.7 }}>
+            <Text style={{ color: colors.text, opacity: 0.7, marginTop: 8 }}>
               Este conductor no tiene vehículos registrados.
             </Text>
           )}
 
-          {/* Formulario de calificación GLOBAL */}
+          {/* Rating */}
           {showRatingForm && (
             <View style={[styles.rateCard, { backgroundColor: colors.card }]}>
-              <Text style={[styles.rateTitle, { color: colors.text }]}>
-                Calificar a este conductor
-              </Text>
-              <View style={{ flexDirection: 'row', marginBottom: 8 }}>
+              <Text style={[styles.rateTitle, { color: colors.text }]}>Calificar a este conductor</Text>
+              <View style={{ flexDirection: "row", marginBottom: 8 }}>
                 {[1, 2, 3, 4, 5].map((n) => (
                   <TouchableOpacity key={n} onPress={() => setStars(n)} style={{ marginRight: 6 }}>
-                    <Text style={{ fontSize: 22 }}>{n <= stars ? '⭐' : '☆'}</Text>
+                    <Ionicons
+                      name={n <= stars ? "star" : "star-outline"}
+                      size={26}
+                      color={n <= stars ? "#FFD700" : colors.text}
+                    />
                   </TouchableOpacity>
                 ))}
               </View>
@@ -305,7 +231,7 @@ export default function DriverProfileScreen() {
                 onChangeText={setComment}
                 style={[
                   styles.textArea,
-                  { backgroundColor: colors.card, color: colors.text, borderColor: '#ddd' },
+                  { backgroundColor: colors.background, color: colors.text, borderColor: colors.border },
                 ]}
                 multiline
               />
@@ -314,14 +240,11 @@ export default function DriverProfileScreen() {
                 disabled={sending}
                 style={[
                   styles.rateBtn,
-                  { backgroundColor: sending ? '#9e9e9e' : '#2e7d32' },
+                  { backgroundColor: sending ? "#9e9e9e" : colors.primary },
                 ]}
               >
-                <Text style={styles.rateBtnTxt}>{sending ? 'Enviando…' : 'Enviar calificación'}</Text>
+                <Text style={styles.rateBtnTxt}>{sending ? "Enviando…" : "Enviar calificación"}</Text>
               </TouchableOpacity>
-              <Text style={{ color: colors.text, opacity: 0.6, marginTop: 6, fontSize: 12 }}>
-                * La calificación es global para este conductor (no por viaje).
-              </Text>
             </View>
           )}
         </ScrollView>
@@ -331,31 +254,40 @@ export default function DriverProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  backBtn: { paddingHorizontal: 16, paddingVertical: 12 },
-  backText: { fontWeight: '700', textDecorationLine: 'underline' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  card: { borderRadius: 12, padding: 16, marginBottom: 14, elevation: 2 },
-  name: { fontSize: 22, fontWeight: '800', marginBottom: 6 },
-  info: { fontSize: 14, marginBottom: 4 },
-  badge: {
-    alignSelf: 'flex-start',
-    marginTop: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    borderWidth: 1,
-    fontSize: 12,
-    fontWeight: '700',
+  backBtn: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12 },
+  backText: { fontWeight: "700", marginLeft: 6 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+
+  card: { borderRadius: 12, padding: 16, marginBottom: 16, elevation: 2 },
+  row: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+  avatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
   },
-  sectionTitle: { fontSize: 16, fontWeight: '800', marginVertical: 10, paddingHorizontal: 2 },
+  avatarTxt: { color: "#fff", fontWeight: "800", fontSize: 22 },
+  name: { fontSize: 20, fontWeight: "800" },
+
+  infoRow: { flexDirection: "row", alignItems: "center", marginTop: 8 },
+  info: { fontSize: 14 },
+
+  sectionTitle: { fontSize: 16, fontWeight: "800", marginVertical: 10 },
   vehicleCard: { borderRadius: 10, padding: 14, marginBottom: 10, elevation: 1 },
-  vehicleTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
+  vehicleTitle: { fontSize: 16, fontWeight: "700" },
   vehicleLine: { fontSize: 14, marginTop: 2 },
 
-  // rating UI
-  rateCard: { borderRadius: 12, padding: 14, marginTop: 16 },
-  rateTitle: { fontSize: 16, fontWeight: '800', marginBottom: 8 },
-  textArea: { borderRadius: 8, padding: 10, minHeight: 70, borderWidth: StyleSheet.hairlineWidth },
-  rateBtn: { marginTop: 8, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
-  rateBtnTxt: { color: '#fff', fontWeight: '700' },
+  rateCard: { borderRadius: 12, padding: 14, marginTop: 20 },
+  rateTitle: { fontSize: 16, fontWeight: "800", marginBottom: 8 },
+  textArea: {
+    borderRadius: 8,
+    padding: 10,
+    minHeight: 70,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 10,
+  },
+  rateBtn: { marginTop: 6, paddingVertical: 12, borderRadius: 10, alignItems: "center" },
+  rateBtnTxt: { color: "#fff", fontWeight: "700" },
 });
