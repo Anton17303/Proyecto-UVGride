@@ -12,9 +12,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useUser } from "../context/UserContext";
 
 type Props = {
-  id: string; // ✅ identificador único del FAB
+  id: string;
   icon: string;
-  label?: string; // Texto opcional
+  label?: string;
   size?: number;
   color?: string;
   backgroundColor?: string;
@@ -37,7 +37,7 @@ export default function FloatingActionButton({
   const scale = useRef(new Animated.Value(1)).current;
   const { user } = useUser();
 
-  const [extended, setExtended] = useState<boolean | null>(null); // 👈 null para evitar parpadeo inicial
+  const [extended, setExtended] = useState<boolean | null>(null);
 
   // 🚀 Cargar preferencia por usuario y FAB
   useEffect(() => {
@@ -45,10 +45,10 @@ export default function FloatingActionButton({
       if (!user?.id) return;
       try {
         const seen = await AsyncStorage.getItem(`fabSeen_${id}_${user.id}`);
-        setExtended(seen !== "true"); // si nunca lo ha usado → mostrar extendido
+        setExtended(seen !== "true");
       } catch (e) {
         console.error("Error cargando preferencia FAB", e);
-        setExtended(true); // fallback
+        setExtended(true);
       }
     };
     loadFabPref();
@@ -71,7 +71,6 @@ export default function FloatingActionButton({
       bounciness: 6,
     }).start();
 
-    // ✅ Guardar que ya se mostró extendido al menos una vez
     if (extended && user?.id) {
       try {
         await AsyncStorage.setItem(`fabSeen_${id}_${user.id}`, "true");
@@ -84,7 +83,6 @@ export default function FloatingActionButton({
     onPress();
   };
 
-  // Mientras carga AsyncStorage, no renderizamos nada (evita parpadeo)
   if (extended === null) return null;
 
   return (
@@ -94,7 +92,7 @@ export default function FloatingActionButton({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel || label}
       accessibilityHint={accessibilityHint || "Activa esta acción rápida"}
-      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} // ✅ más área táctil
+      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
     >
       <Animated.View
         style={[

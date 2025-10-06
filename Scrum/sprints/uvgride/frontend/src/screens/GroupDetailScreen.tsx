@@ -97,6 +97,13 @@ export default function GroupDetailScreen() {
   const cuposDisp = Math.max(0, cuposTotales - cuposUsados);
   const members = group?.miembros ?? [];
 
+  // ⬇️ ¿Usuario es miembro?
+  const isMember = useMemo(() => {
+    if (!user?.id || !members?.length) return false;
+    const uid = Number(user.id);
+    return members.some((m: any) => Number(m.id_usuario) === uid);
+  }, [members, user?.id]);
+
   const handleClose = async (
     estado: "cerrado" | "cancelado" | "finalizado"
   ) => {
@@ -251,6 +258,10 @@ export default function GroupDetailScreen() {
     );
   }
 
+  // ⬇️ Mostrar SOS si el usuario es miembro y el viaje no está cancelado/finalizado
+  const showSOS =
+    isMember && group && !["cancelado", "finalizado"].includes(group.estado ?? "");
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -285,7 +296,7 @@ export default function GroupDetailScreen() {
             </View>
           </View>
         )}
-        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}
+        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 120 }}
       />
 
       {/* FAB pasajero */}
@@ -297,6 +308,24 @@ export default function GroupDetailScreen() {
           backgroundColor={colors.primary}
           onPress={goToDriverProfile}
           style={{ position: "absolute", bottom: 30, right: 20 }}
+        />
+      )}
+
+      {/* ⬇️ FAB SOS (UI simple, sin lógica de llamada aún) */}
+      {showSOS && (
+        <FloatingActionButton
+          id={`fab_sos_${group?.id_grupo}_${user?.id}`}
+          icon="alert-circle"
+          label="SOS"
+          backgroundColor="#D50000"
+          color="#fff"
+          size={24}
+          onPress={() => {
+            Alert.alert("SOS", "Aquí conectaremos la llamada de emergencia.");
+          }}
+          accessibilityLabel="Botón de emergencia SOS"
+          accessibilityHint="Presiona para activar la acción de emergencia"
+          style={{ position: "absolute", bottom: 50, right: 20, zIndex: 20 }}
         />
       )}
     </SafeAreaView>
