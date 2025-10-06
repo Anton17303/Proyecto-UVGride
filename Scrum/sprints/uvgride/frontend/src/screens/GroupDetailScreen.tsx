@@ -345,7 +345,7 @@ export default function GroupDetailScreen() {
         />
       )}
 
-      {/* ⬇️ FAB SOS con confirmación + llamada (número ficticio) */}
+      {/* ⬇️ FAB SOS con hold-to-activate + cooldown + haptics */}
       {showSOS && (
         <FloatingActionButton
           id={`fab_sos_${group?.id_grupo}_${user?.id}`}
@@ -355,8 +355,12 @@ export default function GroupDetailScreen() {
           color="#fff"
           size={24}
           onPress={confirmAndCallEmergency}
+          requireLongPress={true}       // ← mantener presionado para activar
+          longPressDelayMs={650}
+          cooldownMs={4000}             // ← evita doble disparo
+          enableHaptics={true}          // ← vibración corta
           accessibilityLabel="Botón de emergencia SOS"
-          accessibilityHint="Presiona para llamar al número de emergencia"
+          accessibilityHint="Mantén presionado para llamar al número de emergencia"
           style={{ position: "absolute", bottom: 50, right: 20, zIndex: 20 }}
         />
       )}

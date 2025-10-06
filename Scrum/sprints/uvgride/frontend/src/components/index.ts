@@ -13,5 +13,4 @@ export { default as TripCard } from "./TripCard";
 export { default as EmptyState } from "./EmptyState";
 export { default as FavoriteCard } from "./FavoriteCard";
 export { default as ScheduledTripCard } from "./ScheduledTripCard";
-export { SOSButton } from "./SOSButton";
 
