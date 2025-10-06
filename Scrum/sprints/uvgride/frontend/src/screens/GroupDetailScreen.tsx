@@ -10,6 +10,7 @@ import {
   Alert,
   TouchableOpacity,
   Image,
+  Linking, // <-- añadido
 } from "react-native";
 import { useRoute, useNavigation, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -157,6 +158,39 @@ export default function GroupDetailScreen() {
     label: group?.estado ?? "—",
     color: colors.text,
     bg: colors.card,
+  };
+
+  // === SOS: número ficticio + confirmación y llamada ===
+  const EMERGENCY_NUMBER = "110";
+  const confirmAndCallEmergency = async () => {
+    Alert.alert(
+      "Emergencia",
+      `¿Deseas llamar al número de emergencia?\n${EMERGENCY_NUMBER}`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Llamar",
+          style: "destructive",
+          onPress: async () => {
+            const url = `tel:${EMERGENCY_NUMBER}`;
+            try {
+              const supported = await Linking.canOpenURL(url);
+              if (!supported) {
+                Alert.alert(
+                  "Simulación",
+                  "Este dispositivo/emulador no puede abrir el marcador. Se simuló la acción."
+                );
+                return;
+              }
+              await Linking.openURL(url);
+            } catch (err) {
+              console.error("Error abriendo marcador:", err);
+              Alert.alert("Error", "No se pudo abrir el marcador telefónico.");
+            }
+          },
+        },
+      ]
+    );
   };
 
   const Header = () => (
@@ -311,7 +345,7 @@ export default function GroupDetailScreen() {
         />
       )}
 
-      {/* ⬇️ FAB SOS (UI simple, sin lógica de llamada aún) */}
+      {/* ⬇️ FAB SOS con confirmación + llamada (número ficticio) */}
       {showSOS && (
         <FloatingActionButton
           id={`fab_sos_${group?.id_grupo}_${user?.id}`}
@@ -320,11 +354,9 @@ export default function GroupDetailScreen() {
           backgroundColor="#D50000"
           color="#fff"
           size={24}
-          onPress={() => {
-            Alert.alert("SOS", "Aquí conectaremos la llamada de emergencia.");
-          }}
+          onPress={confirmAndCallEmergency}
           accessibilityLabel="Botón de emergencia SOS"
-          accessibilityHint="Presiona para activar la acción de emergencia"
+          accessibilityHint="Presiona para llamar al número de emergencia"
           style={{ position: "absolute", bottom: 50, right: 20, zIndex: 20 }}
         />
       )}
