@@ -10,6 +10,7 @@ import {
   Alert,
   TouchableOpacity,
   Image,
+  Linking, // <-- añadido
 } from "react-native";
 import { useRoute, useNavigation, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -97,6 +98,13 @@ export default function GroupDetailScreen() {
   const cuposDisp = Math.max(0, cuposTotales - cuposUsados);
   const members = group?.miembros ?? [];
 
+  // ⬇️ ¿Usuario es miembro?
+  const isMember = useMemo(() => {
+    if (!user?.id || !members?.length) return false;
+    const uid = Number(user.id);
+    return members.some((m: any) => Number(m.id_usuario) === uid);
+  }, [members, user?.id]);
+
   const handleClose = async (
     estado: "cerrado" | "cancelado" | "finalizado"
   ) => {
@@ -150,6 +158,39 @@ export default function GroupDetailScreen() {
     label: group?.estado ?? "—",
     color: colors.text,
     bg: colors.card,
+  };
+
+  // === SOS: número ficticio + confirmación y llamada ===
+  const EMERGENCY_NUMBER = "110";
+  const confirmAndCallEmergency = async () => {
+    Alert.alert(
+      "Emergencia",
+      `¿Deseas llamar al número de emergencia?\n${EMERGENCY_NUMBER}`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Llamar",
+          style: "destructive",
+          onPress: async () => {
+            const url = `tel:${EMERGENCY_NUMBER}`;
+            try {
+              const supported = await Linking.canOpenURL(url);
+              if (!supported) {
+                Alert.alert(
+                  "Simulación",
+                  "Este dispositivo/emulador no puede abrir el marcador. Se simuló la acción."
+                );
+                return;
+              }
+              await Linking.openURL(url);
+            } catch (err) {
+              console.error("Error abriendo marcador:", err);
+              Alert.alert("Error", "No se pudo abrir el marcador telefónico.");
+            }
+          },
+        },
+      ]
+    );
   };
 
   const Header = () => (
@@ -251,6 +292,10 @@ export default function GroupDetailScreen() {
     );
   }
 
+  // ⬇️ Mostrar SOS si el usuario es miembro y el viaje no está cancelado/finalizado
+  const showSOS =
+    isMember && group && !["cancelado", "finalizado"].includes(group.estado ?? "");
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -285,7 +330,7 @@ export default function GroupDetailScreen() {
             </View>
           </View>
         )}
-        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}
+        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 120 }}
       />
 
       {/* FAB pasajero */}
@@ -297,6 +342,26 @@ export default function GroupDetailScreen() {
           backgroundColor={colors.primary}
           onPress={goToDriverProfile}
           style={{ position: "absolute", bottom: 30, right: 20 }}
+        />
+      )}
+
+      {/* ⬇️ FAB SOS con hold-to-activate + cooldown + haptics */}
+      {showSOS && (
+        <FloatingActionButton
+          id={`fab_sos_${group?.id_grupo}_${user?.id}`}
+          icon="alert-circle"
+          label="SOS"
+          backgroundColor="#D50000"
+          color="#fff"
+          size={24}
+          onPress={confirmAndCallEmergency}
+          requireLongPress={true}       // ← mantener presionado para activar
+          longPressDelayMs={650}
+          cooldownMs={4000}             // ← evita doble disparo
+          enableHaptics={true}          // ← vibración corta
+          accessibilityLabel="Botón de emergencia SOS"
+          accessibilityHint="Mantén presionado para llamar al número de emergencia"
+          style={{ position: "absolute", bottom: 50, right: 20, zIndex: 20 }}
         />
       )}
     </SafeAreaView>

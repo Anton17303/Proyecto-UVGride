@@ -11,15 +11,28 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useUser } from "../context/UserContext";
 
+// ⬇️ NUEVO: haptics opcional (no rompe si no está instalado)
+let Haptics: any = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  Haptics = require("expo-haptics");
+} catch {}
+
 type Props = {
-  id: string; // ✅ identificador único del FAB
+  id: string;
   icon: string;
-  label?: string; // Texto opcional
+  label?: string;
   size?: number;
   color?: string;
   backgroundColor?: string;
   onPress: () => void;
   style?: ViewStyle;
+
+  // ⬇️ NUEVO — todas OPCIONALES y con defaults
+  requireLongPress?: boolean;
+  longPressDelayMs?: number;
+  cooldownMs?: number;
+  enableHaptics?: boolean;
 } & AccessibilityProps;
 
 export default function FloatingActionButton({
@@ -33,11 +46,19 @@ export default function FloatingActionButton({
   style,
   accessibilityLabel,
   accessibilityHint,
+
+  // ⬇️ NUEVO — defaults que no cambian el comportamiento actual
+  requireLongPress = false,
+  longPressDelayMs = 600,
+  cooldownMs = 0,
+  enableHaptics = false,
 }: Props) {
   const scale = useRef(new Animated.Value(1)).current;
   const { user } = useUser();
 
-  const [extended, setExtended] = useState<boolean | null>(null); // 👈 null para evitar parpadeo inicial
+  const [extended, setExtended] = useState<boolean | null>(null);
+  const [disabledUntil, setDisabledUntil] = useState<number>(0); // ⬅️ NUEVO
+  const isCoolingDown = disabledUntil > Date.now();              // ⬅️ NUEVO
 
   // 🚀 Cargar preferencia por usuario y FAB
   useEffect(() => {
@@ -45,16 +66,16 @@ export default function FloatingActionButton({
       if (!user?.id) return;
       try {
         const seen = await AsyncStorage.getItem(`fabSeen_${id}_${user.id}`);
-        setExtended(seen !== "true"); // si nunca lo ha usado → mostrar extendido
+        setExtended(seen !== "true");
       } catch (e) {
         console.error("Error cargando preferencia FAB", e);
-        setExtended(true); // fallback
+        setExtended(true);
       }
     };
     loadFabPref();
   }, [user?.id, id]);
 
-  const handlePressIn = () => {
+  const animateIn = () => {
     Animated.spring(scale, {
       toValue: 0.9,
       useNativeDriver: true,
@@ -63,15 +84,40 @@ export default function FloatingActionButton({
     }).start();
   };
 
-  const handlePressOut = async () => {
+  const animateOut = () => {
     Animated.spring(scale, {
       toValue: 1,
       useNativeDriver: true,
       speed: 20,
       bounciness: 6,
     }).start();
+  };
 
-    // ✅ Guardar que ya se mostró extendido al menos una vez
+  // ⬇️ NUEVO: dispara acción con haptics y cooldown
+  const trigger = async () => {
+    if (isCoolingDown) return;
+
+    if (enableHaptics && Haptics?.impactAsync) {
+      try {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      } catch {}
+    }
+
+    if (cooldownMs > 0) {
+      setDisabledUntil(Date.now() + cooldownMs);
+    }
+
+    onPress();
+  };
+
+  const handlePressIn = () => {
+    if (isCoolingDown) return;
+    animateIn();
+  };
+
+  const handlePressOut = async () => {
+    animateOut();
+
     if (extended && user?.id) {
       try {
         await AsyncStorage.setItem(`fabSeen_${id}_${user.id}`, "true");
@@ -81,20 +127,26 @@ export default function FloatingActionButton({
       }
     }
 
-    onPress();
+    // ⚠️ Retro-compat: si NO requiere long-press, dispara en pressOut (como antes)
+    if (!requireLongPress && !isCoolingDown) {
+      trigger();
+    }
   };
 
-  // Mientras carga AsyncStorage, no renderizamos nada (evita parpadeo)
   if (extended === null) return null;
 
   return (
     <TouchableWithoutFeedback
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
+      onLongPress={requireLongPress ? trigger : undefined}           // ⬅️ NUEVO
+      delayLongPress={requireLongPress ? longPressDelayMs : undefined} // ⬅️ NUEVO
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel || label}
       accessibilityHint={accessibilityHint || "Activa esta acción rápida"}
-      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} // ✅ más área táctil
+      accessibilityState={{ disabled: isCoolingDown }}               // ⬅️ NUEVO
+      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      disabled={isCoolingDown}                                       // ⬅️ NUEVO
     >
       <Animated.View
         style={[
@@ -102,6 +154,7 @@ export default function FloatingActionButton({
           extended && styles.extendedFab,
           { backgroundColor, transform: [{ scale }] },
           style,
+          isCoolingDown && { opacity: 0.7 },                         // ⬅️ feedback visual
         ]}
       >
         <Ionicons name={icon} size={size} color={color} />
