@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   backend:
@@ -22,6 +21,27 @@ services:
       - backend_node_modules:/app/node_modules
     restart: always
 
+
+  frontend:
+    build: ./frontend
+    container_name: uvgride-frontend
+    ports:
+      - "19000:19000"
+      - "19001:19001"
+      - "19002:19002"
+      - "8081:8081"
+    environment:
+      - EXPO_DEVTOOLS_LISTEN_ADDRESS=0.0.0.0
+      - REACT_NATIVE_PACKAGER_HOSTNAME=localhost
+    command: npx expo start --tunnel
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      - backend
+    restart: always
+
+
   database:
     image: postgres:15-alpine
     container_name: uvgride-database
@@ -36,6 +56,7 @@ services:
       - ./database/02-uvgride-script.sql:/docker-entrypoint-initdb.d/02-uvgride-script.sql
     restart: always
 
+
   pgadmin:
     image: dpage/pgadmin4
     container_name: uvgride-pgadmin
@@ -48,6 +69,8 @@ services:
       - database
     restart: always
 
+
 volumes:
   postgres_data:
   backend_node_modules:
+  frontend_node_modules:
