@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { View, StyleSheet, Text, Alert, Platform, TouchableOpacity } from "react-native";
-import MapView, { Marker, Polyline, MapPressEvent } from "react-native-maps";
+import MapView, { Marker, Polyline, MapPressEvent, Circle } from "react-native-maps";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp } from "@react-navigation/core";
@@ -20,6 +20,8 @@ import {
 
 type TravelRouteProp = RouteProp<RootStackParamList, "Travel">;
 
+type UserPos = { lat: number; lng: number; accuracy?: number | null };
+
 export default function TravelScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -29,7 +31,6 @@ export default function TravelScreen() {
 
   const STATUS_OFFSET = Platform.OS === "ios" ? 52 : 24;
 
-  // 📌 Hook que maneja toda la lógica de rutas
   const { origin, setOrigin, destination, coords, summary, loading } =
     useTravelRoute(params);
 
@@ -39,6 +40,9 @@ export default function TravelScreen() {
     latitudeDelta: 0.01,
     longitudeDelta: 0.01,
   });
+
+  const [userPos, setUserPos] = useState<UserPos | null>(null);
+  const watcherRef = useRef<Location.LocationSubscription | null>(null);
 
   const handleMapPress = (event: MapPressEvent) => {
     const { latitude, longitude } = event.nativeEvent.coordinate;
@@ -59,23 +63,61 @@ export default function TravelScreen() {
 
   const goToScheduledList = () => navigation.navigate("ScheduledTripScreen");
 
-  // 📍 Botón para centrar en la ubicación del usuario
+  const ensureWatcher = async () => {
+    if (watcherRef.current) return watcherRef.current;
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permiso denegado", "Activa los permisos de ubicación para continuar.");
+      return null;
+    }
+    const sub = await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.High,
+        distanceInterval: 2,
+        timeInterval: 1000,
+      },
+      (loc) => {
+        const { latitude, longitude, accuracy } = loc.coords;
+        setUserPos({ lat: latitude, lng: longitude, accuracy });
+      }
+    );
+    watcherRef.current = sub;
+    return sub;
+  };
+
+  useEffect(() => {
+    return () => {
+      watcherRef.current?.remove();
+      watcherRef.current = null;
+    };
+  }, []);
+
   const centerOnUser = async () => {
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Permiso denegado", "Activa los permisos de ubicación para continuar.");
-        return;
-      }
-      const location = await Location.getCurrentPositionAsync({});
-      const userRegion = {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
+      const sub = await ensureWatcher();
+      if (!sub) return;
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      const {
+        latitude,
+        longitude,
+        accuracy,
+      } = location.coords;
+
+      setUserPos({ lat: latitude, lng: longitude, accuracy });
+
+      setRegion((prev) => ({
+        ...prev,
+        latitude,
+        longitude,
         latitudeDelta: 0.01,
         longitudeDelta: 0.01,
-      };
-      setRegion(userRegion);
-      setOrigin({ latitude: location.coords.latitude, longitude: location.coords.longitude });
+      }));
+
+      if (!origin) setOrigin({ latitude, longitude });
     } catch (error) {
       console.error("Error obteniendo ubicación:", error);
       Alert.alert("Error", "No se pudo obtener la ubicación.");
@@ -89,7 +131,25 @@ export default function TravelScreen() {
         region={region}
         onRegionChangeComplete={setRegion}
         onPress={handleMapPress}
+        showsCompass
       >
+
+        {userPos && (
+          <>
+            <Marker coordinate={{ latitude: userPos.lat, longitude: userPos.lng }}>
+              <BlueDot />
+            </Marker>
+            {typeof userPos.accuracy === "number" && userPos.accuracy > 0 && (
+              <Circle
+                center={{ latitude: userPos.lat, longitude: userPos.lng }}
+                radius={userPos.accuracy}
+                strokeColor="rgba(30,144,255,0.3)"
+                fillColor="rgba(30,144,255,0.15)"
+              />
+            )}
+          </>
+        )}
+
         {origin && <Marker coordinate={origin} title="Origen" />}
         {destination && (
           <Marker coordinate={destination} title="Destino" pinColor="red" />
@@ -103,7 +163,6 @@ export default function TravelScreen() {
         )}
       </MapView>
 
-      {/* Resumen de ruta */}
       {summary && (
         <RouteInfoCard
           durationSec={summary.durationSec}
@@ -119,7 +178,6 @@ export default function TravelScreen() {
         />
       )}
 
-      {/* Hint si no hay origen */}
       {!origin && (
         <View
           style={[
@@ -133,7 +191,6 @@ export default function TravelScreen() {
         </View>
       )}
 
-      {/* Botón de ubicación */}
       <TouchableOpacity
         style={[styles.locationBtn, { backgroundColor: colors.card }]}
         onPress={centerOnUser}
@@ -141,7 +198,6 @@ export default function TravelScreen() {
         <Ionicons name="locate" size={22} color={colors.primary} />
       </TouchableOpacity>
 
-      {/* Zoom controls */}
       <ZoomControls
         onZoomIn={() =>
           setRegion((prev) => ({
@@ -162,7 +218,6 @@ export default function TravelScreen() {
         style={{ position: "absolute", bottom: 40, left: 20 }}
       />
 
-      {/* FABs */}
       <FloatingActionButton
         id="navigate"
         icon="navigate"
@@ -181,7 +236,6 @@ export default function TravelScreen() {
         style={{ position: "absolute", bottom: 110, right: 20 }}
       />
 
-      {/* Loading */}
       <LoadingModal
         visible={loading}
         message="Recalculando ruta..."
@@ -190,6 +244,21 @@ export default function TravelScreen() {
         spinnerColor={colors.primary}
       />
     </View>
+  );
+}
+
+function BlueDot() {
+  return (
+    <View
+      style={{
+        width: 14,
+        height: 14,
+        borderRadius: 7,
+        backgroundColor: "#1E90FF",
+        borderWidth: 2,
+        borderColor: "#fff",
+      }}
+    />
   );
 }
 
@@ -208,7 +277,7 @@ const styles = StyleSheet.create({
   hintText: { fontSize: 14, textAlign: "center" },
   locationBtn: {
     position: "absolute",
-    bottom: 165, // ✅ justo encima del zoom
+    bottom: 165,
     left: 32,
     width: 44,
     height: 44,
