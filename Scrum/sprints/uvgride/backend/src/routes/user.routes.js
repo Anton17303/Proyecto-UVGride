@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 
 const authMiddleware = require('../controllers/auth.middleware');
-const { uploadAvatar } = require('../middleware/uploadAvatar');
+const { uploadAvatar } = require('../controllers/avatar.middleware');
 
 const {
   getUserProfile,
