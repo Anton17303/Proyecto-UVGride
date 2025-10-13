@@ -1,3 +1,4 @@
+// backend/src/models/Usuario.js
 const { DataTypes } = require("sequelize");
 const { sequelize } = require("./index");
 
@@ -63,6 +64,11 @@ const Usuario = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 0,
+    },
+    // NUEVO: URL pública del avatar (ej. "/static/avatars/uuid.jpg")
+    avatar_url: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
   },
   {

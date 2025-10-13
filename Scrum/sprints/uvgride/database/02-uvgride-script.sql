@@ -8,14 +8,16 @@ CREATE TABLE IF NOT EXISTS usuario (
   correo_institucional VARCHAR(255) UNIQUE NOT NULL,
   contrasenia VARCHAR(255) NOT NULL,
   telefono VARCHAR(20) NOT NULL,
-  tipo_usuario VARCHAR(255) NOT NULL,
+  tipo_usuario VARCHAR(255) NOT NULL, -- "Pasajero" | "Conductor"
   licencia_conducir VARCHAR(255),
   estado_disponibilidad VARCHAR(255),
   activo BOOLEAN NOT NULL DEFAULT TRUE,
   preferencia_tema VARCHAR(10) DEFAULT 'light',
   calif_conductor_avg NUMERIC(3,2) NOT NULL DEFAULT 0,
-  calif_conductor_count INTEGER NOT NULL DEFAULT 0
+  calif_conductor_count INTEGER NOT NULL DEFAULT 0,
+  avatar_url VARCHAR(255)  -- <--- NUEVO: ruta pública del avatar (puede ser NULL)
 );
+
 
 -- =========================================
 --  VEHÍCULO
