@@ -14,6 +14,7 @@ import ScheduledTripScreen from '../screens/ScheduledTripScreen';
 import DriverProfileScreen from '../screens/DriverProfileScreen';
 import GroupCreateScreen from '../screens/GroupCreateScreen';
 import PaymentScreen from '../screens/PaymentScreen';
+import EditProfileScreen from '../screens/EditProfileScreen';
 import GroupDetailScreen from '../screens/GroupDetailScreen';
 import { useUser } from '../context/UserContext';
 import { RootStackParamList } from './type';
@@ -44,6 +45,7 @@ export default function RootStack() {
           <Stack.Screen name="GroupCreate" component={GroupCreateScreen} />
           <Stack.Screen name="DriverProfile" component={DriverProfileScreen} />
           <Stack.Screen name="Payment" component={PaymentScreen} />
+          <Stack.Screen name="EditProfile" component={EditProfileScreen} />
 
           {/* Detalle del grupo con header oculto */}
           <Stack.Screen

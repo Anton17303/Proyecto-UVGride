@@ -13,6 +13,7 @@ export type RootStackParamList = {
   Favorite: undefined;
   AddFavorite: undefined;
   VehicleForm: undefined;
+  EditProfile: undefined;
 
   // Viajes
   Travel:

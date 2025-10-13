@@ -17,6 +17,7 @@ import PaymentScreen from '../screens/PaymentScreen';
 import GroupCreateScreen from '../screens/GroupCreateScreen';
 import GroupDetailScreen from '../screens/GroupDetailScreen';
 import DriverProfileScreen from '../screens/DriverProfileScreen';
+import EditProfileScreen from '../screens/EditProfileScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -38,6 +39,8 @@ export default function Navigation() {
       {/* Favoritos */}
       <Stack.Screen name="Favorite" component={FavoriteScreen} />
       <Stack.Screen name="AddFavorite" component={AddFavoriteScreen} />
+
+      <Stack.Screen name="EditProfile" component={EditProfileScreen} />
 
       {/* Vehículos */}
       <Stack.Screen name="VehicleForm" component={VehicleFormScreen} />
