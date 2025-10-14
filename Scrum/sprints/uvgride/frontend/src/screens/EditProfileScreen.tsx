@@ -21,7 +21,7 @@ import { API_URL } from "../services/api";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
-import { PrimaryButton, AnimatedInput } from "../components/index";
+import { PrimaryButton, AnimatedInput } from "../components";
 
 type RootStackParamList = {
   Profile: undefined;
@@ -40,36 +40,57 @@ export default function EditProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
 
+  // ---------------- Form local ----------------
   const [nombre, setNombre] = useState(user?.name || "");
   const [apellido, setApellido] = useState(user?.lastName || "");
   const [telefono, setTelefono] = useState(user?.telefono || "");
 
-  // Evita que hidrataciones posteriores pisen lo que el usuario ya escribió
+  // valores iniciales para detectar cambios
+  const initialRef = useRef({
+    nombre: user?.name || "",
+    apellido: user?.lastName || "",
+    telefono: user?.telefono || "",
+    photo: user?.photo || null,
+  });
+
+  // touched evita que el fetch pise lo escrito
   const touched = useRef(false);
   const onChangeNombre = (v: string) => { touched.current = true; setNombre(v); };
   const onChangeApellido = (v: string) => { touched.current = true; setApellido(v); };
   const onChangeTelefono = (v: string) => { touched.current = true; setTelefono(v); };
 
-  // Evitar múltiples fetch por StrictMode / re-renders
-  const didFetch = useRef(false);
+  // deshabilitar "Guardar" si no hay cambios
+  const dirty =
+    nombre.trim() !== (initialRef.current.nombre ?? "") ||
+    apellido.trim() !== (initialRef.current.apellido ?? "") ||
+    telefono.trim() !== (initialRef.current.telefono ?? "");
 
-  // Base para archivos estáticos (si API_URL termina en /api, se lo quitamos)
+  // ---------------- Helpers ----------------
+  // base para archivos estáticos (si API_URL termina en /api, se lo quitamos)
   const baseURL = useMemo(
     () => (API_URL.endsWith("/api") ? API_URL.slice(0, -4) : API_URL),
     []
   );
-  const avatarUri = user?.photo ?? "https://placehold.co/120x120";
+  const avatarUri = user?.photo ?? "https://placehold.co/200x200?text=Avatar";
 
-  // Auth temporal sin JWT: enviaremos x-user-id con el id del contexto
+  // Auth DEV sin JWT: header x-user-id
   const authHeaders = useMemo(
     () => (user?.id ? { "x-user-id": String(user.id) } : {}),
     [user?.id]
   );
 
-  // Cargar perfil desde backend SOLO una vez; si el usuario ya tocó, no pisar inputs
+  // fetch una sola vez (StrictMode safe)
+  const didFetch = useRef(false);
+
   useEffect(() => {
-    if (!user?.id) { setLoading(false); return; }
-    if (didFetch.current) { setLoading(false); return; }
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+    if (didFetch.current) {
+      setLoading(false);
+      return;
+    }
     didFetch.current = true;
 
     let mounted = true;
@@ -81,29 +102,42 @@ export default function EditProfileScreen() {
         if (!mounted) return;
 
         setUserFromBackend(data); // sincroniza contexto
-
         if (!touched.current) {
           setNombre(String(data.nombre ?? ""));
           setApellido(String(data.apellido ?? ""));
           setTelefono(String(data.telefono ?? ""));
+          initialRef.current = {
+            nombre: String(data.nombre ?? ""),
+            apellido: String(data.apellido ?? ""),
+            telefono: String(data.telefono ?? ""),
+            photo: user?.photo ?? null,
+          };
         }
       } catch (e: any) {
-        console.warn(
-          "No se pudo refrescar el perfil, usando contexto:",
-          e?.response?.data || e?.message
-        );
+        console.warn("No se pudo refrescar el perfil, usando contexto:", e?.response?.data || e?.message);
+        // aun así setea initial con lo que tenga el contexto
+        initialRef.current = {
+          nombre: user?.name || "",
+          apellido: user?.lastName || "",
+          telefono: user?.telefono || "",
+          photo: user?.photo || null,
+        };
       } finally {
         if (mounted) setLoading(false);
       }
     })();
 
     return () => { mounted = false; };
-    // Solo depende de la presencia del id para correr una vez
-  }, [user?.id]); 
+  }, [user?.id]); // solo depende del id
 
+  // ---------------- Actions ----------------
   async function onSave() {
     if (!nombre?.trim() || !apellido?.trim() || !telefono?.trim()) {
       Alert.alert("Campos requeridos", "Nombre, apellido y teléfono son obligatorios.");
+      return;
+    }
+    if (!dirty) {
+      Alert.alert("Sin cambios", "No hay nada que guardar.");
       return;
     }
     try {
@@ -117,8 +151,15 @@ export default function EditProfileScreen() {
         },
         { headers: authHeaders }
       );
-      // data.user es el usuario actualizado
+      // usuario actualizado (sin contrasenia)
       setUserFromBackend(data.user);
+      // actualiza baseline para dirty-check
+      initialRef.current = {
+        ...initialRef.current,
+        nombre: nombre.trim(),
+        apellido: apellido.trim(),
+        telefono: telefono.trim(),
+      };
       Alert.alert("Listo", "Perfil actualizado correctamente.", [
         { text: "OK", onPress: () => navigation.goBack() },
       ]);
@@ -130,41 +171,50 @@ export default function EditProfileScreen() {
     }
   }
 
+  // Picker robusto: intenta abrir directo; si hay error/permiso, pide y reintenta 1 vez.
   async function onPickAvatar() {
-    // 1) Permisos
-    const current = await ImagePicker.getMediaLibraryPermissionsAsync();
-    let perm = current;
-    if (!current.granted) {
-      perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    }
-    if (!perm.granted) {
-      Alert.alert(
-        "Permiso requerido",
-        "Necesitamos acceso a tu galería para elegir tu foto de perfil.",
-        [
-          { text: "Cancelar", style: "cancel" },
-          { text: "Abrir Ajustes", onPress: () => ImagePicker.openSettings() },
-        ]
-      );
-      return;
-    }
+    try {
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaType.Images,
+        quality: 0.9,
+        allowsEditing: true,
+        aspect: [1, 1],
+        allowsMultipleSelection: false,
+        exif: false,
+      });
+      if (res.canceled || !res.assets?.[0]?.uri) return;
 
-    // 2) Abrir galería
-    const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaType.Images,
-      quality: 0.85,
-      allowsEditing: false,
-      selectionLimit: 1,
-      exif: false,
-    });
-    if (res.canceled || !res.assets?.[0]?.uri) return;
+      await uploadAvatar(res.assets[0].uri);
+    } catch (_err) {
+      // si falla por permisos, los pedimos y reintentamos
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(
+          "Permiso requerido",
+          "Activa el acceso a la galería para elegir tu foto de perfil.",
+          [{ text: "Abrir Ajustes", onPress: () => ImagePicker.openSettings() }, { text: "Cancelar", style: "cancel" }]
+        );
+        return;
+      }
+      const res2 = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaType.Images,
+        quality: 0.9,
+        allowsEditing: true,
+        aspect: [1, 1],
+        allowsMultipleSelection: false,
+        exif: false,
+      });
+      if (res2.canceled || !res2.assets?.[0]?.uri) return;
+      await uploadAvatar(res2.assets[0].uri);
+    }
+  }
 
-    // 3) Subir archivo
+  async function uploadAvatar(uri: string) {
     try {
       setUploading(true);
       const form = new FormData();
       form.append("avatar", {
-        uri: res.assets[0].uri,
+        uri,
         name: "avatar.jpg",
         type: "image/jpeg",
       } as any);
@@ -176,6 +226,9 @@ export default function EditProfileScreen() {
       const absolute = data?.avatar_url ? `${baseURL}${data.avatar_url}` : null;
       mergeUser({ photo: absolute, photoPath: data?.avatar_url ?? null });
 
+      // marcar dirty falso para foto (no afecta inputs)
+      initialRef.current.photo = absolute;
+
       Alert.alert("Listo", "Foto de perfil actualizada.");
     } catch (e: any) {
       console.error(e);
@@ -185,6 +238,7 @@ export default function EditProfileScreen() {
     }
   }
 
+  // ---------------- Render ----------------
   if (loading) {
     return (
       <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
@@ -203,21 +257,26 @@ export default function EditProfileScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <Text style={[styles.title, { color: colors.primary }]}>Editar Perfil</Text>
-        <Text style={[styles.subtitle, { color: colors.text }]}>
-          Actualiza tu información
-        </Text>
+        <Text style={[styles.subtitle, { color: colors.text }]}>Actualiza tu información</Text>
 
         {/* Avatar */}
         <View style={styles.avatarWrap}>
-          <TouchableOpacity onPress={onPickAvatar} style={styles.avatarButton}>
-            <Image source={{ uri: avatarUri }} style={styles.avatar} />
+          <TouchableOpacity onPress={onPickAvatar} style={styles.avatarButton} activeOpacity={0.8}>
+            <View style={styles.avatarShadow}>
+              <Image source={{ uri: avatarUri }} style={styles.avatar} />
+              {uploading && (
+                <View style={styles.avatarOverlay}>
+                  <ActivityIndicator color="#fff" />
+                </View>
+              )}
+            </View>
             <Text style={[styles.changePhoto, { color: colors.primary }]}>
               {uploading ? "Subiendo…" : "Cambiar foto"}
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Inputs (con touched) */}
+        {/* Inputs */}
         <AnimatedInput
           placeholder="Nombre"
           value={nombre}
@@ -250,34 +309,43 @@ export default function EditProfileScreen() {
           title={saving ? "Guardando…" : "Guardar cambios"}
           onPress={onSave}
           loading={saving}
-          color={colors.primary}
+          color={dirty ? colors.primary : "#9e9e9e"}
+          disabled={!dirty || saving}
         />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
+const AVATAR_SIZE = 132;
+
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   container: { flex: 1, padding: 24, justifyContent: "center" },
-  title: {
-    fontSize: 28,
-    fontWeight: "800",
-    textAlign: "center",
-    marginBottom: 6,
-  },
-  subtitle: {
-    fontSize: 14,
-    textAlign: "center",
-    marginBottom: 18,
-    opacity: 0.75,
-  },
-  avatarWrap: {
-    alignItems: "center",
-    marginBottom: 16,
-  },
+  title: { fontSize: 28, fontWeight: "800", textAlign: "center", marginBottom: 6 },
+  subtitle: { fontSize: 14, textAlign: "center", marginBottom: 18, opacity: 0.75 },
+
+  avatarWrap: { alignItems: "center", marginBottom: 16 },
   avatarButton: { alignItems: "center" },
-  avatar: { width: 120, height: 120, borderRadius: 60, marginBottom: 8 },
-  changePhoto: { fontWeight: "700" },
+  avatarShadow: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
+    overflow: "hidden",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+  },
+  avatar: { width: "100%", height: "100%" },
+  avatarOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  changePhoto: { fontWeight: "700", marginTop: 10 },
+
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
 });

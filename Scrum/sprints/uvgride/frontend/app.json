@@ -13,7 +13,12 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist":{
+        "NSPhotoLibraryUsageDescription": "Necesitamos acceso a tu galería para elegir tu foto de perfil.",
+        "NSCameraUsageDescription": "Necesitamos acceso a la cámara si tomas una foto nueva.",
+        "NSLocationWhenInUseUsageDescription": "Necesitamos acceso a tu ubicación para mostrarla en el mapa."
+      }
     },
     "android": {
       "adaptiveIcon": {
