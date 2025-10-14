@@ -1,10 +1,14 @@
+// src/hooks/useTravelRoute.ts
 import { useState, useEffect } from "react";
 import { Alert } from "react-native";
 import * as Location from "expo-location";
 import axios from "axios";
+import { useStreak } from "../hooks/useStreak";
 
 const OPENROUTESERVICE_API_KEY =
   "5b3ce3597851110001cf62486825133970f449ebbc374649ee03b5eb";
+
+type LatLng = { latitude: number; longitude: number };
 
 export function useTravelRoute(params?: {
   latitude?: number;
@@ -12,14 +16,15 @@ export function useTravelRoute(params?: {
   destinationLatitude?: number;
   destinationLongitude?: number;
 }) {
-  const [origin, setOrigin] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [destination, setDestination] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [coords, setCoords] = useState<{ latitude: number; longitude: number }[]>([]);
+  const [origin, setOrigin] = useState<LatLng | null>(null);
+  const [destination, setDestination] = useState<LatLng | null>(null);
+  const [coords, setCoords] = useState<LatLng[]>([]);
   const [summary, setSummary] = useState<{ durationSec: number; distanceKm: number } | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // 📍 Pedir ubicación actual
-  const requestUserLocation = async () => {
+  const { registerCreation } = useStreak();
+
+  const requestUserLocation = async (): Promise<LatLng | null> => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
@@ -35,26 +40,25 @@ export function useTravelRoute(params?: {
     }
   };
 
-  // 🚗 Dibujar ruta
-  const drawRoute = async (
-    origin: { latitude: number; longitude: number },
-    destination: { latitude: number; longitude: number }
-  ) => {
+  const drawRoute = async (o: LatLng, d: LatLng) => {
     try {
       setLoading(true);
+
       const res = await axios.post(
         "https://api.openrouteservice.org/v2/directions/driving-car/geojson",
-        { coordinates: [[origin.longitude, origin.latitude], [destination.longitude, destination.latitude]] },
+        { coordinates: [[o.longitude, o.latitude], [d.longitude, d.latitude]] },
         { headers: { Authorization: OPENROUTESERVICE_API_KEY, "Content-Type": "application/json" } }
       );
 
       const feature = res.data?.features?.[0];
-      const coords = feature.geometry.coordinates.map(([lng, lat]: [number, number]) => ({
-        latitude: lat,
-        longitude: lng,
-      }));
+      if (!feature?.geometry?.coordinates?.length) {
+        throw new Error("Sin geometría de ruta");
+      }
 
-      setCoords(coords);
+      const poly: LatLng[] = feature.geometry.coordinates.map(
+        ([lng, lat]: [number, number]) => ({ latitude: lat, longitude: lng })
+      );
+      setCoords(poly);
 
       const sum = feature?.properties?.summary;
       if (sum) {
@@ -65,16 +69,18 @@ export function useTravelRoute(params?: {
       } else {
         setSummary(null);
       }
+
+      await registerCreation();
     } catch (error) {
       console.error("Error al obtener la ruta:", error);
       Alert.alert("Error", "No se pudo calcular la ruta");
       setSummary(null);
+      setCoords([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // ⚡ Setup inicial
   useEffect(() => {
     const setup = async () => {
       if (
@@ -83,14 +89,17 @@ export function useTravelRoute(params?: {
         params?.destinationLatitude &&
         params?.destinationLongitude
       ) {
-        const originData = { latitude: params.latitude, longitude: params.longitude };
-        const destData = { latitude: params.destinationLatitude, longitude: params.destinationLongitude };
-        setOrigin(originData);
-        setDestination(destData);
-        await drawRoute(originData, destData);
-      } else if (!params?.latitude || !params?.longitude) {
-        const location = await requestUserLocation();
-        if (location) setOrigin(location);
+        const o = { latitude: params.latitude, longitude: params.longitude };
+        const d = { latitude: params.destinationLatitude, longitude: params.destinationLongitude };
+        setOrigin(o);
+        setDestination(d);
+        await drawRoute(o, d);
+        return;
+      }
+
+      if (!params?.latitude || !params?.longitude) {
+        const loc = await requestUserLocation();
+        if (loc) setOrigin(loc);
       }
     };
     setup();

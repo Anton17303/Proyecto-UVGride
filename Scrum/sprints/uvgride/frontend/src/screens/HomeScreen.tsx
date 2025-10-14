@@ -1,3 +1,4 @@
+// src/screens/HomeScreen.tsx
 import React, { useCallback, useState } from "react";
 import {
   View,
@@ -18,6 +19,8 @@ import TripCard from "../components/TripCard";
 import EmptyState from "../components/EmptyState";
 import FloatingActionButton from "../components/FloatingActionButton";
 
+import { useStreak } from "../hooks/useStreak";
+
 export default function HomeScreen() {
   const navigation = useNavigation();
   const { user } = useUser();
@@ -25,6 +28,8 @@ export default function HomeScreen() {
   const colors = theme === "light" ? lightColors : darkColors;
 
   const [trips, setTrips] = useState<any[]>([]);
+
+  const { ready, current, best } = useStreak();
 
   const fetchTrips = async () => {
     if (!user?.id) return;
@@ -67,15 +72,31 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={styles.container}>
-        {/* Header */}
         <Text style={[styles.title, { color: colors.text }]}>
           Bienvenido, {user?.name || "Usuario"}
         </Text>
+
+        {ready && (
+          <View style={[styles.streakCard, { backgroundColor: colors.primary }]}>
+            <Text style={styles.streakEmoji}>🔥</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.streakTitle, { color: "#fff" }]}>Tu racha</Text>
+              <Text style={[styles.streakValue, { color: "#fff" }]}>
+                {current > 0
+                  ? `${current} ${current === 1 ? "día" : "días"} seguidos`
+                  : "Aún no tienes racha"}
+              </Text>
+              <Text style={[styles.streakSub, { color: "#fff" }]}>
+                Mejor: {best}
+              </Text>
+            </View>
+          </View>
+        )}
+
         <Text style={[styles.subtitle, { color: colors.primary }]}>
           Tu historial de viajes
         </Text>
 
-        {/* Lista de viajes */}
         <FlatList
           data={trips}
           keyExtractor={(item) => item.id_viaje_maestro.toString()}
@@ -95,7 +116,9 @@ export default function HomeScreen() {
             <EmptyState
               icon="car-outline"
               title="Aún no tienes viajes"
-              subtitle={"Empieza creando tu primer viaje desde el mapa.\n¡Haz tu trayecto más fácil con UVGride!"}
+              subtitle={
+                "Empieza creando tu primer viaje desde el mapa.\n¡Haz tu trayecto más fácil con UVGride!"
+              }
               color={colors.primary}
               textColor={colors.text}
             />
@@ -103,7 +126,6 @@ export default function HomeScreen() {
           contentContainerStyle={{ paddingBottom: 100 }}
         />
 
-        {/* FAB de favoritos */}
         <FloatingActionButton
           icon="star-outline"
           label="Lugares Favoritos"
@@ -119,5 +141,21 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20, paddingTop: 10 },
   title: { fontSize: 28, fontWeight: "700", marginBottom: 4 },
-  subtitle: { fontSize: 16, marginBottom: 20, fontWeight: "500" },
+  subtitle: { fontSize: 16, marginTop: 16, marginBottom: 12, fontWeight: "500" },
+
+  streakCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    borderRadius: 14,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+  },
+  streakEmoji: { fontSize: 26, marginRight: 10, color: "#fff" },
+  streakTitle: { fontSize: 14, fontWeight: "700", opacity: 0.95 },
+  streakValue: { fontSize: 18, fontWeight: "900", marginTop: 2 },
+  streakSub: { fontSize: 12, opacity: 0.9, marginTop: 2 },
 });
