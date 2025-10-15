@@ -1,4 +1,3 @@
-// src/screens/HomeScreen.tsx
 import React, { useCallback, useState } from "react";
 import {
   View,
@@ -7,6 +6,7 @@ import {
   FlatList,
   Alert,
   SafeAreaView,
+  RefreshControl,
 } from "react-native";
 import axios from "axios";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -28,8 +28,10 @@ export default function HomeScreen() {
   const colors = theme === "light" ? lightColors : darkColors;
 
   const [trips, setTrips] = useState<any[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const { ready, current, best } = useStreak();
+  // 🔥 Racha
+  const { ready, current, best, refresh } = useStreak();
 
   const fetchTrips = async () => {
     if (!user?.id) return;
@@ -42,7 +44,22 @@ export default function HomeScreen() {
     }
   };
 
-  useFocusEffect(useCallback(() => { fetchTrips(); }, [user?.id]));
+  // Al enfocar la pantalla: refrescar viajes y racha
+  useFocusEffect(
+    useCallback(() => {
+      fetchTrips();
+      refresh(); // 👈 actualiza la racha desde AsyncStorage
+    }, [user?.id, refresh])
+  );
+
+  const onPullRefresh = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      await Promise.all([fetchTrips(), refresh()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refresh, user?.id]);
 
   const handleRepeatTrip = (trip: any) => {
     if (!trip.destino) {
@@ -76,6 +93,7 @@ export default function HomeScreen() {
           Bienvenido, {user?.name || "Usuario"}
         </Text>
 
+        {/* 🔥 Widget Racha */}
         {ready && (
           <View style={[styles.streakCard, { backgroundColor: colors.primary }]}>
             <Text style={styles.streakEmoji}>🔥</Text>
@@ -121,6 +139,13 @@ export default function HomeScreen() {
               }
               color={colors.primary}
               textColor={colors.text}
+            />
+          }
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onPullRefresh}
+              tintColor={colors.primary}
             />
           }
           contentContainerStyle={{ paddingBottom: 100 }}
