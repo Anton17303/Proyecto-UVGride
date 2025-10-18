@@ -8,8 +8,10 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "test": "jest --runInBand",
-    "stress": "node test/stress/backend-stress.js",
-    "test:unit": "jest --runInBand --verbose --testMatch \"**/*.unit.test.js\""
+    "stress": "node test/stress/backend_stress.js",
+    "volume": "node test/stress/backend_volume.js",
+    "test:unit": "jest --runInBand --verbose --testMatch \"**/*.unit.test.js\"",
+    "test:security": "jest --runInBand --verbose --testMatch \"**/*.security.test.js\""
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
