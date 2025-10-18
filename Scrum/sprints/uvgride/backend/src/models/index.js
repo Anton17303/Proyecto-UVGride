@@ -27,6 +27,8 @@ const Usuario = require('./Usuario');
 const Vehiculo = require('./Vehiculo');
 const GrupoViaje = require('./GrupoViaje');
 const GrupoMiembro = require('./GrupoMiembro');
+// const Logro = require('./Logro');
+// const UsuarioLogro = require('./UsuarioLogro');
 
 /* ======================= Modelos opcionales ======================= */
 let Viaje = null;
@@ -53,6 +55,11 @@ try {
 }
 
 /* ======================= Asociaciones explícitas ======================= */
+// Logros
+// Logro.hasMany(UsuarioLogro, { foreignKey: 'id_logro', as: 'usuarios' });
+// UsuarioLogro.belongsTo(Logro, { foreignKey: 'id_logro', as: 'logro' });
+
+
 // Usuario ↔ Vehiculo
 Usuario.hasMany(Vehiculo, {
   foreignKey: 'id_usuario',
@@ -114,6 +121,10 @@ Usuario.hasMany(GrupoMiembro, {
 });
 
 /* ======================= Registrar modelos y associate() ======================= */
+// const { Usuario } = module.exports; // ya exportado abajo
+// Usuario.hasMany(UsuarioLogro, { foreignKey: 'id_usuario', as: 'logros' });
+// UsuarioLogro.belongsTo(Usuario, { foreignKey: 'id_usuario', as: 'usuario' });
+
 const models = {
   Usuario,
   Vehiculo,
@@ -147,6 +158,8 @@ if (Viaje) module.exports.Viaje = Viaje;
 if (ViajePasajero) module.exports.ViajePasajero = ViajePasajero;
 if (ConductorRating) module.exports.ConductorRating = ConductorRating;
 module.exports.Op = Op;
+// module.exports.Logro = Logro;
+// module.exports.UsuarioLogro = UsuarioLogro;
 
 /* ======================= Init DB ======================= */
 module.exports.initDB = async () => {
