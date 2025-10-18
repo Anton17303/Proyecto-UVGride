@@ -72,8 +72,6 @@ const pagoRoutes     = tryRequire('pagos',     './routes/pago.routes');
 const driverRoutes   = tryRequire('driver',    './routes/driver.routes'); // incluye /conductores y ratings simples
 const grupoRoutes    = tryRequire('grupos',    './routes/grupo.routes');
 const userRoutes     = tryRequire('usuarios',  './routes/user.routes');   // <-- NUEVO: perfil (me, avatar, etc.)
-// const logroRoutes    = tryRequire('logros', './routes/logro.routes');
-
 
 /* ---------- Mount ---------- */
 app.use('/api/auth',       authRoutes);
@@ -85,8 +83,6 @@ app.use('/api/pagos',      pagoRoutes);
 app.use('/api',            driverRoutes); // /api/conductores..., /api/conductores/:id/calificar, etc.
 app.use('/api/grupos',     grupoRoutes);
 app.use('/api/users',      userRoutes);   // <-- NUEVO
-// app.use('/api/logros', logroRoutes);
-
 
 /* ---------- Health & root ---------- */
 app.get('/health', (_req, res) => {
@@ -95,6 +91,7 @@ app.get('/health', (_req, res) => {
 
 app.get('/', (_req, res) => {
   res.send('API funcionando ✅');
+
 });
 
 /* ---------- 404 ---------- */
@@ -120,22 +117,24 @@ app.use((err, _req, res, _next) => {
 });
 
 /* ---------- Levantar servidor tras init DB ---------- */
-(async () => {
-  try {
-    await initDB();
-    app.listen(port, () => {
-      console.log(`🚀 Servidor corriendo en http://localhost:${port}`);
-      if (allowedOrigins && allowedOrigins.length) {
-        console.log(`🌐 CORS permitido para: ${allowedOrigins.join(', ')}`);
-      } else {
-        console.log('🌐 CORS origin reflejado (dev friendly)');
-      }
-      console.log(`🖼️  Avatares servidos desde /static/avatars (dir: ${AVATARS_DIR})`);
-    });
-  } catch (err) {
-    console.error('❌ No se pudo iniciar el servidor por fallo de DB:', err);
-    process.exit(1);
-  }
-})();
+if (process.env.NODE_ENV !== 'test') {
+  (async () => {
+    try {
+      await initDB();
+      app.listen(port, () => {
+        console.log(`🚀 Servidor corriendo en http://localhost:${port}`);
+        if (allowedOrigins && allowedOrigins.length) {
+          console.log(`🌐 CORS permitido para: ${allowedOrigins.join(', ')}`);
+        } else {
+          console.log('🌐 CORS origin reflejado (dev friendly)');
+        }
+        console.log(`🖼️  Avatares servidos desde /static/avatars (dir: ${AVATARS_DIR})`);
+      });
+    } catch (err) {
+      console.error('❌ No se pudo iniciar el servidor por fallo de DB:', err);
+      process.exit(1);
+    }
+  })();
+}
 
 module.exports = app;
