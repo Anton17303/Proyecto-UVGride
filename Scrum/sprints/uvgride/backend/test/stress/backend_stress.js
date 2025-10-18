@@ -115,7 +115,44 @@ async function runScenario({ name, baseUrl, requests, durationSeconds, concurren
   });
 }
 
-async function main() {
+async function runScenario({ name, baseUrl, requests, durationSeconds, concurrency }) {
+
+  const scenarios = [
+    {
+      name: 'Salud y rutas públicas',
+      baseUrl,
+      durationSeconds: Number(process.env.BACKEND_SMOKE_DURATION || 60),
+      concurrency: Number(process.env.BACKEND_SMOKE_CONNECTIONS || 20),
+      requests: [
+        { method: 'GET', path: '/health' },
+        { method: 'GET', path: '/api/example' },
+        { method: 'GET', path: '/api/example/test' },
+      ],
+    },
+    {
+      name: 'Listado de viajes públicos',
+      baseUrl,
+      durationSeconds: Number(process.env.BACKEND_VIAJES_DURATION || 60),
+      concurrency: Number(process.env.BACKEND_VIAJES_CONNECTIONS || 30),
+      requests: [
+        { method: 'GET', path: '/api/viajes' },
+        { method: 'GET', path: '/api/viajes?page=1&limit=10' },
+      ],
+    },
+  ];
+
+  await runLoadTests(scenarios);
+}
+
+async function runLoadTests(scenarios) {
+  for (const scenario of scenarios) {
+    await runScenario(scenario);
+  }
+
+  console.log('\n🏁 Pruebas de estrés finalizadas.');
+}
+
+async function runStressMain() {
   const baseUrl = process.env.BACKEND_BASE_URL || 'http://localhost:3001';
   console.log('🏁 Iniciando pruebas de estrés para el backend');
   console.log(`   Base URL: ${baseUrl}`);
@@ -144,18 +181,19 @@ async function main() {
     },
   ];
 
-  for (const scenario of scenarios) {
-    await runScenario(scenario);
-  }
-
-  console.log('\n🏁 Pruebas de estrés finalizadas.');
+  await runLoadTests(scenarios);
 }
 
 if (require.main === module) {
-  main().catch((err) => {
+  runStressMain().catch((err) => {
     console.error('❌ Error durante las pruebas de estrés:', err);
     process.exitCode = 1;
   });
 }
 
-module.exports = { main };
+module.exports = {
+  runScenario,
+  runLoadTests,
+  runStressMain,
+  main: runStressMain,
+};
