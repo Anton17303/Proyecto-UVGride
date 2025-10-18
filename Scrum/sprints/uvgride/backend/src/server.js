@@ -72,6 +72,8 @@ const pagoRoutes     = tryRequire('pagos',     './routes/pago.routes');
 const driverRoutes   = tryRequire('driver',    './routes/driver.routes'); // incluye /conductores y ratings simples
 const grupoRoutes    = tryRequire('grupos',    './routes/grupo.routes');
 const userRoutes     = tryRequire('usuarios',  './routes/user.routes');   // <-- NUEVO: perfil (me, avatar, etc.)
+// const logroRoutes    = tryRequire('logros', './routes/logro.routes');
+
 
 /* ---------- Mount ---------- */
 app.use('/api/auth',       authRoutes);
@@ -83,6 +85,8 @@ app.use('/api/pagos',      pagoRoutes);
 app.use('/api',            driverRoutes); // /api/conductores..., /api/conductores/:id/calificar, etc.
 app.use('/api/grupos',     grupoRoutes);
 app.use('/api/users',      userRoutes);   // <-- NUEVO
+// app.use('/api/logros', logroRoutes);
+
 
 /* ---------- Health & root ---------- */
 app.get('/health', (_req, res) => {
