@@ -1,4 +1,3 @@
-// src/screens/PassengerScreen.tsx
 import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
@@ -10,6 +9,7 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Alert,
+  TextInput,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -23,8 +23,11 @@ import { useUser } from "../context/UserContext";
 import { EmptyState } from "../components";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
+
 type EstadoFilter = "todos" | "abierto" | "cerrado" | "cancelado" | "finalizado";
 type CupoFilter = "cualquiera" | "con" | "sin";
+type FechaFilter = "todos" | "hoy" | "24h" | "semana";
+type PrecioFilter = "cualquiera" | "lte20" | "21a50" | "gt50";
 
 const ESTADO_OPTIONS: { label: string; value: EstadoFilter }[] = [
   { label: "Todos", value: "todos" },
@@ -40,6 +43,20 @@ const CUPO_OPTIONS: { label: string; value: CupoFilter }[] = [
   { label: "Sin cupos", value: "sin" },
 ];
 
+const FECHA_OPTIONS: { label: string; value: FechaFilter }[] = [
+  { label: "Todos", value: "todos" },
+  { label: "Hoy", value: "hoy" },
+  { label: "24h", value: "24h" },
+  { label: "Semana", value: "semana" },
+];
+
+const PRECIO_OPTIONS: { label: string; value: PrecioFilter }[] = [
+  { label: "Cualquiera", value: "cualquiera" },
+  { label: "≤ Q20", value: "lte20" },
+  { label: "Q21–50", value: "21a50" },
+  { label: "> Q50", value: "gt50" },
+];
+
 export default function PassengerScreen() {
   const navigation = useNavigation<Nav>();
   const { theme } = useTheme();
@@ -53,6 +70,12 @@ export default function PassengerScreen() {
 
   const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("todos");
   const [cupoFilter, setCupoFilter] = useState<CupoFilter>("cualquiera");
+  const [fechaFilter, setFechaFilter] = useState<FechaFilter>("todos");
+  const [precioFilter, setPrecioFilter] = useState<PrecioFilter>("cualquiera");
+
+  // Búsqueda
+  const [searchActive, setSearchActive] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const fetchData = useCallback(async () => {
     try {
@@ -85,7 +108,7 @@ export default function PassengerScreen() {
       if (joiningId) return;
       setJoiningId(id);
 
-      // actualización optimista
+      // actualización optimista (ajusta cupos_usados para reflejarse en getCuposDisp)
       setGrupos((prev) =>
         prev.map((g) =>
           g.id_grupo !== id
@@ -93,6 +116,8 @@ export default function PassengerScreen() {
             : {
                 ...g,
                 es_miembro: true,
+                cupos_usados:
+                  g.cupos_usados != null ? Number(g.cupos_usados) + 1 : (g.cupos_usados as any),
                 cupos_disponibles: Math.max(
                   (g.cupos_disponibles ?? g.capacidad_total ?? 0) - 1,
                   0
@@ -126,6 +151,55 @@ export default function PassengerScreen() {
     return Math.max(0, total - usados);
   };
 
+  // Helpers de filtros
+  const isInFechaFilter = (dateISO?: string | null, f: FechaFilter = "todos") => {
+    if (!dateISO || f === "todos") return true;
+    const now = new Date();
+    const d = new Date(dateISO);
+
+    switch (f) {
+      case "hoy": {
+        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const end = new Date(start);
+        end.setDate(end.getDate() + 1);
+        return d >= start && d < end;
+      }
+      case "24h": {
+        const end = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+        return d >= now && d <= end;
+      }
+      case "semana": {
+        const end = new Date(now);
+        end.setDate(end.getDate() + 7);
+        return d >= now && d <= end;
+      }
+      default:
+        return true;
+    }
+  };
+
+  const isInPrecioFilter = (costo?: number | null, f: PrecioFilter = "cualquiera") => {
+    if (costo == null || Number.isNaN(costo) || f === "cualquiera") return true;
+    const v = Number(costo);
+    if (f === "lte20") return v <= 20;
+    if (f === "21a50") return v >= 21 && v <= 50;
+    if (f === "gt50") return v > 50;
+    return true;
+  };
+
+  const matchesSearch = (g: Grupo, q: string) => {
+    if (!q.trim()) return true;
+    const needle = q.trim().toLowerCase();
+    const fields: (string | undefined | null)[] = [
+      g.viaje?.destino,
+      g.destino_nombre,
+      (g as any).origen_nombre,
+      g.conductor?.nombre,
+      g.conductor?.apellido,
+    ];
+    return fields.some((x) => (x ?? "").toString().toLowerCase().includes(needle));
+  };
+
   const gruposFiltrados = useMemo(() => {
     return grupos.filter((g) => {
       const okEstado = estadoFilter === "todos" ? true : g.estado === estadoFilter;
@@ -135,9 +209,18 @@ export default function PassengerScreen() {
       if (cupoFilter === "con" && disp <= 0) return false;
       if (cupoFilter === "sin" && disp > 0) return false;
 
+      const okFecha = isInFechaFilter(g.fecha_salida ?? null, fechaFilter);
+      if (!okFecha) return false;
+
+      const costo = g.costo_estimado != null ? Number(g.costo_estimado) : undefined;
+      const okPrecio = isInPrecioFilter(costo, precioFilter);
+      if (!okPrecio) return false;
+
+      if (!matchesSearch(g, searchQuery)) return false;
+
       return true;
     });
-  }, [grupos, estadoFilter, cupoFilter]);
+  }, [grupos, estadoFilter, cupoFilter, fechaFilter, precioFilter, searchQuery]);
 
   const EstadoBadge = ({ estado }: { estado: Grupo["estado"] }) => {
     const map: Record<string, string> = {
@@ -178,6 +261,14 @@ export default function PassengerScreen() {
   const cycleCupo = () => {
     const idx = CUPO_OPTIONS.findIndex((o) => o.value === cupoFilter);
     setCupoFilter(CUPO_OPTIONS[(idx + 1) % CUPO_OPTIONS.length].value);
+  };
+  const cycleFecha = () => {
+    const idx = FECHA_OPTIONS.findIndex((o) => o.value === fechaFilter);
+    setFechaFilter(FECHA_OPTIONS[(idx + 1) % FECHA_OPTIONS.length].value);
+  };
+  const cyclePrecio = () => {
+    const idx = PRECIO_OPTIONS.findIndex((o) => o.value === precioFilter);
+    setPrecioFilter(PRECIO_OPTIONS[(idx + 1) % PRECIO_OPTIONS.length].value);
   };
 
   const renderItem = ({ item }: { item: Grupo }) => {
@@ -282,33 +373,100 @@ export default function PassengerScreen() {
     );
   };
 
+  // Lógica del botón de lupa
+  const toggleSearch = () => {
+    if (searchActive) {
+      if (searchQuery.length > 0) setSearchQuery("");
+      else setSearchActive(false);
+    } else {
+      setSearchActive(true);
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <Text style={[styles.title, { color: colors.text }]}>Grupos</Text>
 
-      {/* Filtros */}
+      {/* Filtros (ordenados por prioridad) */}
       <View style={styles.toolbar}>
+        {/* 1) Búsqueda (lupa) */}
+        <TouchableOpacity
+          onPress={toggleSearch}
+          style={[styles.roundBtn, { backgroundColor: "#fff" }]}
+          accessibilityLabel={searchActive || searchQuery ? "Cerrar búsqueda" : "Buscar grupos"}
+        >
+          <Ionicons
+            name={searchActive || searchQuery ? "close-outline" : "search-outline"}
+            size={16}
+            color={colors.primary}
+          />
+        </TouchableOpacity>
+
+        {/* 2) Estado */}
         <RotatingPill
           label="Estado"
           valueLabel={ESTADO_OPTIONS.find((o) => o.value === estadoFilter)?.label ?? "Todos"}
           onPress={cycleEstado}
         />
+
+        {/* 3) Fecha */}
+        <RotatingPill
+          label="Fecha"
+          valueLabel={FECHA_OPTIONS.find((o) => o.value === fechaFilter)?.label ?? "Todos"}
+          onPress={cycleFecha}
+        />
+
+        {/* 4) Cupos */}
         <RotatingPill
           label="Cupos"
           valueLabel={CUPO_OPTIONS.find((o) => o.value === cupoFilter)?.label ?? "Cualquiera"}
           onPress={cycleCupo}
         />
+
+        {/* 5) Precio */}
+        <RotatingPill
+          label="Precio"
+          valueLabel={PRECIO_OPTIONS.find((o) => o.value === precioFilter)?.label ?? "Cualquiera"}
+          onPress={cyclePrecio}
+        />
+
+        {/* 6) Reset */}
         <TouchableOpacity
           onPress={() => {
             setEstadoFilter("todos");
             setCupoFilter("cualquiera");
+            setFechaFilter("todos");
+            setPrecioFilter("cualquiera");
+            setSearchQuery("");
+            setSearchActive(false);
           }}
-          style={styles.clearMini}
+          style={[styles.roundBtn, { backgroundColor: "#fff" }]}
+          accessibilityLabel="Restablecer filtros"
         >
           <Ionicons name="refresh-outline" size={16} color={colors.primary} />
         </TouchableOpacity>
       </View>
+
+      {/* Barra de búsqueda */}
+      {searchActive && (
+        <View style={[styles.searchBar, { borderColor: colors.primary, backgroundColor: colors.card }]}>
+          <Ionicons name="search-outline" size={16} color={colors.primary} style={{ marginRight: 6 }} />
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Buscar por destino, origen o conductor"
+            placeholderTextColor={colors.muted || "#888"}
+            style={[styles.searchInput, { color: colors.text }]}
+            returnKeyType="search"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery("")} style={styles.searchClear}>
+              <Ionicons name="close-circle" size={16} color={colors.primary} />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
       {loading ? (
         <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 30 }} />
@@ -353,8 +511,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
-    marginBottom: 12,
+    marginBottom: 8,
+    flexWrap: "wrap",
   },
+
   pill: {
     paddingVertical: 6,
     paddingHorizontal: 12,
@@ -363,11 +523,31 @@ const styles = StyleSheet.create({
   },
   pillText: { fontSize: 12, fontWeight: "700" },
 
-  clearMini: {
+  roundBtn: {
     padding: 6,
     borderRadius: 999,
     borderWidth: 1.5,
-    backgroundColor: "#fff",
+  },
+
+  // barra de búsqueda
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    marginBottom: 10,
+    alignSelf: "center",
+    minWidth: "92%",
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    paddingVertical: 4,
+  },
+  searchClear: {
+    paddingLeft: 6,
   },
 
   card: {
