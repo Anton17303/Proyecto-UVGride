@@ -2,7 +2,6 @@
 const express = require('express');
 const router = express.Router();
 const ctrl = require('../controllers/grupo.controller');
-const recurrenteRoutes = require('./recurrente.routes');
 
 /* Helpers */
 const isNilOrEmpty = (v) => v === undefined || v === null || v === '';
