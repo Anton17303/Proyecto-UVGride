@@ -1,5 +1,5 @@
 // src/screens/GroupCreateScreen.tsx
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -10,19 +10,24 @@ import {
   Platform,
   ScrollView,
   TouchableOpacity,
-  Switch, // ⬅️ NUEVO
+  Switch,
+  TextInput,
+  ActivityIndicator,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Ionicons } from "@expo/vector-icons";
 
 import { RootStackParamList } from "../navigation/type";
 import { createGroup } from "../services/groups";
+import { searchUsers, type UserLite } from "../services/users";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
 import { AnimatedInput, PrimaryButton, LinkText } from "../components";
 
+/* ---------------- Utils num ---------------- */
 function clampInt(v: number, min = 1, max = 99) {
   if (!Number.isFinite(v)) return NaN as unknown as number;
   return Math.max(min, Math.min(max, Math.trunc(v)));
@@ -37,16 +42,11 @@ function parseCurrency2dec(raw: string): number | null {
   if (!Number.isFinite(n) || n < 0) return NaN as unknown as number;
   return Math.round(n * 100) / 100;
 }
-function parseIntArrayCSV(s: string): number[] {
-  if (!s || !s.trim()) return [];
-  const parts = s.split(/[,\s]+/).map((t) => Number(t));
-  return Array.from(
-    new Set(parts.filter((n) => Number.isInteger(n) && n > 0))
-  );
-}
 
+/* ---------------- Types ---------------- */
 type Nav = NativeStackNavigationProp<RootStackParamList, "GroupCreate">;
 
+/* ======================================================================= */
 export default function GroupCreateScreen() {
   const navigation = useNavigation<Nav>();
   const { user } = useUser();
@@ -60,29 +60,30 @@ export default function GroupCreateScreen() {
   const [costo, setCosto] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // ⬇️ NUEVO: recurrente + miembros designados
+  // Recurrente + asignación por nombre
   const [esRecurrente, setEsRecurrente] = useState(false);
-  const [miembrosCSV, setMiembrosCSV] = useState("");
+  const [selectedUsers, setSelectedUsers] = useState<UserLite[]>([]);
+  const [query, setQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<UserLite[]>([]);
+  const [searching, setSearching] = useState(false);
 
-  const esConductor =
-    (user?.tipo_usuario || "").toLowerCase() === "conductor";
+  const esConductor = (user?.tipo_usuario || "").toLowerCase() === "conductor";
   const conductorId = Number(user?.id) || 0;
 
-  /* -------- Validaciones -------- */
+  /* ---------------- Validaciones ---------------- */
   const destinoErr = useMemo(
     () => (destino.trim() ? "" : "Ingresa un destino."),
     [destino]
   );
-  const nCupos = useMemo(
-    () => clampInt(Number(cupos), 1, 99),
-    [cupos]
-  );
+  const nCupos = useMemo(() => clampInt(Number(cupos), 1, 99), [cupos]);
+
   const cuposErr = useMemo(() => {
     if (cupos.trim() === "") return "Ingresa el número de cupos.";
     if (!Number.isFinite(nCupos)) return "Debe ser un entero.";
     if (nCupos <= 0) return "Debe ser un entero > 0.";
     return "";
   }, [cupos, nCupos]);
+
   const costoNum = useMemo(() => parseCurrency2dec(costo), [costo]);
   const costoErr = useMemo(() => {
     if (costo.trim() === "") return "";
@@ -92,24 +93,20 @@ export default function GroupCreateScreen() {
     return "";
   }, [costo, costoNum]);
 
-  // ⬇️ NUEVO: validar miembros designados (solo si es recurrente)
-  const miembrosDesignados = useMemo(() => {
-    const arr = parseIntArrayCSV(miembrosCSV).filter((id) => id !== conductorId);
-    return arr;
-  }, [miembrosCSV, conductorId]);
-
   const designadosErr = useMemo(() => {
     if (!esRecurrente) return "";
     if (!Number.isFinite(nCupos)) return "";
-    if (1 + miembrosDesignados.length > nCupos) {
-      return `Capacidad insuficiente: conductor + ${miembrosDesignados.length} designados exceden ${nCupos} cupos.`;
+    const totalOcupantes = 1 + selectedUsers.length; // conductor + designados
+    if (totalOcupantes > nCupos) {
+      return `Capacidad insuficiente: conductor + ${selectedUsers.length} designados exceden ${nCupos} cupos.`;
     }
     return "";
-  }, [esRecurrente, miembrosDesignados, nCupos]);
+  }, [esRecurrente, selectedUsers.length, nCupos]);
 
-  const isFormValid = !destinoErr && !cuposErr && !costoErr && !designadosErr;
+  const isFormValid =
+    !destinoErr && !cuposErr && !costoErr && !designadosErr && !!destino.trim();
 
-  /* -------- Helpers -------- */
+  /* ---------------- Handlers simples ---------------- */
   const setCuposMasked = (t: string) => setCupos(t.replace(/[^\d]/g, ""));
   const setCostoMasked = (t: string) => {
     let v = t.replace(/[^\d.,]/g, "");
@@ -119,10 +116,57 @@ export default function GroupCreateScreen() {
     if (dec && dec.length > 2) v = `${ent}.${dec.slice(0, 2)}`;
     setCosto(v);
   };
-  const fillNowPlus30 = () =>
-    setFecha(new Date(Date.now() + 30 * 60 * 1000));
+  const fillNowPlus30 = () => setFecha(new Date(Date.now() + 30 * 60 * 1000));
 
-  /* -------- Submit -------- */
+  /* ---------------- Búsqueda por nombre (debounced) ---------------- */
+  useEffect(() => {
+    let alive = true;
+    const term = query.trim();
+
+    if (!esRecurrente || term.length < 2) {
+      setSuggestions([]);
+      setSearching(false); // ✅ evita spinner colgado
+      return () => { alive = false; };
+    }
+
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        // ✅ Pasamos x-user-id vía opts.userId (tu middleware lo requiere)
+        const res = await searchUsers(term, 10, { userId: conductorId });
+        if (!alive) return;
+        const existingIds = new Set<number>([
+          conductorId,
+          ...selectedUsers.map((u) => u.id_usuario),
+        ]);
+        const filtered = res.filter((u) => !existingIds.has(u.id_usuario));
+        setSuggestions(filtered);
+      } catch {
+        if (alive) setSuggestions([]);
+      } finally {
+        if (alive) setSearching(false);
+      }
+    }, 300);
+
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [query, esRecurrente, conductorId, selectedUsers]);
+
+  const addUser = (u: UserLite) => {
+    if (u.id_usuario === conductorId) return;
+    if (selectedUsers.some((x) => x.id_usuario === u.id_usuario)) return;
+    setSelectedUsers((prev) => [...prev, u]);
+    setQuery("");
+    setSuggestions([]);
+  };
+
+  const removeUser = (id: number) => {
+    setSelectedUsers((prev) => prev.filter((u) => u.id_usuario !== id));
+  };
+
+  /* ---------------- Submit ---------------- */
   const onSubmit = async () => {
     if (!user?.id) return Alert.alert("Sesión", "Inicia sesión nuevamente.");
     if (!esConductor)
@@ -133,9 +177,9 @@ export default function GroupCreateScreen() {
     if (!isFormValid) {
       return Alert.alert(
         "Revisa el formulario",
-        [destinoErr, cuposErr, costoErr, designadosErr].filter(Boolean).join(
-          "\n"
-        )
+        [destinoErr, cuposErr, costoErr, designadosErr]
+          .filter(Boolean)
+          .join("\n")
       );
     }
 
@@ -147,11 +191,10 @@ export default function GroupCreateScreen() {
         cupos_totales: nCupos,
         fecha_salida: fecha ? fecha.toISOString() : undefined,
         precio_base: (costoNum ?? undefined) as number | undefined,
-        // ⬇️ NUEVO:
         es_recurrente: esRecurrente,
         miembros_designados:
-          esRecurrente && miembrosDesignados.length > 0
-            ? miembrosDesignados
+          esRecurrente && selectedUsers.length > 0
+            ? selectedUsers.map((u) => u.id_usuario)
             : undefined,
       });
       Alert.alert("Éxito", "Grupo creado.", [
@@ -160,15 +203,14 @@ export default function GroupCreateScreen() {
     } catch (e: any) {
       console.error("crear grupo error:", e?.response?.data || e?.message);
       const msg =
-        e?.response?.data?.error ||
-        e?.message ||
-        "No se pudo crear el grupo.";
+        e?.response?.data?.error || e?.message || "No se pudo crear el grupo.";
       Alert.alert("Error", String(msg));
     } finally {
       setLoading(false);
     }
   };
 
+  /* ---------------- Render ---------------- */
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
@@ -179,10 +221,7 @@ export default function GroupCreateScreen() {
           contentContainerStyle={styles.scrollContainer}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Header */}
-          <Text style={[styles.header, { color: colors.text }]}>
-            Crear grupo
-          </Text>
+          <Text style={[styles.header, { color: colors.text }]}>Crear grupo</Text>
 
           {!esConductor && (
             <Text style={[styles.note, { color: colors.text }]}>
@@ -212,7 +251,7 @@ export default function GroupCreateScreen() {
             <AnimatedInput
               placeholder="3"
               value={cupos}
-              onChangeText={setCuposMasked}
+              onChangeText={(t) => setCuposMasked(t)}
               variant="number"
               textColor={colors.text}
               borderColor={colors.border}
@@ -257,9 +296,7 @@ export default function GroupCreateScreen() {
                 onPress={fillNowPlus30}
                 style={[styles.chip, { backgroundColor: colors.card }]}
               >
-                <Text style={[styles.chipTxt, { color: colors.text }]}>
-                  +30 min
-                </Text>
+                <Text style={[styles.chipTxt, { color: colors.text }]}>+30 min</Text>
               </TouchableOpacity>
             </View>
             {showPicker && (
@@ -292,42 +329,131 @@ export default function GroupCreateScreen() {
             />
           </View>
 
-          {/* ⬇️ NUEVO: Switch de viaje recurrente */}
+          {/* Switch recurrente */}
           <View style={[styles.block, styles.rowBetween]}>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                Viaje recurrente
-              </Text>
+              <Text style={[styles.label, { color: colors.text }]}>Viaje recurrente</Text>
               <Text style={[styles.help, { color: colors.text }]}>
-                Si está activado, el grupo se crea <Text style={{fontWeight: "700"}}>cerrado</Text> y podrás
+                Si está activado, el grupo se crea <Text style={{ fontWeight: "700" }}>cerrado</Text> y podrás
                 agregar miembros designados.
               </Text>
             </View>
             <Switch
               value={esRecurrente}
-              onValueChange={setEsRecurrente}
+              onValueChange={(v) => {
+                setEsRecurrente(v);
+                if (!v) {
+                  setSelectedUsers([]);
+                  setQuery("");
+                  setSuggestions([]);
+                  setSearching(false);
+                }
+              }}
             />
           </View>
 
-          {/* ⬇️ NUEVO: Campo de miembros designados */}
+          {/* Búsqueda y selección de miembros (solo recurrente) */}
           {esRecurrente && (
             <View style={styles.block}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                Miembros designados
-              </Text>
-              <AnimatedInput
-                placeholder="102, 205, 318"
-                value={miembrosCSV}
-                onChangeText={setMiembrosCSV}
-                variant="short"
-                textColor={colors.text}
-                borderColor={colors.border}
-                color={colors.primary}
-              />
-              <Text style={[styles.help, { color: designadosErr ? colors.danger || "#d00" : colors.text }]}>
+              <Text style={[styles.label, { color: colors.text }]}>Miembros designados</Text>
+
+              {/* Chips seleccionados */}
+              {selectedUsers.length > 0 && (
+                <View style={styles.chipsWrap}>
+                  {selectedUsers.map((u) => (
+                    <View
+                      key={u.id_usuario}
+                      style={[
+                        styles.chipPill,
+                        { borderColor: colors.border, backgroundColor: colors.card },
+                      ]}
+                    >
+                      <Text style={[styles.chipPillTxt, { color: colors.text }]}>
+                        {u.nombre} {u.apellido}
+                      </Text>
+                      <TouchableOpacity onPress={() => removeUser(u.id_usuario)} style={styles.chipClose}>
+                        <Ionicons name="close" size={14} color={colors.text} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Input búsqueda */}
+              <View
+                style={[
+                  styles.searchRow,
+                  { borderColor: colors.border, backgroundColor: colors.card },
+                ]}
+              >
+                <Ionicons name="search-outline" size={16} color={colors.primary} style={{ marginRight: 6 }} />
+                <TextInput
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder="Buscar por nombre, apellido o correo"
+                  placeholderTextColor={colors.muted || "#888"}
+                  style={[styles.searchInput, { color: colors.text }]}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {searching ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : query.length > 0 ? (
+                  <TouchableOpacity onPress={() => setQuery("")}>
+                    <Ionicons name="close-circle" size={18} color={colors.primary} />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+
+              {/* Sugerencias */}
+              {esRecurrente && query.trim().length >= 2 && (
+                <View
+                  style={[
+                    styles.suggestionsBox,
+                    { borderColor: colors.border, backgroundColor: colors.card },
+                  ]}
+                >
+                  {searching ? (
+                    <View style={{ padding: 12 }}>
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    </View>
+                  ) : suggestions.length === 0 ? (
+                    <View style={{ padding: 12 }}>
+                      <Text style={{ color: colors.muted || "#777" }}>
+                        No se encontraron usuarios para “{query.trim()}”.
+                      </Text>
+                    </View>
+                  ) : (
+                    suggestions.map((u) => (
+                      <TouchableOpacity
+                        key={u.id_usuario}
+                        style={styles.suggestionItem}
+                        onPress={() => addUser(u)}
+                      >
+                        <Text style={{ color: colors.text, fontWeight: "600" }}>
+                          {u.nombre} {u.apellido}
+                        </Text>
+                        {u.correo_institucional ? (
+                          <Text style={{ color: colors.muted || "#777", fontSize: 12 }}>
+                            {u.correo_institucional}
+                          </Text>
+                        ) : null}
+                      </TouchableOpacity>
+                    ))
+                  )}
+                </View>
+              )}
+
+              {/* Ayuda / error */}
+              <Text
+                style={[
+                  styles.help,
+                  { color: designadosErr ? colors.danger || "#d00" : colors.text },
+                ]}
+              >
                 {designadosErr
                   ? designadosErr
-                  : `Se agregarán ${miembrosDesignados.length} pasajeros aprobados. La capacidad incluye al conductor.`}
+                  : `Se agregarán ${selectedUsers.length} pasajeros aprobados. La capacidad incluye al conductor.`}
               </Text>
             </View>
           )}
@@ -341,73 +467,56 @@ export default function GroupCreateScreen() {
             disabled={!isFormValid || !esConductor}
           />
 
-          <LinkText
-            text="Cancelar"
-            onPress={() => navigation.goBack()}
-            color={colors.primary}
-          />
+          <LinkText text="Cancelar" onPress={() => navigation.goBack()} color={colors.primary} />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
+/* ---------------- Styles ---------------- */
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  scrollContainer: {
-    padding: 20,
-    flexGrow: 1,
-  },
-  header: {
-    fontSize: 24,
-    fontWeight: "700",
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  note: {
-    fontSize: 13,
-    marginBottom: 16,
-    textAlign: "center",
-    opacity: 0.8,
-  },
+  scrollContainer: { padding: 20, flexGrow: 1 },
+  header: { fontSize: 24, fontWeight: "700", textAlign: "center", marginBottom: 20 },
+  note: { fontSize: 13, marginBottom: 16, textAlign: "center", opacity: 0.8 },
   block: { marginBottom: 14 },
-  label: {
-    fontSize: 14,
-    fontWeight: "500",
-    opacity: 0.7,
-    marginBottom: 6,
-  },
-  row: {
+  label: { fontSize: 14, fontWeight: "500", opacity: 0.7, marginBottom: 6 },
+  row: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
+  rowBetween: { flexDirection: "row", alignItems: "center", gap: 12, justifyContent: "space-between" },
+  pickBtn: { flex: 1, paddingVertical: 14, borderRadius: 10, borderWidth: 1, alignItems: "center" },
+  chip: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
+  chipTxt: { fontWeight: "600", fontSize: 13 },
+  help: { fontSize: 12, opacity: 0.8, marginTop: 4 },
+
+  // búsqueda y chips
+  searchRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginBottom: 8,
-  },
-  rowBetween: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    justifyContent: "space-between",
-  },
-  pickBtn: {
-    flex: 1,
-    paddingVertical: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     borderRadius: 10,
     borderWidth: 1,
-    alignItems: "center",
+    gap: 6,
   },
-  chip: {
+  searchInput: { flex: 1, fontSize: 14, paddingVertical: 2 },
+  suggestionsBox: { borderWidth: 1, borderRadius: 10, marginTop: 6, overflow: "hidden" },
+  suggestionItem: {
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#00000010",
   },
-  chipTxt: {
-    fontWeight: "600",
-    fontSize: 13,
+  chipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
+  chipPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    gap: 6,
   },
-  help: {
-    fontSize: 12,
-    opacity: 0.8,
-    marginTop: 4,
-  },
+  chipPillTxt: { fontSize: 12, fontWeight: "700" },
+  chipClose: { padding: 2 },
 });

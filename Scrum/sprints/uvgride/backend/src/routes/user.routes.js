@@ -11,11 +11,12 @@ const {
   getMe,
   updateMe,
   updateMyAvatar,
+  searchUsers, // ⬅️ usamos el controller
 } = require('../controllers/user.controller');
 
-// ========================
-// Validador/Sanitizador
-// ========================
+/* ========================
+   Validador/Sanitizador
+   ======================== */
 const ALLOWED_UPDATE_FIELDS = new Set([
   'nombre',
   'apellido',
@@ -44,7 +45,7 @@ function validateAndNormalizeUpdate(req, res, next) {
         } else {
           try {
             val = JSON.parse(trimmed);
-          } catch (e) {
+          } catch {
             return res.status(400).json({ error: 'acces_necesidades debe ser JSON válido.' });
           }
         }
@@ -56,7 +57,6 @@ function validateAndNormalizeUpdate(req, res, next) {
     }
   }
 
-  // Reglas de longitud/forma (coinciden con el modelo/DDL)
   if (typeof out.bio === 'string' && out.bio.length > 300) {
     return res.status(400).json({ error: 'La bio no puede exceder 300 caracteres.' });
   }
@@ -73,26 +73,32 @@ function validateAndNormalizeUpdate(req, res, next) {
     }
   }
 
-  // Si no hay campos permitidos, evita pasar al controller
   if (Object.keys(out).length === 0) {
     return res.status(400).json({ error: 'No hay campos permitidos para actualizar.' });
   }
 
-  // Reemplaza el body por la versión saneada
   req.body = out;
   next();
 }
 
-// ---------------------------
-// Rutas /me (antes que '/:id')
-// ---------------------------
+/* ---------------------------
+   Rutas /me (antes que '/:id')
+   --------------------------- */
 router.get('/me', authMiddleware, getMe);
 router.put('/me', authMiddleware, validateAndNormalizeUpdate, updateMe);
 router.put('/me/avatar', authMiddleware, uploadAvatar.single('avatar'), updateMyAvatar);
 
-// ---------------------------
-// Rutas por id (admin/compat)
-// ---------------------------
+/* ----------------------------------------------------
+   🔎 Búsqueda por nombre/apellido/correo (con auth)
+   GET /api/users?q=texto&limit=10
+   Alias /search para compatibilidad
+   ---------------------------------------------------- */
+router.get('/', authMiddleware, searchUsers);
+router.get('/search', authMiddleware, searchUsers);
+
+/* ---------------------------
+   Rutas por id (admin/compat)
+   --------------------------- */
 router.get('/:id', authMiddleware, getUserProfile);
 router.put('/:id', authMiddleware, validateAndNormalizeUpdate, updateUserProfile);
 
