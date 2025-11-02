@@ -4,6 +4,67 @@ const path = require("path");
 const bcrypt = require("bcryptjs");
 const Usuario = require("../models/Usuario");
 
+// Helpers
+const ALLOWED_UPDATE_FIELDS = [
+  "nombre",
+  "apellido",
+  "telefono",
+  "preferencia_tema",
+  // nuevos:
+  "bio",
+  "emerg_contacto_nombre",
+  "emerg_contacto_telefono",
+  "acces_necesidades",
+];
+
+function trimOrNull(v) {
+  if (v === undefined || v === null) return null;
+  if (typeof v !== "string") return v;
+  const t = v.trim();
+  return t.length ? t : "";
+}
+
+function parseJsonMaybe(v) {
+  if (v === undefined || v === null || v === "") return null;
+  if (typeof v === "object") return v; // ya viene como objeto
+  if (typeof v === "string") {
+    try {
+      const parsed = JSON.parse(v);
+      return parsed;
+    } catch (_) {
+      return Symbol.for("INVALID_JSON");
+    }
+  }
+  return v; // dejar pasar (Sequelize JSONB aceptará objetos/arrays)
+}
+
+function validateBasic(updates) {
+  // longitud acorde al modelo/DDL
+  if (typeof updates.bio === "string" && updates.bio.length > 300) {
+    return "La bio no puede exceder 300 caracteres.";
+  }
+  if (
+    typeof updates.emerg_contacto_nombre === "string" &&
+    updates.emerg_contacto_nombre.length > 120
+  ) {
+    return "El nombre de contacto de emergencia no puede exceder 120 caracteres.";
+  }
+  if (
+    typeof updates.emerg_contacto_telefono === "string" &&
+    updates.emerg_contacto_telefono.length > 20
+  ) {
+    return "El teléfono de contacto de emergencia no puede exceder 20 caracteres.";
+  }
+  // validación muy permisiva de teléfono (solo si hay valor)
+  if (typeof updates.emerg_contacto_telefono === "string" && updates.emerg_contacto_telefono) {
+    const rx = /^[0-9+()\-.\s]{6,20}$/;
+    if (!rx.test(updates.emerg_contacto_telefono)) {
+      return "Formato de teléfono de contacto de emergencia inválido.";
+    }
+  }
+  return null;
+}
+
 // =====================================================
 // GET /api/users/:id  -> Perfil por id (excluye contraseña)
 // =====================================================
@@ -28,7 +89,8 @@ exports.getUserProfile = async (req, res) => {
 
 // =====================================================
 // PUT /api/users/:id  -> Actualizar perfil (dueño + whitelist)
-// Campos permitidos: nombre, apellido, telefono, preferencia_tema
+// Campos permitidos: nombre, apellido, telefono, preferencia_tema,
+// bio, emerg_contacto_nombre, emerg_contacto_telefono, acces_necesidades
 // (contraseña NO aquí; si decides permitirlo, comenta la sección marcada)
 // =====================================================
 exports.updateUserProfile = async (req, res) => {
@@ -40,17 +102,34 @@ exports.updateUserProfile = async (req, res) => {
       return res.status(403).json({ error: "No autorizado" });
     }
 
-    // 2) Whitelist de campos editables
-    const allowed = ["nombre", "apellido", "telefono", "preferencia_tema"];
+    // 2) Whitelist + saneo
     const updates = {};
-    for (const k of allowed) {
+    for (const k of ALLOWED_UPDATE_FIELDS) {
       if (Object.prototype.hasOwnProperty.call(req.body, k)) {
-        updates[k] = req.body[k];
+        if (k === "acces_necesidades") {
+          const parsed = parseJsonMaybe(req.body[k]);
+          if (parsed === Symbol.for("INVALID_JSON")) {
+            return res.status(400).json({ error: "acces_necesidades debe ser JSON válido." });
+          }
+          updates[k] = parsed; // puede ser objeto/array o null
+        } else {
+          updates[k] = trimOrNull(req.body[k]);
+        }
       }
     }
 
+    // 2.1) Si no hay nada permitido, responde 400
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: "No hay campos permitidos para actualizar." });
+    }
+
+    // 2.2) Validaciones de longitud/formato
+    const validationError = validateBasic(updates);
+    if (validationError) {
+      return res.status(400).json({ error: validationError });
+    }
+
     // 3) (OPCIONAL - NO recomendado aquí) soporte de cambio de contraseña
-    //    Si quieres permitirlo aquí, descomenta este bloque.
     /*
     if (Object.prototype.hasOwnProperty.call(req.body, "contrasenia")) {
       if (!req.body.contrasenia || typeof req.body.contrasenia !== "string") {
@@ -86,7 +165,6 @@ exports.updateUserProfile = async (req, res) => {
 
 // =====================================================
 // ALIASES basados en el usuario autenticado (paths /me)
-// NO son carpetas; son rutas HTTP que reutilizan la lógica anterior
 // =====================================================
 exports.getMe = (req, res, next) => {
   req.params.id = String(req.user.id_usuario);
