@@ -19,7 +19,6 @@ import {
 } from "../components";
 
 type TravelRouteProp = RouteProp<RootStackParamList, "Travel">;
-
 type UserPos = { lat: number; lng: number; accuracy?: number | null };
 
 export default function TravelScreen() {
@@ -31,7 +30,7 @@ export default function TravelScreen() {
 
   const STATUS_OFFSET = Platform.OS === "ios" ? 52 : 24;
 
-  const { origin, setOrigin, destination, coords, summary, loading } =
+  const { origin, setOrigin, destination, coords, summary, loading, drawRoute } =
     useTravelRoute(params);
 
   const [region, setRegion] = useState({
@@ -43,6 +42,10 @@ export default function TravelScreen() {
 
   const [userPos, setUserPos] = useState<UserPos | null>(null);
   const watcherRef = useRef<Location.LocationSubscription | null>(null);
+
+  // Seguir al usuario y throttling de recálculo
+  const [followUser, setFollowUser] = useState(false);
+  const lastRouteRef = useRef<{ at: number; lat?: number; lng?: number }>({ at: 0 });
 
   const handleMapPress = (event: MapPressEvent) => {
     const { latitude, longitude } = event.nativeEvent.coordinate;
@@ -73,12 +76,39 @@ export default function TravelScreen() {
     const sub = await Location.watchPositionAsync(
       {
         accuracy: Location.Accuracy.High,
-        distanceInterval: 2,
-        timeInterval: 1000,
+        distanceInterval: 5,
+        timeInterval: 1500,
       },
-      (loc) => {
+      async (loc) => {
         const { latitude, longitude, accuracy } = loc.coords;
         setUserPos({ lat: latitude, lng: longitude, accuracy });
+
+        // Seguir al usuario en el mapa
+        if (followUser) {
+          setRegion((prev) => ({
+            ...prev,
+            latitude,
+            longitude,
+          }));
+        }
+
+        // Si hay destino, recalcula ruta con throttling
+        if (destination) {
+          const now = Date.now();
+          const movedEnough =
+            distanceMeters(
+              { latitude: lastRouteRef.current.lat ?? latitude, longitude: lastRouteRef.current.lng ?? longitude },
+              { latitude, longitude }
+            ) > 25; // recalc si moviste ~25m
+
+          const cooldownPassed = now - lastRouteRef.current.at > 6000; // cada ~6s máx
+
+          if (movedEnough && cooldownPassed) {
+            setOrigin({ latitude, longitude }); // actualiza estado visible
+            await drawRoute({ latitude, longitude }, destination);
+            lastRouteRef.current = { at: now, lat: latitude, lng: longitude };
+          }
+        }
       }
     );
     watcherRef.current = sub;
@@ -86,11 +116,23 @@ export default function TravelScreen() {
   };
 
   useEffect(() => {
+    // Inicia watcher al montar
+    (async () => {
+      await ensureWatcher();
+    })();
+
     return () => {
       watcherRef.current?.remove();
       watcherRef.current = null;
     };
   }, []);
+
+  // Cuando ya existe una ruta, actualiza la referencia de último origen usado
+  useEffect(() => {
+    if (origin && coords.length > 0) {
+      lastRouteRef.current = { at: Date.now(), lat: origin.latitude, lng: origin.longitude };
+    }
+  }, [coords.length]);
 
   const centerOnUser = async () => {
     try {
@@ -101,14 +143,9 @@ export default function TravelScreen() {
         accuracy: Location.Accuracy.High,
       });
 
-      const {
-        latitude,
-        longitude,
-        accuracy,
-      } = location.coords;
+      const { latitude, longitude, accuracy } = location.coords;
 
       setUserPos({ lat: latitude, lng: longitude, accuracy });
-
       setRegion((prev) => ({
         ...prev,
         latitude,
@@ -118,6 +155,7 @@ export default function TravelScreen() {
       }));
 
       if (!origin) setOrigin({ latitude, longitude });
+      setFollowUser(true); // activar follow al centrar
     } catch (error) {
       console.error("Error obteniendo ubicación:", error);
       Alert.alert("Error", "No se pudo obtener la ubicación.");
@@ -133,7 +171,6 @@ export default function TravelScreen() {
         onPress={handleMapPress}
         showsCompass
       >
-
         {userPos && (
           <>
             <Marker coordinate={{ latitude: userPos.lat, longitude: userPos.lng }}>
@@ -151,15 +188,9 @@ export default function TravelScreen() {
         )}
 
         {origin && <Marker coordinate={origin} title="Origen" />}
-        {destination && (
-          <Marker coordinate={destination} title="Destino" pinColor="red" />
-        )}
+        {destination && <Marker coordinate={destination} title="Destino" pinColor="red" />}
         {coords.length > 0 && (
-          <Polyline
-            coordinates={coords}
-            strokeColor={colors.primary}
-            strokeWidth={4}
-          />
+          <Polyline coordinates={coords} strokeColor={colors.primary} strokeWidth={4} />
         )}
       </MapView>
 
@@ -179,23 +210,27 @@ export default function TravelScreen() {
       )}
 
       {!origin && (
-        <View
-          style={[
-            styles.hintContainer,
-            { backgroundColor: `${colors.card}DD` },
-          ]}
-        >
+        <View style={[styles.hintContainer, { backgroundColor: `${colors.card}DD` }]}>
           <Text style={[styles.hintText, { color: colors.text }]}>
             Toca el mapa para elegir tu origen
           </Text>
         </View>
       )}
 
+      {/* Centrar en usuario */}
       <TouchableOpacity
         style={[styles.locationBtn, { backgroundColor: colors.card }]}
         onPress={centerOnUser}
       >
         <Ionicons name="locate" size={22} color={colors.primary} />
+      </TouchableOpacity>
+
+      {/* Toggle seguir usuario */}
+      <TouchableOpacity
+        style={[styles.followBtn, { backgroundColor: colors.card }]}
+        onPress={() => setFollowUser((v) => !v)}
+      >
+        <Ionicons name={followUser ? "navigate" : "navigate-outline"} size={22} color={colors.primary} />
       </TouchableOpacity>
 
       <ZoomControls
@@ -262,6 +297,23 @@ function BlueDot() {
   );
 }
 
+// Distancia Haversine en metros
+function distanceMeters(
+  a: { latitude: number; longitude: number },
+  b: { latitude: number; longitude: number }
+) {
+  const R = 6371000;
+  const dLat = ((b.latitude - a.latitude) * Math.PI) / 180;
+  const dLon = ((b.longitude - a.longitude) * Math.PI) / 180;
+  const lat1 = (a.latitude * Math.PI) / 180;
+  const lat2 = (b.latitude * Math.PI) / 180;
+  const sinDLat = Math.sin(dLat / 2);
+  const sinDLon = Math.sin(dLon / 2);
+  const x = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLon * sinDLon;
+  const y = 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+  return R * y;
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { flex: 1 },
@@ -278,6 +330,21 @@ const styles = StyleSheet.create({
   locationBtn: {
     position: "absolute",
     bottom: 165,
+    left: 32,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 3,
+  },
+  followBtn: {
+    position: "absolute",
+    bottom: 220,
     left: 32,
     width: 44,
     height: 44,
