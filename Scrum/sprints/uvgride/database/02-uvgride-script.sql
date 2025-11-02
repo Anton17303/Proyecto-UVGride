@@ -15,13 +15,12 @@ CREATE TABLE IF NOT EXISTS usuario (
   preferencia_tema VARCHAR(10) DEFAULT 'light',
   calif_conductor_avg NUMERIC(3,2) NOT NULL DEFAULT 0,
   calif_conductor_count INTEGER NOT NULL DEFAULT 0,
-  avatar_url VARCHAR(255),            -- ruta pública del avatar (puede ser NULL)
-  bio VARCHAR(300),                   -- descripción corta del perfil
-  emerg_contacto_nombre VARCHAR(120), -- contacto de emergencia: nombre
-  emerg_contacto_telefono VARCHAR(20),-- contacto de emergencia: teléfono
-  acces_necesidades JSONB             -- necesidades especiales (formato libre, opcional)
+  avatar_url VARCHAR(255),
+  bio VARCHAR(300),
+  emerg_contacto_nombre VARCHAR(120),
+  emerg_contacto_telefono VARCHAR(20),
+  acces_necesidades JSONB
 );
-
 
 -- =========================================
 --  VEHÍCULO
@@ -75,7 +74,6 @@ CREATE TABLE IF NOT EXISTS viaje_maestro (
 
 -- =========================================
 --  CALIFICACIÓN POR VIAJE (legacy / histórico)
---  (NO ACTUALIZA CACHE GLOBAL)
 -- =========================================
 CREATE TABLE IF NOT EXISTS calificacion_maestro (
   id_calificacion_maestro SERIAL PRIMARY KEY,
@@ -316,6 +314,7 @@ CREATE TABLE IF NOT EXISTS grupo_viaje (
   precio_base DECIMAL(10,2) NOT NULL DEFAULT 0,
   estado_grupo VARCHAR(20) NOT NULL DEFAULT 'abierto'
     CHECK (estado_grupo IN ('abierto','cerrado','cancelado','finalizado')),
+  es_recurrente BOOLEAN NOT NULL DEFAULT FALSE, -- NUEVO: grupo de viaje recurrente
   notas TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -331,11 +330,34 @@ CREATE TABLE IF NOT EXISTS grupo_viaje (
 CREATE INDEX IF NOT EXISTS idx_grupo_estado ON grupo_viaje(estado_grupo);
 CREATE INDEX IF NOT EXISTS idx_grupo_conductor ON grupo_viaje(conductor_id);
 CREATE INDEX IF NOT EXISTS idx_grupo_viaje ON grupo_viaje(id_viaje_maestro);
+CREATE INDEX IF NOT EXISTS idx_grupo_recurrente ON grupo_viaje(es_recurrente);
 
 DROP TRIGGER IF EXISTS grupo_viaje_touch_updated ON grupo_viaje;
 CREATE TRIGGER grupo_viaje_touch_updated
 BEFORE UPDATE ON grupo_viaje
 FOR EACH ROW EXECUTE FUNCTION trg_touch_updated_at();
+
+-- Evitar cambios de estado en grupos recurrentes (solo eliminar permitido)
+CREATE OR REPLACE FUNCTION prevent_estado_change_recurring()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.es_recurrente THEN
+    IF NEW.estado_grupo IS DISTINCT FROM OLD.estado_grupo THEN
+      -- Para grupos recurrentes no permitimos transiciones de estado (iniciar, cerrar, finalizar, cancelar).
+      -- Deben permanecer 'abierto' y únicamente se pueden eliminar a nivel de API/DB.
+      IF NEW.estado_grupo <> 'abierto' THEN
+        RAISE EXCEPTION 'Los grupos recurrentes no permiten cambiar de estado; solo se pueden eliminar.';
+      END IF;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS grupo_viaje_prevent_estado_change_recurring ON grupo_viaje;
+CREATE TRIGGER grupo_viaje_prevent_estado_change_recurring
+BEFORE UPDATE OF estado_grupo ON grupo_viaje
+FOR EACH ROW EXECUTE FUNCTION prevent_estado_change_recurring();
 
 CREATE TABLE IF NOT EXISTS grupo_miembro (
   id_grupo_miembro SERIAL PRIMARY KEY,
@@ -390,12 +412,13 @@ CREATE TRIGGER grupo_miembro_check_cupos
 BEFORE INSERT OR UPDATE OF estado_solicitud ON grupo_miembro
 FOR EACH ROW EXECUTE FUNCTION check_cupos_disponibles();
 
--- Autocerrar cuando se llena
+-- Autocerrar cuando se llena (NO aplica a recurrentes)
 CREATE OR REPLACE FUNCTION close_group_when_full()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE
   capacidad INTEGER;
   aprobados INTEGER;
+  es_rec BOOLEAN;
 BEGIN
   IF NEW.estado_solicitud = 'aprobado' THEN
     SELECT g.capacidad_total,
@@ -403,11 +426,14 @@ BEGIN
              SELECT COUNT(*) FROM grupo_miembro gm
              WHERE gm.id_grupo = NEW.id_grupo
                AND gm.estado_solicitud = 'aprobado'
-           ),0)
-    INTO capacidad, aprobados
+           ),0),
+           g.es_recurrente
+    INTO capacidad, aprobados, es_rec
     FROM grupo_viaje g
     WHERE g.id_grupo = NEW.id_grupo;
-    IF aprobados >= capacidad THEN
+
+    -- Si es recurrente, nunca cambiar estado automáticamente (se mantiene 'abierto')
+    IF NOT es_rec AND aprobados >= capacidad THEN
       UPDATE grupo_viaje
       SET estado_grupo = 'cerrado', updated_at = NOW()
       WHERE id_grupo = NEW.id_grupo
@@ -446,6 +472,7 @@ SELECT
   ), 0)) AS cupos_disponibles,
   g.precio_base,
   g.estado_grupo,
+  g.es_recurrente,                -- NUEVO
   g.created_at,
   g.updated_at
 FROM grupo_viaje g
@@ -492,6 +519,7 @@ SELECT
   ), 0)) AS cupos_disponibles,
   g.precio_base,
   g.estado_grupo,
+  g.es_recurrente,                -- NUEVO
   g.created_at,
   g.updated_at
 FROM grupo_viaje g
