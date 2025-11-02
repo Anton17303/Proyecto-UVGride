@@ -6,14 +6,23 @@ const GrupoViaje = sequelize.define(
   'GrupoViaje',
   {
     id_grupo: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, field: 'id_grupo' },
-    id_viaje_maestro: { type: DataTypes.INTEGER, allowNull: false, field: 'id_viaje_maestro', unique: 'uq_grupo_por_viaje' },
+
+    id_viaje_maestro: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      field: 'id_viaje_maestro',
+      unique: 'uq_grupo_por_viaje',
+    },
+
     conductor_id: { type: DataTypes.INTEGER, allowNull: false, field: 'conductor_id' },
+
     capacidad_total: {
       type: DataTypes.INTEGER,
       allowNull: false,
       field: 'capacidad_total',
       validate: { isInt: true, min: 1 },
     },
+
     precio_base: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
@@ -21,6 +30,7 @@ const GrupoViaje = sequelize.define(
       field: 'precio_base',
       validate: { min: 0 },
     },
+
     estado_grupo: {
       type: DataTypes.STRING(20),
       allowNull: false,
@@ -28,14 +38,16 @@ const GrupoViaje = sequelize.define(
       field: 'estado_grupo',
       validate: { isIn: [['abierto', 'cerrado', 'cancelado', 'finalizado']] },
     },
-    precio_base: {
-      type: DataTypes.DECIMAL(10, 2),
+
+    es_recurrente: {
+      type: DataTypes.BOOLEAN,
       allowNull: false,
-      defaultValue: 0,
-      validate: {min : 0},
+      defaultValue: false,
+      field: 'es_recurrente',
     },
 
     notas: { type: DataTypes.TEXT, allowNull: true, field: 'notas' },
+
     created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW, field: 'created_at' },
     updated_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW, field: 'updated_at' },
   },
@@ -46,7 +58,29 @@ const GrupoViaje = sequelize.define(
       { fields: ['estado_grupo'] },
       { fields: ['conductor_id'] },
       { fields: ['id_viaje_maestro'] },
+      { fields: ['es_recurrente'] }, // NEW: para filtrar rápido por recurrentes
     ],
+    hooks: {
+      // Asegura que los recurrentes siempre estén en 'cerrado'
+      beforeValidate(instance) {
+        if (instance.es_recurrente) {
+          instance.estado_grupo = 'cerrado';
+        }
+      },
+      beforeCreate(instance) {
+        if (instance.es_recurrente) {
+          instance.estado_grupo = 'cerrado';
+        }
+      },
+      beforeUpdate(instance) {
+        // Si es recurrente, bloquear cualquier cambio de estado distinto a 'cerrado'
+        if (instance.es_recurrente && instance.changed('estado_grupo') && instance.estado_grupo !== 'cerrado') {
+          const err = new Error('Los grupos recurrentes deben permanecer en estado "cerrado".');
+          err.status = 400;
+          throw err;
+        }
+      },
+    },
   }
 );
 
@@ -118,7 +152,6 @@ GrupoViaje.calificarConductor = async function ({ grupoId, pasajeroId, puntuacio
   }
 
   try {
-    // ⚠️ No usar QueryTypes.INSERT aquí; deja que devuelva las filas del RETURNING
     const [rows] = await sequelize.query(
       `
       INSERT INTO calificacion_maestro
@@ -139,7 +172,6 @@ GrupoViaje.calificarConductor = async function ({ grupoId, pasajeroId, puntuacio
     );
     return rows?.[0] || null;
   } catch (e) {
-    // Violación de UNIQUE (id_viaje_maestro, id_usuario, objetivo_usuario_id)
     if (e?.original?.code === '23505') {
       const err = new Error('Ya calificaste este viaje');
       err.status = 409;
@@ -186,7 +218,7 @@ GrupoViaje.listarCalificaciones = async function (grupoId, { limit = 10, offset 
 };
 
 /**
- * Devuelve el resumen del conductor del grupo desde el cache en usuario
+ * Resumen del conductor del grupo desde cache en usuario
  */
 GrupoViaje.obtenerResumenConductor = async function (grupoId) {
   const g = await getGrupoConViaje(grupoId);

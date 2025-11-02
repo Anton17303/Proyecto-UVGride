@@ -15,6 +15,12 @@ const {
 const toNumber = (v) => (v === '' || v === null || v === undefined ? NaN : Number(v));
 const isPosInt = (v) => Number.isInteger(toNumber(v)) && toNumber(v) > 0;
 const isFiniteNum = (v) => Number.isFinite(toNumber(v));
+const toBool = (v) => {
+  if (typeof v === 'boolean') return v;
+  if (v === null || v === undefined) return false;
+  const s = String(v).trim().toLowerCase();
+  return s === 'true' || s === '1' || s === 'on' || s === 'yes' || s === 'si' || s === 'sí';
+};
 
 function normalizeCreatePayload(body = {}) {
   const {
@@ -28,6 +34,8 @@ function normalizeCreatePayload(body = {}) {
     lat_destino,
     lon_destino,
     notas,
+    es_recurrente,              // NUEVO
+    miembros_designados,        // NUEVO: array opcional de user IDs
   } = body;
 
   const dest = (destino_nombre ?? destino ?? '').toString().trim();
@@ -38,20 +46,21 @@ function normalizeCreatePayload(body = {}) {
     ? Number(capacidad_total)
     : NaN;
 
+  // sanitizar designados
+  let designados = Array.isArray(miembros_designados) ? miembros_designados : [];
+  designados = [...new Set(designados.map((x) => Number(x)).filter((n) => Number.isInteger(n) && n > 0))];
+
   return {
     conductor_id: isPosInt(conductor_id) ? Number(conductor_id) : NaN,
     destino_nombre: dest || '',
     cupos_totales: capacidad,
     fecha_salida: fecha_salida ? new Date(fecha_salida) : null,
-    lat_destino:
-      lat_destino === null || lat_destino === undefined ? null : Number(lat_destino),
-    lon_destino:
-      lon_destino === null || lon_destino === undefined ? null : Number(lon_destino),
-    costo_estimado:
-      costo_estimado === null || costo_estimado === undefined
-        ? null
-        : Number(costo_estimado),
+    lat_destino: lat_destino == null ? null : Number(lat_destino),
+    lon_destino: lon_destino == null ? null : Number(lon_destino),
+    costo_estimado: costo_estimado == null ? null : Number(costo_estimado),
     notas: notas || null,
+    es_recurrente: toBool(es_recurrente),
+    miembros_designados: designados,
   };
 }
 
@@ -104,6 +113,9 @@ async function removeViajePasajero(viajeId, userId, t) {
 /**
  * POST /api/grupos
  * Crea viaje_maestro + grupo y agrega al conductor como miembro aprobado.
+ * Soporta:
+ *  - es_recurrente (boolean) → fuerza estado 'cerrado'
+ *  - miembros_designados: number[] (IDs de usuarios), aprobados, respetando capacidad
  */
 exports.crearGrupo = async (req, res) => {
   const p = normalizeCreatePayload(req.body);
@@ -122,6 +134,13 @@ exports.crearGrupo = async (req, res) => {
   }
   if (p.lon_destino != null && !isFiniteNum(p.lon_destino)) {
     return res.status(400).json({ error: 'lon_destino inválida' });
+  }
+
+  // validar que designados no incluyan al conductor
+  const designadosFiltrados = (p.miembros_designados || []).filter((uid) => uid !== p.conductor_id);
+  // validar capacidad: 1 (conductor) + designados <= capacidad_total
+  if (1 + designadosFiltrados.length > p.cupos_totales) {
+    return res.status(400).json({ error: 'Los miembros designados exceden la capacidad total' });
   }
 
   const t = await sequelize.transaction();
@@ -157,14 +176,15 @@ exports.crearGrupo = async (req, res) => {
       { transaction: t }
     );
 
-    // Crear grupo
+    // Crear grupo (si es recurrente, debe quedar CERRADO)
     const grupo = await GrupoViaje.create(
       {
         id_viaje_maestro: viaje.id_viaje_maestro,
         conductor_id: p.conductor_id,
         capacidad_total: p.cupos_totales,
         precio_base: p.costo_estimado ?? 0,
-        estado_grupo: 'abierto',
+        estado_grupo: p.es_recurrente ? 'cerrado' : 'abierto',
+        es_recurrente: p.es_recurrente,
         notas: p.notas,
       },
       { transaction: t }
@@ -175,11 +195,27 @@ exports.crearGrupo = async (req, res) => {
       { id_grupo: grupo.id_grupo, id_usuario: p.conductor_id, rol: 'conductor', estado_solicitud: 'aprobado' },
       { transaction: t }
     );
+    await ensureViajePasajero(viaje.id_viaje_maestro, p.conductor_id, t);
+
+    // Agregar miembros designados (aprobados) respetando capacidad
+    for (const uid of designadosFiltrados) {
+      await GrupoMiembro.findOrCreate({
+        where: { id_grupo: grupo.id_grupo, id_usuario: uid },
+        defaults: { id_grupo: grupo.id_grupo, id_usuario: uid, rol: 'pasajero', estado_solicitud: 'aprobado' },
+        transaction: t,
+      });
+      await ensureViajePasajero(viaje.id_viaje_maestro, uid, t);
+    }
 
     await t.commit();
     return res.status(201).json({
       message: 'Grupo creado',
-      data: { id_grupo: grupo.id_grupo, id_viaje_maestro: grupo.id_viaje_maestro },
+      data: {
+        id_grupo: grupo.id_grupo,
+        id_viaje_maestro: grupo.id_viaje_maestro,
+        es_recurrente: grupo.es_recurrente,
+        estado: grupo.estado_grupo,
+      },
     });
   } catch (err) {
     await t.rollback();
@@ -269,6 +305,7 @@ exports.listarGrupos = async (req, res) => {
         'capacidad_total',
         'precio_base',
         ['estado_grupo', 'estado'], // alias para el frontend
+        'es_recurrente',
         'created_at',
         'updated_at',
         [literal(SUB_CUPOS), 'cupos_usados'],
@@ -351,6 +388,7 @@ exports.obtenerGrupo = async (req, res) => {
       'capacidad_total',
       'precio_base',
       ['estado_grupo', 'estado'], // alias para el frontend
+      'es_recurrente',
       'notas',
       'created_at',
       'updated_at',
@@ -387,7 +425,7 @@ exports.obtenerGrupo = async (req, res) => {
  * POST /api/grupos/:id/join
  * Body: { id_usuario }
  * Reglas:
- *  - abierto
+ *  - abierto (o recurrente)
  *  - no conductor
  *  - no estar aprobado en otro grupo activo
  *  - crea vínculo en viaje_pasajero
@@ -410,7 +448,9 @@ exports.unirseAGrupo = async (req, res) => {
       await t.rollback();
       return res.status(404).json({ error: 'Grupo no encontrado' });
     }
-    if (grupo.estado_grupo !== 'abierto') {
+
+    // Permitir unirse si está ABIERTO, o si es RECURRENTE (aunque esté CERRADO)
+    if (!grupo.es_recurrente && grupo.estado_grupo !== 'abierto') {
       await t.rollback();
       return res.status(400).json({ error: 'El grupo no está abierto' });
     }
@@ -421,7 +461,7 @@ exports.unirseAGrupo = async (req, res) => {
       return res.status(400).json({ error: 'No puedes unirte a tu propio grupo' });
     }
 
-    // ya en otro grupo activo
+    // ya en otro grupo activo (abierto o cerrado)
     const yaEnOtro = await GrupoMiembro.findOne({
       where: { id_usuario: Number(id_usuario), estado_solicitud: 'aprobado' },
       include: [
@@ -548,6 +588,7 @@ exports.salirDeGrupo = async (req, res) => {
  * POST /api/grupos/:id/cerrar
  * Body: { conductor_id, estado = 'cerrado'|'cancelado'|'finalizado' }
  * Sincroniza estado del viaje (si existe el modelo).
+ * ⚠️ Para grupos recurrentes se bloquea cualquier cambio de estado (siempre 'cerrado').
  */
 exports.cerrarGrupo = async (req, res) => {
   const id = Number(req.params.id);
@@ -573,6 +614,12 @@ exports.cerrarGrupo = async (req, res) => {
     if (grupo.conductor_id !== Number(conductor_id)) {
       await t.rollback();
       return res.status(403).json({ error: 'No autorizado para cerrar este grupo' });
+    }
+
+    // Bloquear cambios de estado si es recurrente
+    if (grupo.es_recurrente) {
+      await t.rollback();
+      return res.status(400).json({ error: 'Los grupos recurrentes deben permanecer en estado "cerrado". Solo se permite eliminar.' });
     }
 
     // reglas de transición
@@ -617,6 +664,43 @@ exports.cerrarGrupo = async (req, res) => {
   }
 };
 
+/**
+ * DELETE /api/grupos/:id
+ * Body: { conductor_id }
+ * Elimina el grupo (recomendado para grupos recurrentes).
+ */
+exports.eliminarGrupo = async (req, res) => {
+  const id = Number(req.params.id);
+  const { conductor_id } = req.body || {};
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'Parámetro id inválido' });
+  }
+  if (!Number.isInteger(conductor_id) || conductor_id <= 0) {
+    return res.status(400).json({ error: 'conductor_id inválido' });
+  }
+
+  const t = await sequelize.transaction();
+  try {
+    const grupo = await GrupoViaje.findByPk(id, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!grupo) {
+      await t.rollback();
+      return res.status(404).json({ error: 'Grupo no encontrado' });
+    }
+    if (grupo.conductor_id !== Number(conductor_id)) {
+      await t.rollback();
+      return res.status(403).json({ error: 'No autorizado para eliminar este grupo' });
+    }
+
+    await grupo.destroy({ transaction: t });
+    await t.commit();
+    return res.json({ message: 'Grupo eliminado' });
+  } catch (err) {
+    await t.rollback();
+    console.error('[grupos] Error eliminarGrupo:', err);
+    return res.status(500).json({ error: 'Error interno al eliminar el grupo' });
+  }
+};
+
 /* ======================= Calificaciones (DEPRECADO aquí) ======================= */
 
 /**
@@ -632,7 +716,6 @@ exports.calificarConductor = (_req, res) => {
 
 /**
  * GET /api/grupos/:id/calificaciones?limit=&offset=
- * (Lo dejamos por compatibilidad si aún lo consumes desde el cliente)
  */
 exports.listarCalificaciones = async (req, res) => {
   try {
@@ -644,7 +727,6 @@ exports.listarCalificaciones = async (req, res) => {
       return res.status(400).json({ error: 'Parámetro id inválido' });
     }
 
-    // Estos métodos deben existir en tu modelo GrupoViaje si los usas.
     const data = await GrupoViaje.listarCalificaciones(grupoId, {
       limit: Number.isInteger(limit) && limit > 0 ? limit : 10,
       offset: Number.isInteger(offset) && offset >= 0 ? offset : 0,
@@ -666,7 +748,6 @@ exports.obtenerResumenConductor = async (req, res) => {
     if (!Number.isInteger(grupoId) || grupoId <= 0) {
       return res.status(400).json({ error: 'Parámetro id inválido' });
     }
-    // También asumimos que existe en el modelo si lo usas.
     const resumen = await GrupoViaje.obtenerResumenConductor(grupoId);
     return res.json(resumen);
   } catch (e) {

@@ -8,6 +8,21 @@ const isNilOrEmpty = (v) => v === undefined || v === null || v === '';
 const toNumber = (v) => (isNilOrEmpty(v) ? NaN : Number(v));
 const isPosInt = (v) => Number.isInteger(toNumber(v)) && toNumber(v) > 0;
 
+const toBool = (v) => {
+  if (typeof v === 'boolean') return v;
+  if (v === null || v === undefined) return false;
+  const s = String(v).trim().toLowerCase();
+  return s === 'true' || s === '1' || s === 'on' || s === 'yes' || s === 'si' || s === 'sí';
+};
+
+const toIntArray = (v) => {
+  if (Array.isArray(v)) return v.map(toNumber).filter((n) => Number.isInteger(n) && n > 0);
+  if (isNilOrEmpty(v)) return [];
+  // soporta "1,2,3" o "1 2 3"
+  const parts = String(v).split(/[,\s]+/).map(toNumber);
+  return parts.filter((n) => Number.isInteger(n) && n > 0);
+};
+
 /* Normalizador de payload */
 const normalizeBody = (req, _res, next) => {
   const b = { ...(req.body || {}) };
@@ -37,6 +52,15 @@ const normalizeBody = (req, _res, next) => {
   // fecha_salida (string ISO opcional)
   if (isNilOrEmpty(b.fecha_salida)) delete b.fecha_salida;
 
+  // 🔁 NUEVO: es_recurrente y miembros_designados
+  if (!isNilOrEmpty(b.es_recurrente)) {
+    b.es_recurrente = toBool(b.es_recurrente);
+  }
+  if (!isNilOrEmpty(b.miembros_designados)) {
+    const arr = Array.from(new Set(toIntArray(b.miembros_designados)));
+    b.miembros_designados = arr;
+  }
+
   // limpiar alias que ya mapeamos
   delete b.destino_nombre;
   delete b.cupos_totales;
@@ -47,7 +71,7 @@ const normalizeBody = (req, _res, next) => {
 
 /* Validadores */
 const validateCrearGrupo = (req, res, next) => {
-  const { conductor_id, destino, capacidad_total, fecha_salida, precio_base } =
+  const { conductor_id, destino, capacidad_total, fecha_salida, precio_base, es_recurrente, miembros_designados } =
     req.body || {};
 
   if (!isPosInt(conductor_id)) {
@@ -78,6 +102,16 @@ const validateCrearGrupo = (req, res, next) => {
     if (!Number.isFinite(n) || n < 0) {
       return res.status(400).json({ error: 'precio_base inválido' });
     }
+  }
+
+  // 🔁 NUEVO: validar que designados no sobrepasen capacidad (1 = conductor)
+  if (Array.isArray(miembros_designados) && 1 + miembros_designados.length > capacidad_total) {
+    return res.status(400).json({ error: 'Los miembros designados exceden la capacidad total' });
+  }
+
+  // es_recurrente es opcional; si viene, debe ser boolean/string booleana (ya normalizado)
+  if (!isNilOrEmpty(es_recurrente) && typeof es_recurrente !== 'boolean') {
+    return res.status(400).json({ error: 'es_recurrente inválido' });
   }
 
   next();
@@ -126,6 +160,14 @@ const validateCerrar = (req, res, next) => {
   next();
 };
 
+const validateEliminar = (req, res, next) => { // 🔁 NUEVO
+  const { conductor_id } = req.body || {};
+  if (!isPosInt(conductor_id)) {
+    return res.status(400).json({ error: 'conductor_id inválido' });
+  }
+  next();
+};
+
 /* Calificaciones (solo se usan los GET aquí; el POST ahora vive en /api/conductores/:id/calificar) */
 const validatePaginate = (req, _res, next) => {
   const limit = toNumber(req.query.limit ?? 10);
@@ -146,16 +188,15 @@ router.post('/:id/join', validateJoin, ctrl.unirseAGrupo);
 router.post('/:id/leave', validateLeave, ctrl.salirDeGrupo);
 router.post('/:id/cerrar', validateCerrar, ctrl.cerrarGrupo);
 
-/* Rutas de calificaciones ancladas al grupo (GET sí; POST deshabilitado) */
+// 🔁 NUEVO: eliminación (importante para grupos recurrentes)
+router.delete('/:id', validateEliminar, ctrl.eliminarGrupo);
 
-// ❌ POST deshabilitado: calificar se hace en /api/conductores/:id/calificar
+/* Rutas de calificaciones ancladas al grupo (GET sí; POST deshabilitado) */
 router.post('/:id/calificaciones', (_req, res) => {
   return res.status(410).json({
     error: 'Este endpoint fue deprecado. Usa POST /api/conductores/:id/calificar',
   });
 });
-
-// Si aún muestras calificaciones por grupo en el detalle:
 router.get('/:id/calificaciones', validatePaginate, ctrl.listarCalificaciones);
 router.get('/:id/calificacion-resumen', ctrl.obtenerResumenConductor);
 
