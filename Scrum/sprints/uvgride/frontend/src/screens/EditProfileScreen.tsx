@@ -8,11 +8,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
-  Image,
-  TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
-import * as ImagePicker from "expo-image-picker";
 import axios from "axios";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -31,26 +28,54 @@ type RootStackParamList = {
 export default function EditProfileScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { user, setUserFromBackend, mergeUser } = useUser();
+  const { user, setUserFromBackend } = useUser();
 
   const { theme } = useTheme();
   const colors = theme === "light" ? lightColors : darkColors;
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
 
   // ---------------- Form local ----------------
   const [nombre, setNombre] = useState(user?.name || "");
   const [apellido, setApellido] = useState(user?.lastName || "");
   const [telefono, setTelefono] = useState(user?.telefono || "");
 
+  // NUEVOS CAMPOS
+  const [bio, setBio] = useState<string>(String((user as any)?.bio ?? ""));
+  const [emergNombre, setEmergNombre] = useState<string>(
+    String((user as any)?.emerg_contacto_nombre ?? "")
+  );
+  const [emergTelefono, setEmergTelefono] = useState<string>(
+    String((user as any)?.emerg_contacto_telefono ?? "")
+  );
+  const [accesNecesidades, setAccesNecesidades] = useState<string>(() => {
+    const raw = (user as any)?.acces_necesidades;
+    if (!raw) return "";
+    try {
+      return JSON.stringify(raw, null, 2);
+    } catch {
+      return "";
+    }
+  });
+
   // valores iniciales para detectar cambios
   const initialRef = useRef({
     nombre: user?.name || "",
     apellido: user?.lastName || "",
     telefono: user?.telefono || "",
-    photo: user?.photo || null,
+    bio: String((user as any)?.bio ?? ""),
+    emergNombre: String((user as any)?.emerg_contacto_nombre ?? ""),
+    emergTelefono: String((user as any)?.emerg_contacto_telefono ?? ""),
+    accesNecesidades: (() => {
+      const raw = (user as any)?.acces_necesidades;
+      if (!raw) return "";
+      try {
+        return JSON.stringify(raw, null, 2);
+      } catch {
+        return "";
+      }
+    })(),
   });
 
   // touched evita que el fetch pise lo escrito
@@ -58,20 +83,20 @@ export default function EditProfileScreen() {
   const onChangeNombre = (v: string) => { touched.current = true; setNombre(v); };
   const onChangeApellido = (v: string) => { touched.current = true; setApellido(v); };
   const onChangeTelefono = (v: string) => { touched.current = true; setTelefono(v); };
+  const onChangeBio = (v: string) => { touched.current = true; setBio(v); };
+  const onChangeEmergNombre = (v: string) => { touched.current = true; setEmergNombre(v); };
+  const onChangeEmergTelefono = (v: string) => { touched.current = true; setEmergTelefono(v); };
+  const onChangeAccesNecesidades = (v: string) => { touched.current = true; setAccesNecesidades(v); };
 
   // deshabilitar "Guardar" si no hay cambios
   const dirty =
     nombre.trim() !== (initialRef.current.nombre ?? "") ||
     apellido.trim() !== (initialRef.current.apellido ?? "") ||
-    telefono.trim() !== (initialRef.current.telefono ?? "");
-
-  // ---------------- Helpers ----------------
-  // base para archivos estáticos (si API_URL termina en /api, se lo quitamos)
-  const baseURL = useMemo(
-    () => (API_URL.endsWith("/api") ? API_URL.slice(0, -4) : API_URL),
-    []
-  );
-  const avatarUri = user?.photo ?? "https://placehold.co/200x200?text=Avatar";
+    telefono.trim() !== (initialRef.current.telefono ?? "") ||
+    bio.trim() !== (initialRef.current.bio ?? "") ||
+    emergNombre.trim() !== (initialRef.current.emergNombre ?? "") ||
+    emergTelefono.trim() !== (initialRef.current.emergTelefono ?? "") ||
+    accesNecesidades.trim() !== (initialRef.current.accesNecesidades ?? "");
 
   // Auth DEV sin JWT: header x-user-id
   const authHeaders = useMemo(
@@ -106,21 +131,43 @@ export default function EditProfileScreen() {
           setNombre(String(data.nombre ?? ""));
           setApellido(String(data.apellido ?? ""));
           setTelefono(String(data.telefono ?? ""));
+
+          setBio(String(data.bio ?? ""));
+          setEmergNombre(String(data.emerg_contacto_nombre ?? ""));
+          setEmergTelefono(String(data.emerg_contacto_telefono ?? ""));
+          const acc = data.acces_necesidades
+            ? JSON.stringify(data.acces_necesidades, null, 2)
+            : "";
+          setAccesNecesidades(acc);
+
           initialRef.current = {
             nombre: String(data.nombre ?? ""),
             apellido: String(data.apellido ?? ""),
             telefono: String(data.telefono ?? ""),
-            photo: user?.photo ?? null,
+            bio: String(data.bio ?? ""),
+            emergNombre: String(data.emerg_contacto_nombre ?? ""),
+            emergTelefono: String(data.emerg_contacto_telefono ?? ""),
+            accesNecesidades: acc,
           };
         }
       } catch (e: any) {
-        console.warn("No se pudo refrescar el perfil, usando contexto:", e?.response?.data || e?.message);
-        // aun así setea initial con lo que tenga el contexto
+        console.warn(
+          "No se pudo refrescar el perfil, usando contexto:",
+          e?.response?.data || e?.message
+        );
+        // baseline desde contexto
         initialRef.current = {
           nombre: user?.name || "",
           apellido: user?.lastName || "",
           telefono: user?.telefono || "",
-          photo: user?.photo || null,
+          bio: String((user as any)?.bio ?? ""),
+          emergNombre: String((user as any)?.emerg_contacto_nombre ?? ""),
+          emergTelefono: String((user as any)?.emerg_contacto_telefono ?? ""),
+          accesNecesidades: (() => {
+            const raw = (user as any)?.acces_necesidades;
+            if (!raw) return "";
+            try { return JSON.stringify(raw, null, 2); } catch { return ""; }
+          })(),
         };
       } finally {
         if (mounted) setLoading(false);
@@ -128,38 +175,91 @@ export default function EditProfileScreen() {
     })();
 
     return () => { mounted = false; };
-  }, [user?.id]); // solo depende del id
+  }, [user?.id]);
 
   // ---------------- Actions ----------------
-  async function onSave() {
+  function validateClient() {
     if (!nombre?.trim() || !apellido?.trim() || !telefono?.trim()) {
       Alert.alert("Campos requeridos", "Nombre, apellido y teléfono son obligatorios.");
-      return;
+      return false;
     }
+    if (bio && bio.length > 300) {
+      Alert.alert("Bio muy larga", "La bio no puede exceder 300 caracteres.");
+      return false;
+    }
+    if (emergNombre && emergNombre.length > 120) {
+      Alert.alert("Nombre de emergencia", "No puede exceder 120 caracteres.");
+      return false;
+    }
+    if (emergTelefono) {
+      if (emergTelefono.length > 20) {
+        Alert.alert("Teléfono de emergencia", "No puede exceder 20 caracteres.");
+        return false;
+      }
+      const rx = /^[0-9+()\-.\s]{6,20}$/;
+      if (!rx.test(emergTelefono)) {
+        Alert.alert("Teléfono inválido", "Usa solo dígitos y símbolos + ( ) - . espacio (6-20).");
+        return false;
+      }
+    }
+    if (accesNecesidades.trim()) {
+      try {
+        JSON.parse(accesNecesidades);
+      } catch {
+        Alert.alert(
+          "Necesidades especiales",
+          "El campo debe ser JSON válido. Ej: {\"nota\":\"ayuda para abordar\"}"
+        );
+        return false;
+      }
+    }
+    return true;
+  }
+
+  async function onSave() {
     if (!dirty) {
       Alert.alert("Sin cambios", "No hay nada que guardar.");
       return;
     }
+    if (!validateClient()) return;
+
     try {
       setSaving(true);
-      const { data } = await axios.put(
-        `${API_URL}/api/users/me`,
-        {
-          nombre: nombre.trim(),
-          apellido: apellido.trim(),
-          telefono: telefono.trim(),
-        },
-        { headers: authHeaders }
-      );
-      // usuario actualizado (sin contrasenia)
-      setUserFromBackend(data.user);
-      // actualiza baseline para dirty-check
-      initialRef.current = {
-        ...initialRef.current,
+
+      const payload: any = {
         nombre: nombre.trim(),
         apellido: apellido.trim(),
         telefono: telefono.trim(),
+        bio: bio.trim(),
+        emerg_contacto_nombre: emergNombre.trim(),
+        emerg_contacto_telefono: emergTelefono.trim(),
       };
+
+      if (accesNecesidades.trim()) {
+        payload.acces_necesidades = JSON.parse(accesNecesidades);
+      } else {
+        payload.acces_necesidades = null;
+      }
+
+      const { data } = await axios.put(`${API_URL}/api/users/me`, payload, {
+        headers: authHeaders,
+      });
+
+      setUserFromBackend(data.user);
+
+      initialRef.current = {
+        ...initialRef.current,
+        nombre: payload.nombre,
+        apellido: payload.apellido,
+        telefono: payload.telefono,
+        bio: payload.bio ?? "",
+        emergNombre: payload.emerg_contacto_nombre ?? "",
+        emergTelefono: payload.emerg_contacto_telefono ?? "",
+        accesNecesidades: accesNecesidades.trim()
+          ? JSON.stringify(payload.acces_necesidades, null, 2)
+          : "",
+      };
+
       Alert.alert("Listo", "Perfil actualizado correctamente.", [
         { text: "OK", onPress: () => navigation.goBack() },
       ]);
@@ -168,73 +268,6 @@ export default function EditProfileScreen() {
       Alert.alert("Error", e?.response?.data?.error || "No se pudo actualizar el perfil");
     } finally {
       setSaving(false);
-    }
-  }
-
-  // Picker robusto: intenta abrir directo; si hay error/permiso, pide y reintenta 1 vez.
-  async function onPickAvatar() {
-    try {
-      const res = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaType.Images,
-        quality: 0.9,
-        allowsEditing: true,
-        aspect: [1, 1],
-        allowsMultipleSelection: false,
-        exif: false,
-      });
-      if (res.canceled || !res.assets?.[0]?.uri) return;
-
-      await uploadAvatar(res.assets[0].uri);
-    } catch (_err) {
-      // si falla por permisos, los pedimos y reintentamos
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        Alert.alert(
-          "Permiso requerido",
-          "Activa el acceso a la galería para elegir tu foto de perfil.",
-          [{ text: "Abrir Ajustes", onPress: () => ImagePicker.openSettings() }, { text: "Cancelar", style: "cancel" }]
-        );
-        return;
-      }
-      const res2 = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaType.Images,
-        quality: 0.9,
-        allowsEditing: true,
-        aspect: [1, 1],
-        allowsMultipleSelection: false,
-        exif: false,
-      });
-      if (res2.canceled || !res2.assets?.[0]?.uri) return;
-      await uploadAvatar(res2.assets[0].uri);
-    }
-  }
-
-  async function uploadAvatar(uri: string) {
-    try {
-      setUploading(true);
-      const form = new FormData();
-      form.append("avatar", {
-        uri,
-        name: "avatar.jpg",
-        type: "image/jpeg",
-      } as any);
-
-      const { data } = await axios.put(`${API_URL}/api/users/me/avatar`, form, {
-        headers: { "Content-Type": "multipart/form-data", ...authHeaders },
-      });
-
-      const absolute = data?.avatar_url ? `${baseURL}${data.avatar_url}` : null;
-      mergeUser({ photo: absolute, photoPath: data?.avatar_url ?? null });
-
-      // marcar dirty falso para foto (no afecta inputs)
-      initialRef.current.photo = absolute;
-
-      Alert.alert("Listo", "Foto de perfil actualizada.");
-    } catch (e: any) {
-      console.error(e);
-      Alert.alert("Error", e?.response?.data?.error || "No se pudo subir la foto");
-    } finally {
-      setUploading(false);
     }
   }
 
@@ -259,24 +292,7 @@ export default function EditProfileScreen() {
         <Text style={[styles.title, { color: colors.primary }]}>Editar Perfil</Text>
         <Text style={[styles.subtitle, { color: colors.text }]}>Actualiza tu información</Text>
 
-        {/* Avatar */}
-        <View style={styles.avatarWrap}>
-          <TouchableOpacity onPress={onPickAvatar} style={styles.avatarButton} activeOpacity={0.8}>
-            <View style={styles.avatarShadow}>
-              <Image source={{ uri: avatarUri }} style={styles.avatar} />
-              {uploading && (
-                <View style={styles.avatarOverlay}>
-                  <ActivityIndicator color="#fff" />
-                </View>
-              )}
-            </View>
-            <Text style={[styles.changePhoto, { color: colors.primary }]}>
-              {uploading ? "Subiendo…" : "Cambiar foto"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Inputs */}
+        {/* Inputs básicos */}
         <AnimatedInput
           placeholder="Nombre"
           value={nombre}
@@ -305,6 +321,55 @@ export default function EditProfileScreen() {
           color={colors.primary}
         />
 
+        {/* Bio */}
+        <AnimatedInput
+          placeholder="Bio (máx. 300)"
+          value={bio}
+          onChangeText={onChangeBio}
+          variant="short"
+          textColor={colors.text}
+          borderColor={colors.border}
+          color={colors.primary}
+          multiline
+          numberOfLines={3}
+        />
+
+        {/* Contacto de emergencia */}
+        <AnimatedInput
+          placeholder="Contacto de emergencia - Nombre"
+          value={emergNombre}
+          onChangeText={onChangeEmergNombre}
+          variant="short"
+          textColor={colors.text}
+          borderColor={colors.border}
+          color={colors.primary}
+        />
+        <AnimatedInput
+          placeholder="Contacto de emergencia - Teléfono"
+          value={emergTelefono}
+          onChangeText={onChangeEmergTelefono}
+          variant="phone"
+          textColor={colors.text}
+          borderColor={colors.border}
+          color={colors.primary}
+        />
+
+        {/* Necesidades especiales (JSON) */}
+        <AnimatedInput
+          placeholder='Necesidades especiales'
+          value={accesNecesidades}
+          onChangeText={onChangeAccesNecesidades}
+          variant="short"
+          textColor={colors.text}
+          borderColor={colors.border}
+          color={colors.primary}
+          multiline
+          numberOfLines={4}
+        />
+        <Text style={{ color: colors.text, opacity: 0.6, fontSize: 12, marginBottom: 12 }}>
+          Deja vacío si no aplica.
+        </Text>
+
         <PrimaryButton
           title={saving ? "Guardando…" : "Guardar cambios"}
           onPress={onSave}
@@ -317,35 +382,10 @@ export default function EditProfileScreen() {
   );
 }
 
-const AVATAR_SIZE = 132;
-
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   container: { flex: 1, padding: 24, justifyContent: "center" },
   title: { fontSize: 28, fontWeight: "800", textAlign: "center", marginBottom: 6 },
   subtitle: { fontSize: 14, textAlign: "center", marginBottom: 18, opacity: 0.75 },
-
-  avatarWrap: { alignItems: "center", marginBottom: 16 },
-  avatarButton: { alignItems: "center" },
-  avatarShadow: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: AVATAR_SIZE / 2,
-    overflow: "hidden",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
-  },
-  avatar: { width: "100%", height: "100%" },
-  avatarOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.35)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  changePhoto: { fontWeight: "700", marginTop: 10 },
-
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
 });
