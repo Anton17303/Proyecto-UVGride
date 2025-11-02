@@ -10,6 +10,7 @@ import {
   Platform,
   ScrollView,
   TouchableOpacity,
+  Switch, // ⬅️ NUEVO
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useNavigation } from "@react-navigation/native";
@@ -36,6 +37,13 @@ function parseCurrency2dec(raw: string): number | null {
   if (!Number.isFinite(n) || n < 0) return NaN as unknown as number;
   return Math.round(n * 100) / 100;
 }
+function parseIntArrayCSV(s: string): number[] {
+  if (!s || !s.trim()) return [];
+  const parts = s.split(/[,\s]+/).map((t) => Number(t));
+  return Array.from(
+    new Set(parts.filter((n) => Number.isInteger(n) && n > 0))
+  );
+}
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "GroupCreate">;
 
@@ -52,29 +60,54 @@ export default function GroupCreateScreen() {
   const [costo, setCosto] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const esConductor = (user?.tipo_usuario || "").toLowerCase() === "conductor";
+  // ⬇️ NUEVO: recurrente + miembros designados
+  const [esRecurrente, setEsRecurrente] = useState(false);
+  const [miembrosCSV, setMiembrosCSV] = useState("");
+
+  const esConductor =
+    (user?.tipo_usuario || "").toLowerCase() === "conductor";
+  const conductorId = Number(user?.id) || 0;
 
   /* -------- Validaciones -------- */
   const destinoErr = useMemo(
     () => (destino.trim() ? "" : "Ingresa un destino."),
     [destino]
   );
+  const nCupos = useMemo(
+    () => clampInt(Number(cupos), 1, 99),
+    [cupos]
+  );
   const cuposErr = useMemo(() => {
     if (cupos.trim() === "") return "Ingresa el número de cupos.";
-    const n = clampInt(Number(cupos), 1, 99);
-    if (!Number.isFinite(n)) return "Debe ser un entero.";
-    if (n <= 0) return "Debe ser un entero > 0.";
+    if (!Number.isFinite(nCupos)) return "Debe ser un entero.";
+    if (nCupos <= 0) return "Debe ser un entero > 0.";
     return "";
-  }, [cupos]);
+  }, [cupos, nCupos]);
+  const costoNum = useMemo(() => parseCurrency2dec(costo), [costo]);
   const costoErr = useMemo(() => {
     if (costo.trim() === "") return "";
-    const n = parseCurrency2dec(costo);
-    if (n === null) return "";
-    if (Number.isNaN(n) || n < 0) return "Ingresa un costo válido (>= 0).";
+    if (costoNum === null) return "";
+    if (Number.isNaN(costoNum) || (costoNum as number) < 0)
+      return "Ingresa un costo válido (>= 0).";
     return "";
-  }, [costo]);
+  }, [costo, costoNum]);
 
-  const isFormValid = !destinoErr && !cuposErr && !costoErr;
+  // ⬇️ NUEVO: validar miembros designados (solo si es recurrente)
+  const miembrosDesignados = useMemo(() => {
+    const arr = parseIntArrayCSV(miembrosCSV).filter((id) => id !== conductorId);
+    return arr;
+  }, [miembrosCSV, conductorId]);
+
+  const designadosErr = useMemo(() => {
+    if (!esRecurrente) return "";
+    if (!Number.isFinite(nCupos)) return "";
+    if (1 + miembrosDesignados.length > nCupos) {
+      return `Capacidad insuficiente: conductor + ${miembrosDesignados.length} designados exceden ${nCupos} cupos.`;
+    }
+    return "";
+  }, [esRecurrente, miembrosDesignados, nCupos]);
+
+  const isFormValid = !destinoErr && !cuposErr && !costoErr && !designadosErr;
 
   /* -------- Helpers -------- */
   const setCuposMasked = (t: string) => setCupos(t.replace(/[^\d]/g, ""));
@@ -100,12 +133,11 @@ export default function GroupCreateScreen() {
     if (!isFormValid) {
       return Alert.alert(
         "Revisa el formulario",
-        [destinoErr, cuposErr, costoErr].filter(Boolean).join("\n")
+        [destinoErr, cuposErr, costoErr, designadosErr].filter(Boolean).join(
+          "\n"
+        )
       );
     }
-
-    const nCupos = clampInt(Number(cupos), 1, 99);
-    const nCosto = parseCurrency2dec(costo);
 
     try {
       setLoading(true);
@@ -114,14 +146,24 @@ export default function GroupCreateScreen() {
         destino_nombre: destino.trim(),
         cupos_totales: nCupos,
         fecha_salida: fecha ? fecha.toISOString() : undefined,
-        precio_base: nCosto ?? undefined,
+        precio_base: (costoNum ?? undefined) as number | undefined,
+        // ⬇️ NUEVO:
+        es_recurrente: esRecurrente,
+        miembros_designados:
+          esRecurrente && miembrosDesignados.length > 0
+            ? miembrosDesignados
+            : undefined,
       });
       Alert.alert("Éxito", "Grupo creado.", [
         { text: "OK", onPress: () => navigation.goBack() },
       ]);
     } catch (e: any) {
       console.error("crear grupo error:", e?.response?.data || e?.message);
-      Alert.alert("Error", "No se pudo crear el grupo.");
+      const msg =
+        e?.response?.data?.error ||
+        e?.message ||
+        "No se pudo crear el grupo.";
+      Alert.alert("Error", String(msg));
     } finally {
       setLoading(false);
     }
@@ -250,12 +292,53 @@ export default function GroupCreateScreen() {
             />
           </View>
 
+          {/* ⬇️ NUEVO: Switch de viaje recurrente */}
+          <View style={[styles.block, styles.rowBetween]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.label, { color: colors.text }]}>
+                Viaje recurrente
+              </Text>
+              <Text style={[styles.help, { color: colors.text }]}>
+                Si está activado, el grupo se crea <Text style={{fontWeight: "700"}}>cerrado</Text> y podrás
+                agregar miembros designados.
+              </Text>
+            </View>
+            <Switch
+              value={esRecurrente}
+              onValueChange={setEsRecurrente}
+            />
+          </View>
+
+          {/* ⬇️ NUEVO: Campo de miembros designados */}
+          {esRecurrente && (
+            <View style={styles.block}>
+              <Text style={[styles.label, { color: colors.text }]}>
+                Miembros designados
+              </Text>
+              <AnimatedInput
+                placeholder="102, 205, 318"
+                value={miembrosCSV}
+                onChangeText={setMiembrosCSV}
+                variant="short"
+                textColor={colors.text}
+                borderColor={colors.border}
+                color={colors.primary}
+              />
+              <Text style={[styles.help, { color: designadosErr ? colors.danger || "#d00" : colors.text }]}>
+                {designadosErr
+                  ? designadosErr
+                  : `Se agregarán ${miembrosDesignados.length} pasajeros aprobados. La capacidad incluye al conductor.`}
+              </Text>
+            </View>
+          )}
+
           {/* Botón principal */}
           <PrimaryButton
             title="Crear grupo"
             onPress={onSubmit}
             loading={loading}
             color={colors.primary}
+            disabled={!isFormValid || !esConductor}
           />
 
           <LinkText
@@ -291,7 +374,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: "500",
-    opacity: 0.7, // grisáceo como en otros forms
+    opacity: 0.7,
     marginBottom: 6,
   },
   row: {
@@ -299,6 +382,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     marginBottom: 8,
+  },
+  rowBetween: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    justifyContent: "space-between",
   },
   pickBtn: {
     flex: 1,
@@ -315,5 +404,10 @@ const styles = StyleSheet.create({
   chipTxt: {
     fontWeight: "600",
     fontSize: 13,
+  },
+  help: {
+    fontSize: 12,
+    opacity: 0.8,
+    marginTop: 4,
   },
 });

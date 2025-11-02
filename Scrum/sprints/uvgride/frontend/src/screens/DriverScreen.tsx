@@ -1,3 +1,4 @@
+// src/screens/PassengerScreen.tsx
 import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
@@ -108,7 +109,7 @@ export default function PassengerScreen() {
       if (joiningId) return;
       setJoiningId(id);
 
-      // actualización optimista (ajusta cupos_usados para reflejarse en getCuposDisp)
+      // actualización optimista
       setGrupos((prev) =>
         prev.map((g) =>
           g.id_grupo !== id
@@ -149,6 +150,7 @@ export default function PassengerScreen() {
     const total = Number(g.capacidad_total ?? g.cupos_totales ?? 0);
     const usados = Number(g.cupos_usados ?? 0);
     return Math.max(0, total - usados);
+    // Nota: el backend ya calcula cupos_disponibles; aquí solo hacemos fallback robusto.
   };
 
   // Helpers de filtros
@@ -212,8 +214,9 @@ export default function PassengerScreen() {
       const okFecha = isInFechaFilter(g.fecha_salida ?? null, fechaFilter);
       if (!okFecha) return false;
 
-      const costo = g.costo_estimado != null ? Number(g.costo_estimado) : undefined;
-      const okPrecio = isInPrecioFilter(costo, precioFilter);
+      // usar precio_base (preferido) -> costo_estimado (compat)
+      const precio = g.precio_base != null ? Number(g.precio_base) : g.costo_estimado != null ? Number(g.costo_estimado) : undefined;
+      const okPrecio = isInPrecioFilter(precio, precioFilter);
       if (!okPrecio) return false;
 
       if (!matchesSearch(g, searchQuery)) return false;
@@ -222,14 +225,15 @@ export default function PassengerScreen() {
     });
   }, [grupos, estadoFilter, cupoFilter, fechaFilter, precioFilter, searchQuery]);
 
-  const EstadoBadge = ({ estado }: { estado: Grupo["estado"] }) => {
+  const EstadoBadge = ({ estado, esRecurrente }: { estado: Grupo["estado"]; esRecurrente?: boolean }) => {
     const map: Record<string, string> = {
       abierto: "#2e7d32",
       cerrado: "#1565c0",
       cancelado: "#c62828",
       finalizado: "#616161",
     };
-    const label = estado === "cerrado" ? "INICIADO" : estado.toUpperCase();
+    // Si es recurrente y está "cerrado", ese es su estado fijo; no mostramos "INICIADO"
+    const label = estado === "cerrado" ? (esRecurrente ? "CERRADO" : "INICIADO") : estado.toUpperCase();
 
     return (
       <View style={[styles.badge, { backgroundColor: map[estado] || colors.border }]}>
@@ -237,6 +241,12 @@ export default function PassengerScreen() {
       </View>
     );
   };
+
+  const RecurrentBadge = () => (
+    <View style={[styles.badge, { backgroundColor: "#455a64", marginLeft: 6 }]}>
+      <Text style={styles.badgeTxt}>RECURRENTE</Text>
+    </View>
+  );
 
   const RotatingPill = ({
     label,
@@ -278,13 +288,32 @@ export default function PassengerScreen() {
     const isOwner = Number(user?.id) === Number(item.conductor_id);
     const isMemberHere = Boolean(item.es_miembro);
     const isOpen = item.estado === "abierto";
+    const esRecurrente = Boolean(item.es_recurrente);
 
-    const disabledJoin = isOwner || !isOpen || cuposDisp <= 0 || (hasJoinedAny && !isMemberHere);
+    // Precio preferido: precio_base -> costo_estimado
+    const precio =
+      item.precio_base != null
+        ? Number(item.precio_base)
+        : item.costo_estimado != null
+        ? Number(item.costo_estimado)
+        : null;
+
+    // Reglas de unión:
+    // - Recurrente: no permite unirse salvo que ya seas miembro designado (es_miembro)
+    // - Resto: igual que antes
+    const disabledJoin =
+      isOwner ||
+      (!isOpen && !isMemberHere) ||
+      cuposDisp <= 0 ||
+      (hasJoinedAny && !isMemberHere) ||
+      (esRecurrente && !isMemberHere);
 
     const joinLabel = isOwner
       ? "Tu grupo"
       : isMemberHere
       ? "Ya unido"
+      : esRecurrente
+      ? "Solo designados"
       : !isOpen
       ? "No disponible"
       : cuposDisp <= 0
@@ -304,7 +333,10 @@ export default function PassengerScreen() {
           <Text style={[styles.cardTitle, { color: colors.primary }]}>
             {item.conductor?.nombre} {item.conductor?.apellido}
           </Text>
-          <EstadoBadge estado={item.estado} />
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <EstadoBadge estado={item.estado} esRecurrente={esRecurrente} />
+            {esRecurrente && <RecurrentBadge />}
+          </View>
         </View>
 
         {/* Info */}
@@ -316,10 +348,10 @@ export default function PassengerScreen() {
           <Text style={styles.label}>Cupos: </Text>
           {cuposDisp} / {cuposTotales}
         </Text>
-        {item.costo_estimado != null && (
+        {precio !== null && Number.isFinite(precio) && (
           <Text style={{ color: colors.text, marginBottom: 4 }}>
             <Text style={styles.label}>Estimado: </Text>
-            {currency.format(Number(item.costo_estimado))}
+            {currency.format(precio)}
           </Text>
         )}
         {item.fecha_salida && (
@@ -388,7 +420,7 @@ export default function PassengerScreen() {
       {/* Header */}
       <Text style={[styles.title, { color: colors.text }]}>Grupos</Text>
 
-      {/* Filtros (ordenados por prioridad) */}
+      {/* Filtros */}
       <View style={styles.toolbar}>
         {/* 1) Búsqueda (lupa) */}
         <TouchableOpacity

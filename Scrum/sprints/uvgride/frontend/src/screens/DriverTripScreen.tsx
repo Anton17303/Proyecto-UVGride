@@ -15,7 +15,7 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { RootStackParamList } from "../navigation/type";
-import { listGroups, closeGroup, Grupo } from "../services/groups";
+import { listGroups, closeGroup, deleteGroup, Grupo } from "../services/groups";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
 import { useUser } from "../context/UserContext";
@@ -34,7 +34,7 @@ export default function DriverTripScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [joinedOther, setJoinedOther] = useState(false);
-  const [closingId, setClosingId] = useState<number | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
 
   const fmtDate = useMemo(
     () => (s?: string | null) =>
@@ -80,8 +80,8 @@ export default function DriverTripScreen() {
   const doClose = async (g: Grupo, estado: "cerrado" | "cancelado" | "finalizado") => {
     try {
       if (!user?.id) return Alert.alert("Sesión", "Inicia sesión.");
-      if (closingId) return;
-      setClosingId(g.id_grupo);
+      if (busyId) return;
+      setBusyId(g.id_grupo);
 
       await closeGroup(g.id_grupo, { conductor_id: user.id, estado });
       Alert.alert("Listo", `Grupo ${estado}`);
@@ -90,14 +90,47 @@ export default function DriverTripScreen() {
       console.error(e);
       Alert.alert("Error", e?.response?.data?.error || "No se pudo actualizar el grupo");
     } finally {
-      setClosingId(null);
+      setBusyId(null);
     }
   };
 
-  const EstadoBadge = ({ estado }: { estado: Grupo["estado"] }) => {
+  const doDelete = async (g: Grupo) => {
+    try {
+      if (!user?.id) return Alert.alert("Sesión", "Inicia sesión.");
+      Alert.alert(
+        "Eliminar grupo",
+        "Esta acción no se puede deshacer. ¿Deseas eliminar el grupo?",
+        [
+          { text: "Cancelar", style: "cancel" },
+          {
+            text: "Eliminar",
+            style: "destructive",
+            onPress: async () => {
+              setBusyId(g.id_grupo);
+              try {
+                await deleteGroup(g.id_grupo, { conductor_id: user.id });
+                Alert.alert("Eliminado", "El grupo fue eliminado.");
+                fetchData();
+              } catch (e: any) {
+                console.error(e);
+                Alert.alert("Error", e?.response?.data?.error || "No se pudo eliminar el grupo");
+              } finally {
+                setBusyId(null);
+              }
+            },
+          },
+        ]
+      );
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const EstadoBadge = ({ estado, esRecurrente }: { estado: Grupo["estado"]; esRecurrente?: boolean }) => {
+    // Si es recurrente, 'cerrado' no significa "iniciado", sino un estado fijo
     const map: Record<string, { color: string; label: string }> = {
       abierto: { color: "#2e7d32", label: "ABIERTO" },
-      cerrado: { color: "#1565c0", label: "INICIADO" },
+      cerrado: { color: esRecurrente ? "#1565c0" : "#1565c0", label: esRecurrente ? "CERRADO" : "INICIADO" },
       cancelado: { color: "#c62828", label: "CANCELADO" },
       finalizado: { color: "#616161", label: "FINALIZADO" },
     };
@@ -109,22 +142,37 @@ export default function DriverTripScreen() {
     );
   };
 
+  const RecurrentBadge = () => (
+    <View style={[styles.badge, { backgroundColor: "#455a64", marginLeft: 6 }]}>
+      <Text style={styles.badgeTxt}>RECURRENTE</Text>
+    </View>
+  );
+
   const renderItem = ({ item }: { item: Grupo }) => {
     const cuposTotales = Number(item.capacidad_total ?? item.cupos_totales ?? 0);
     const cuposUsados = Number(item.cupos_usados ?? 0);
     const cuposDisp = Math.max(0, cuposTotales - cuposUsados);
 
-    const isBusy = closingId === item.id_grupo;
+    const isBusy = busyId === item.id_grupo;
     const v = item.conductor?.vehiculos?.[0];
+    const precio =
+      item.precio_base != null
+        ? Number(item.precio_base)
+        : item.costo_estimado != null
+        ? Number(item.costo_estimado)
+        : null;
 
     return (
       <View style={[styles.card, { backgroundColor: colors.card }]}>
         {/* Header */}
         <View style={styles.headerRow}>
           <Text style={[styles.cardTitle, { color: colors.primary }]}>
-            {item.viaje?.destino ?? item.destino_nombre ?? "Destino"}
+            {item.viaje?.destino ?? (item as any).destino_nombre ?? "Destino"}
           </Text>
-          <EstadoBadge estado={item.estado} />
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <EstadoBadge estado={item.estado} esRecurrente={item.es_recurrente} />
+            {item.es_recurrente ? <RecurrentBadge /> : null}
+          </View>
         </View>
 
         {/* Info */}
@@ -138,20 +186,29 @@ export default function DriverTripScreen() {
           <Text style={styles.label}>Cupos: </Text>
           {cuposDisp} / {cuposTotales}
         </Text>
-        {item.costo_estimado != null && (
+        {precio !== null && Number.isFinite(precio) && (
           <Text style={{ color: colors.text, marginBottom: 2 }}>
             <Text style={styles.label}>Estimado: </Text>
-            Q{Number(item.costo_estimado).toFixed(2)}
+            Q{precio.toFixed(2)}
           </Text>
         )}
         <Text style={{ color: colors.text, marginBottom: 6 }}>
           <Text style={styles.label}>Salida: </Text>
-          {fmtDate(item.viaje?.fecha_inicio ?? item.fecha_salida)}
+          {fmtDate(item.viaje?.fecha_inicio ?? (item as any).fecha_salida)}
         </Text>
 
         {/* Botones dinámicos */}
         <View style={styles.actionsRow}>
-          {item.estado === "abierto" && (
+          {item.es_recurrente ? (
+            // Solo ELIMINAR para recurrentes
+            <TouchableOpacity
+              onPress={() => doDelete(item)}
+              disabled={isBusy}
+              style={[styles.actionBtn, { backgroundColor: "#b71c1c", flex: 1 }]}
+            >
+              <Text style={styles.actionTxt}>{isBusy ? "..." : "Eliminar"}</Text>
+            </TouchableOpacity>
+          ) : item.estado === "abierto" ? (
             <>
               <TouchableOpacity
                 onPress={() => doClose(item, "cerrado")}
@@ -168,8 +225,7 @@ export default function DriverTripScreen() {
                 <Text style={styles.actionTxt}>{isBusy ? "..." : "Cancelar"}</Text>
               </TouchableOpacity>
             </>
-          )}
-          {item.estado === "cerrado" && (
+          ) : item.estado === "cerrado" ? (
             <>
               <TouchableOpacity
                 onPress={() => doClose(item, "finalizado")}
@@ -186,7 +242,7 @@ export default function DriverTripScreen() {
                 <Text style={styles.actionTxt}>{isBusy ? "..." : "Cancelar"}</Text>
               </TouchableOpacity>
             </>
-          )}
+          ) : null}
         </View>
       </View>
     );
@@ -206,7 +262,7 @@ export default function DriverTripScreen() {
         <EmptyState
           icon="car-sport-outline"
           title="Aún no tienes grupos"
-          subtitle="Crea tu primer grupo de viaje y empieza a recibir pasajeros"
+          subtitle="Crea tu primer grupo de viaje y empieza a recibir pasajeros, para crear un grupo debes registrar un vehiculo desde la configuración."
           color={colors.primary}
           textColor={colors.text}
         />

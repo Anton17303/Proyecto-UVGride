@@ -34,7 +34,8 @@ export type Grupo = {
   cupos_usados?: number;
 
   // costos/estado/fechas
-  costo_estimado: number | null;
+  costo_estimado: number | null; // compat
+  precio_base?: number | null;   // preferido
   estado: 'abierto' | 'cerrado' | 'cancelado' | 'finalizado';
   fecha_salida: string | null;
 
@@ -60,6 +61,9 @@ export type Grupo = {
   // flags calculados por backend (si mandas user_id)
   es_miembro?: boolean;
   es_propietario?: boolean;
+
+  // NUEVO
+  es_recurrente?: boolean;
 
   // compat extras
   capacidad_total?: number;
@@ -213,6 +217,10 @@ function normalizeGrupo(api: any): Grupo {
       }))
     : undefined;
 
+  // Precios
+  const precioBase = toNum(api.precio_base);
+  const costoEstimado = toNum(api.costo_estimado);
+
   return {
     id_grupo: Number(api.id_grupo),
 
@@ -224,13 +232,18 @@ function normalizeGrupo(api: any): Grupo {
     cupos_disponibles: cuposDisponibles,
     cupos_usados: cuposUsados,
 
-    costo_estimado: toNum(api.costo_estimado ?? api.precio_base),
+    // mantenemos ambos campos (el UI usa fallback)
+    precio_base: precioBase,
+    costo_estimado: costoEstimado ?? precioBase ?? null,
 
     estado,
     fecha_salida: api.viaje?.fecha_inicio ?? api.fecha_salida ?? null,
 
     conductor_id: Number(api.conductor_id),
     conductor: api.conductor,
+
+    // NUEVO flag
+    es_recurrente: toBool(api.es_recurrente),
 
     capacidad_total: capacidadTotal,
     destino: api.destino,
@@ -282,8 +295,11 @@ export async function createGroup(payload: {
   lat_destino?: number | null;
   lon_destino?: number | null;
   fecha_salida?: string | null;
-  costo_estimado?: number | null;
+  precio_base?: number | null;       // preferido
+  costo_estimado?: number | null;    // compat
   notas?: string | null;
+  es_recurrente?: boolean;           // NUEVO
+  miembros_designados?: number[];    // NUEVO (IDs)
 }): Promise<{ id_grupo: number; id_viaje_maestro: number }> {
   const body = clean({
     conductor_id: payload.conductor_id,
@@ -293,12 +309,28 @@ export async function createGroup(payload: {
     lat_destino: payload.lat_destino ?? undefined,
     lon_destino: payload.lon_destino ?? undefined,
     fecha_salida: payload.fecha_salida ?? undefined,
-    costo_estimado: payload.costo_estimado ?? undefined,
+    // Enviamos ambos alias de precio por compatibilidad
+    precio_base: payload.precio_base ?? payload.costo_estimado ?? undefined,
+    costo_estimado: payload.costo_estimado ?? payload.precio_base ?? undefined,
     notas: payload.notas ?? undefined,
+    es_recurrente: payload.es_recurrente ?? undefined,
+    miembros_designados:
+      Array.isArray(payload.miembros_designados) && payload.miembros_designados.length > 0
+        ? payload.miembros_designados
+        : undefined,
   });
 
   const res = await axios.post(`${API_URL}/api/grupos`, body);
   return (res.data?.data ?? res.data) as { id_grupo: number; id_viaje_maestro: number };
+}
+
+/** DELETE /api/grupos/:id   (body: { conductor_id }) */
+export async function deleteGroup(
+  groupId: number,
+  payload: { conductor_id: number }
+): Promise<{ message: string }> {
+  const res = await axios.delete(`${API_URL}/api/grupos/${groupId}`, { data: clean(payload) });
+  return res.data;
 }
 
 /** POST /api/grupos/:id/join */
