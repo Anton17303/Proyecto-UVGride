@@ -1,3 +1,4 @@
+// src/screens/HomeScreen.tsx
 import React, { useCallback, useState } from "react";
 import {
   View,
@@ -10,6 +11,7 @@ import {
 } from "react-native";
 import axios from "axios";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
+
 import { API_URL } from "../services/api";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
@@ -19,7 +21,8 @@ import TripCard from "../components/TripCard";
 import EmptyState from "../components/EmptyState";
 import FloatingActionButton from "../components/FloatingActionButton";
 
-import { useStreak } from "../hooks/useStreak";
+import StreakCard from "../components/StreakCard";          // 👈 nueva card
+import { useStreak } from "../hooks/useStreak";             // 👈 hook mejorado
 
 export default function HomeScreen() {
   const navigation = useNavigation();
@@ -30,10 +33,10 @@ export default function HomeScreen() {
   const [trips, setTrips] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  // 🔥 Racha
-  const { ready, current, best, refresh } = useStreak();
+  // 🔥 Racha (ready, current, best) + touchToday para contar día nuevo y disparar logro APP_OPENED
+  const { ready, current, best, refresh, touchToday } = useStreak();
 
-  const fetchTrips = async () => {
+  const fetchTrips = useCallback(async () => {
     if (!user?.id) return;
     try {
       const response = await axios.get(`${API_URL}/api/viajes/usuario/${user.id}`);
@@ -42,24 +45,27 @@ export default function HomeScreen() {
       console.error("❌ Error al cargar historial de viajes", err);
       Alert.alert("Error", "No se pudo cargar tu historial de viajes.");
     }
-  };
+  }, [user?.id]);
 
-  // Al enfocar la pantalla: refrescar viajes y racha
+  // Al enfocar la pantalla: refrescar viajes, sincronizar racha y marcar día (si aplica)
   useFocusEffect(
     useCallback(() => {
-      fetchTrips();
-      refresh(); // 👈 actualiza la racha desde AsyncStorage
-    }, [user?.id, refresh])
+      (async () => {
+        await fetchTrips();
+        await refresh();                         // sincroniza desde storage
+        await touchToday({ emitAchievement: true }); // cuenta el día si aplica y emite APP_OPENED
+      })();
+    }, [fetchTrips, refresh, touchToday])
   );
 
   const onPullRefresh = useCallback(async () => {
     try {
       setRefreshing(true);
-      await Promise.all([fetchTrips(), refresh()]);
+      await Promise.all([fetchTrips(), refresh(), touchToday({ emitAchievement: true })]);
     } finally {
       setRefreshing(false);
     }
-  }, [refresh, user?.id]);
+  }, [fetchTrips, refresh, touchToday]);
 
   const handleRepeatTrip = (trip: any) => {
     if (!trip.destino) {
@@ -84,6 +90,7 @@ export default function HomeScreen() {
       hour: "2-digit",
       minute: "2-digit",
     })}`;
+    // Nota: si quieres forzar "es-GT", usa toLocaleString("es-GT", { ... })
   };
 
   return (
@@ -93,22 +100,14 @@ export default function HomeScreen() {
           Bienvenido, {user?.name || "Usuario"}
         </Text>
 
-        {/* 🔥 Widget Racha */}
+        {/* 🔥 Racha (nueva UI) */}
         {ready && (
-          <View style={[styles.streakCard, { backgroundColor: colors.primary }]}>
-            <Text style={styles.streakEmoji}>🔥</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.streakTitle, { color: "#fff" }]}>Tu racha</Text>
-              <Text style={[styles.streakValue, { color: "#fff" }]}>
-                {current > 0
-                  ? `${current} ${current === 1 ? "día" : "días"} seguidos`
-                  : "Aún no tienes racha"}
-              </Text>
-              <Text style={[styles.streakSub, { color: "#fff" }]}>
-                Mejor: {best}
-              </Text>
-            </View>
-          </View>
+          <StreakCard
+            current={current}
+            best={best}
+            color={colors.primary}
+            mode="outline"
+          />
         )}
 
         <Text style={[styles.subtitle, { color: colors.primary }]}>
@@ -134,9 +133,7 @@ export default function HomeScreen() {
             <EmptyState
               icon="car-outline"
               title="Aún no tienes viajes"
-              subtitle={
-                "Empieza creando tu primer viaje desde el mapa.\n¡Haz tu trayecto más fácil con UVGride!"
-              }
+              subtitle={"Empieza creando tu primer viaje desde el mapa.\n¡Haz tu trayecto más fácil con UVGride!"}
               color={colors.primary}
               textColor={colors.text}
             />
@@ -167,20 +164,4 @@ const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20, paddingTop: 10 },
   title: { fontSize: 28, fontWeight: "700", marginBottom: 4 },
   subtitle: { fontSize: 16, marginTop: 16, marginBottom: 12, fontWeight: "500" },
-
-  streakCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 14,
-    borderRadius: 14,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
-  },
-  streakEmoji: { fontSize: 26, marginRight: 10, color: "#fff" },
-  streakTitle: { fontSize: 14, fontWeight: "700", opacity: 0.95 },
-  streakValue: { fontSize: 18, fontWeight: "900", marginTop: 2 },
-  streakSub: { fontSize: 12, opacity: 0.9, marginTop: 2 },
 });

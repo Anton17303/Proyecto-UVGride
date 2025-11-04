@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { Alert } from "react-native";
 import * as Location from "expo-location";
 import axios from "axios";
-import { useStreak } from "../hooks/useStreak";
+import { useStreak } from "./useStreak"; // ✅ misma carpeta
 
 const OPENROUTESERVICE_API_KEY =
   "5b3ce3597851110001cf62486825133970f449ebbc374649ee03b5eb";
@@ -40,7 +40,8 @@ export function useTravelRoute(params?: {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const { registerCreation } = useStreak();
+  // ✅ reemplazo de registerCreation
+  const { touchToday } = useStreak();
 
   // control de llamadas
   const firstRouteLoggedRef = useRef(false);
@@ -68,7 +69,7 @@ export function useTravelRoute(params?: {
 
   /**
    * Dibuja la ruta entre o y d.
-   * opts.skipStreak => no llamar registerCreation (útil para recálculos automáticos)
+   * opts.skipStreak => no marcar racha (útil para recálculos automáticos)
    * opts.force      => fuerza la llamada aunque o/d sean iguales al último par
    */
   const drawRoute = async (
@@ -123,9 +124,10 @@ export function useTravelRoute(params?: {
         setSummary(null);
       }
 
-      // registra creación SOLO una vez por sesión y no en recálculos
+      // ✅ Marca racha SOLO una vez por sesión/uso de hook y no en recálculos
+      //    emitAchievement:false para no duplicar APP_OPENED (ya lo manejas en Home)
       if (!opts?.skipStreak && !firstRouteLoggedRef.current) {
-        await registerCreation();
+        await touchToday({ emitAchievement: false });
         firstRouteLoggedRef.current = true;
       }
     } catch (error: any) {

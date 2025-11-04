@@ -1,118 +1,132 @@
 // src/hooks/useStreak.ts
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useUser } from "../context/UserContext";
+import { useAchievements } from "../achievements/AchievementsContext";
 
-const KEY = "uvgride:streak:v1";
-
-export type StreakState = {
-  current: number;        // racha actual (días consecutivos)
-  best: number;           // mejor racha histórica
-  lastDate: string | null; // yyyy-mm-dd del último día con creación de viaje
+type StreakState = {
+  current: number;
+  best: number;
+  lastDay: string | null; // "YYYY-MM-DD" con corte a las 04:00 local
 };
 
-const initial: StreakState = { current: 0, best: 0, lastDate: null };
+const DEFAULT_ROLLOVER_HOUR = 4; // 4am: el día "cambia" a esta hora
 
-/** Fecha local (día del dispositivo) a yyyy-mm-dd */
-const localISODate = (d: Date = new Date()) =>
-  new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString().slice(0, 10);
-
-/** Diferencia en días enteros entre dos yyyy-mm-dd (a -> b) */
-const daysDiff = (aISO: string, bISO: string) => {
-  const MS = 24 * 60 * 60 * 1000;
-  return Math.round((new Date(bISO).getTime() - new Date(aISO).getTime()) / MS);
-};
-
-async function load(): Promise<StreakState> {
-  try {
-    const raw = await AsyncStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as StreakState) : initial;
-  } catch {
-    return initial;
-  }
-}
-async function save(s: StreakState) {
-  await AsyncStorage.setItem(KEY, JSON.stringify(s));
+function dayKeyFrom(date: Date, rolloverHour = DEFAULT_ROLLOVER_HOUR) {
+  // Mueve el reloj atrás 'rolloverHour' para evitar cortar racha justo en medianoche
+  const d = new Date(date);
+  d.setHours(d.getHours() - rolloverHour, 0, 0, 0);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
-export function useStreak() {
-  const [state, setState] = useState<StreakState>(initial);
+export function useStreak(rolloverHour = DEFAULT_ROLLOVER_HOUR) {
+  const { user } = useUser();
+  const { emit } = useAchievements();
+
+  const storageKey = useMemo(
+    () => (user?.id ? `streak:${user.id}` : null),
+    [user?.id]
+  );
+
   const [ready, setReady] = useState(false);
+  const [state, setState] = useState<StreakState>({
+    current: 0,
+    best: 0,
+    lastDay: null,
+  });
 
-  // Carga inicial y aplica "caída" si pasaron >=2 días sin crear
+  const load = useCallback(async () => {
+    if (!storageKey) {
+      setReady(true);
+      return;
+    }
+    try {
+      const raw = await AsyncStorage.getItem(storageKey);
+      const saved: StreakState | null = raw ? JSON.parse(raw) : null;
+      if (saved) setState(saved);
+    } catch {
+      // noop
+    } finally {
+      setReady(true);
+    }
+  }, [storageKey]);
+
   useEffect(() => {
-    (async () => {
-      const s = await load();
-      const today = localISODate();
-      if (s.lastDate) {
-        const gap = daysDiff(s.lastDate, today);
-        if (gap >= 2 && s.current !== 0) {
-          s.current = 0; // racha rota
-          await save(s);
+    load();
+  }, [load]);
+
+  const persist = useCallback(
+    async (next: StreakState) => {
+      if (!storageKey) return;
+      await AsyncStorage.setItem(storageKey, JSON.stringify(next));
+    },
+    [storageKey]
+  );
+
+  const refresh = useCallback(async () => {
+    await load();
+  }, [load]);
+
+  /**
+   * Marca el día actual. Si es un día nuevo (según dayKey con corte 4am),
+   * incrementa la racha y (opcional) emite APP_OPENED para logros.
+   */
+  const touchToday = useCallback(
+    async (opts?: { emitAchievement?: boolean }) => {
+      const todayKey = dayKeyFrom(new Date(), rolloverHour);
+      let next: StreakState;
+
+      if (!state.lastDay) {
+        // Primera vez
+        next = { current: 1, best: 1, lastDay: todayKey };
+      } else if (state.lastDay === todayKey) {
+        // Ya contamos hoy
+        next = { ...state };
+      } else {
+        // Calcula diferencia de días
+        const last = new Date(`${state.lastDay}T00:00:00`);
+        const today = new Date(`${todayKey}T00:00:00`);
+        const diffDays = Math.round(
+          (today.getTime() - last.getTime()) / (24 * 3600 * 1000)
+        );
+
+        if (diffDays === 1) {
+          const cur = state.current + 1;
+          next = { current: cur, best: Math.max(state.best, cur), lastDay: todayKey };
+        } else if (diffDays > 1) {
+          // Racha rota; reinicia
+          next = { current: 1, best: Math.max(state.best, 1), lastDay: todayKey };
+        } else {
+          // diff negativo (cambio de hora hacia atrás). Ignora.
+          next = { ...state };
         }
       }
-      setState(s);
-      setReady(true);
-    })();
-  }, []);
 
-  /** Refresca desde storage y aplica la caída si corresponde */
-  const refresh = useCallback(async () => {
-    const s = await load();
-    const today = localISODate();
-    if (s.lastDate) {
-      const gap = daysDiff(s.lastDate, today);
-      if (gap >= 2 && s.current !== 0) {
-        s.current = 0;
-        await save(s);
+      const wasNewDay = next.lastDay !== state.lastDay;
+      if (wasNewDay && opts?.emitAchievement) {
+        try {
+          emit?.("APP_OPENED", {}); // Solo cuando realmente contó como día nuevo
+        } catch {
+          // noop
+        }
       }
-    }
-    setState(s);
-    setReady(true);
-  }, []);
 
-  /** Llamar justo después de CREAR un viaje (POST ok). */
-  const registerCreation = useCallback(async (dateISO?: string) => {
-    const today = dateISO ?? localISODate();
-    let s = await load();
-
-    if (!s.lastDate) {
-      s = { current: 1, best: 1, lastDate: today };
-      await save(s);
-      setState(s);
-      return s;
-    }
-
-    const gap = daysDiff(s.lastDate, today);
-    if (gap === 0) {
-      // Ya contamos hoy
-      return s;
-    } else if (gap === 1) {
-      s.current += 1; // día consecutivo
-    } else {
-      s.current = 1;  // hubo salto ⇒ reinicia contando hoy
-    }
-
-    if (s.current > s.best) s.best = s.current;
-    s.lastDate = today;
-
-    await save(s);
-    setState(s);
-    return s;
-  }, []);
-
-  /** Reset manual (útil para debug o un botón oculto) */
-  const reset = useCallback(async () => {
-    await save(initial);
-    setState(initial);
-  }, []);
+      setState(next);
+      await persist(next);
+      return { updated: wasNewDay, next };
+    },
+    [emit, persist, rolloverHour, state]
+  );
 
   return {
     ready,
     current: state.current,
     best: state.best,
-    lastDate: state.lastDate,
-    registerCreation,
-    refresh,   // 👈 para usar en Home con useFocusEffect o pull-to-refresh
-    reset,
+    lastDay: state.lastDay,
+    refresh,
+    touchToday, // 👈 nuevo
   };
 }
