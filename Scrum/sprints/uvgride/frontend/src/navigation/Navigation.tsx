@@ -12,12 +12,11 @@ import AddFavoriteScreen from '../screens/AddFavoriteScreen';
 import ScheduledTripScreen from '../screens/ScheduledTripScreen';
 import VehicleFormScreen from '../screens/VehicleFormScreen';
 import PaymentScreen from '../screens/PaymentScreen';
-
-// 👇 NUEVOS imports
 import GroupCreateScreen from '../screens/GroupCreateScreen';
 import GroupDetailScreen from '../screens/GroupDetailScreen';
 import DriverProfileScreen from '../screens/DriverProfileScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
+import AchievementsScreen from '../screens/AchievementsScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -41,6 +40,8 @@ export default function Navigation() {
       <Stack.Screen name="AddFavorite" component={AddFavoriteScreen} />
 
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+
+      <Stack.Screen name="Achievements" component={AchievementsScreen} />
 
       {/* Vehículos */}
       <Stack.Screen name="VehicleForm" component={VehicleFormScreen} />

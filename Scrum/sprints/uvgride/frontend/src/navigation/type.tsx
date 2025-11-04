@@ -8,6 +8,7 @@ export type RootStackParamList = {
   // Opcionales (sin params)
   Profile: undefined;
   Settings: undefined;
+  Achievements: undefined;
 
   // Favoritos / Vehículos
   Favorite: undefined;

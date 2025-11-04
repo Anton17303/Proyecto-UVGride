@@ -60,6 +60,13 @@ export default function ProfileScreen() {
           textColor={colors.text}
           onPress={() => navigation.navigate("EditProfile")}
         />
+        <SettingsItem
+          icon="trophy-outline"
+          label="Logros"
+          textColor={colors.text}
+          onPress={() => navigation.navigate("Achievements")}
+        />
+
         {esConductor && (
           <SettingsItem
             icon="car-outline"

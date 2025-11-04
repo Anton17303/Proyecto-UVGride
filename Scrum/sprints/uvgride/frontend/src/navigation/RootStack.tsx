@@ -16,6 +16,7 @@ import GroupCreateScreen from '../screens/GroupCreateScreen';
 import PaymentScreen from '../screens/PaymentScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
 import GroupDetailScreen from '../screens/GroupDetailScreen';
+import AchievementsScreen from '../screens/AchievementsScreen';
 import { useUser } from '../context/UserContext';
 import { RootStackParamList } from './type';
 
@@ -46,6 +47,7 @@ export default function RootStack() {
           <Stack.Screen name="DriverProfile" component={DriverProfileScreen} />
           <Stack.Screen name="Payment" component={PaymentScreen} />
           <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+          <Stack.Screen name="Achievements" component={AchievementsScreen} />
 
           {/* Detalle del grupo con header oculto */}
           <Stack.Screen
