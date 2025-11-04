@@ -1,73 +1,101 @@
 // src/screens/AchievementsScreen.tsx
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import {
   SafeAreaView,
   View,
   Text,
   StyleSheet,
   FlatList,
-  Pressable,
+  TouchableOpacity,
+  TextInput,
 } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { Ionicons } from "@expo/vector-icons";
 
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
 import { useAchievements } from "../achievements/AchievementsContext";
+import { EmptyState } from "../components";
 
 type FilterKey = "all" | "in_progress" | "completed" | "locked";
 
+const ESTADO_OPTIONS: { label: string; value: FilterKey }[] = [
+  { label: "Todos", value: "all" },
+  { label: "En progreso", value: "in_progress" },
+  { label: "Completados", value: "completed" },
+  { label: "Bloqueados", value: "locked" },
+];
+
 export default function AchievementsScreen() {
   const { theme } = useTheme();
+  const colors = theme === "light" ? lightColors : darkColors;
+  const mutedText = colors.muted ?? (theme === "dark" ? "#A6A6A6" : "#6B7280");
+
   const { catalog, getStatus } = useAchievements();
 
-  const colors = theme === "light" ? lightColors : darkColors;
-  const mutedText = theme === "dark" ? "#A6A6A6" : "#6B7280";
-  const cardBg = theme === "dark" ? "#141414" : "#FFFFFF";
-  const border = theme === "dark" ? "#262626" : "#ECECEC";
-  const trackColor = theme === "dark" ? "#1F1F1F" : "#EAEAEA";
-  const fillColor = theme === "dark" ? "#7C5CFF" : "#4F6BFF";
-
   const [filter, setFilter] = useState<FilterKey>("all");
+  const [searchActive, setSearchActive] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const data = useMemo(() => {
-    const items = catalog.map((def) => {
+  const toggleSearch = useCallback(() => {
+    if (searchActive) {
+      if (searchQuery.length > 0) setSearchQuery("");
+      else setSearchActive(false);
+    } else {
+      setSearchActive(true);
+    }
+  }, [searchActive, searchQuery]);
+
+  const cycleEstado = () => {
+    const idx = ESTADO_OPTIONS.findIndex((o) => o.value === filter);
+    setFilter(ESTADO_OPTIONS[(idx + 1) % ESTADO_OPTIONS.length].value);
+  };
+
+  const items = useMemo(() => {
+    const base = catalog.map((def) => {
       const s = getStatus(def.id);
       return {
         id: def.id,
         title: def.title,
         description: def.description,
-        status: s.status, // "completed" | "in_progress" | "locked"
+        category: def.category ?? "General",
+        icon: def.icon ?? "trophy-outline",
+        status: s.status as "completed" | "in_progress" | "locked",
         progress: s.progress,
         goal: s.goal,
-        icon: def.icon ?? "trophy-outline",
-        category: def.category ?? "General",
         awardedAt: s.awardedAt,
       };
     });
 
-    const orderScore = (st: typeof items[number]["status"]) =>
+    const filtered =
+      filter === "all" ? base : base.filter((i) => i.status === filter);
+
+    const searched = filtered.filter((i) => {
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.trim().toLowerCase();
+      return (
+        i.title.toLowerCase().includes(q) ||
+        i.description.toLowerCase().includes(q) ||
+        i.category.toLowerCase().includes(q)
+      );
+    });
+
+    // Orden: En progreso -> Completados -> Bloqueados; dentro, mayor % primero
+    const score = (st: typeof searched[number]["status"]) =>
       st === "in_progress" ? 0 : st === "completed" ? 1 : 2;
 
-    const filtered =
-      filter === "all" ? items : items.filter((it) => it.status === filter);
-
-    return filtered.sort((a, b) => {
-      const byStatus = orderScore(a.status) - orderScore(b.status);
-      if (byStatus !== 0) return byStatus;
-      // luego por progreso descendente
+    return searched.sort((a, b) => {
+      const sdiff = score(a.status) - score(b.status);
+      if (sdiff !== 0) return sdiff;
       const ap = Math.min(a.progress / Math.max(a.goal, 1), 1);
       const bp = Math.min(b.progress / Math.max(b.goal, 1), 1);
       return bp - ap;
     });
-  }, [catalog, getStatus, filter]);
+  }, [catalog, getStatus, filter, searchQuery]);
 
   const totals = useMemo(() => {
     const all = catalog.length;
     let completed = 0;
-    for (const def of catalog) {
-      const s = getStatus(def.id);
-      if (s.status === "completed") completed++;
-    }
+    for (const def of catalog) if (getStatus(def.id).status === "completed") completed++;
     return { all, completed };
   }, [catalog, getStatus]);
 
@@ -78,222 +106,267 @@ export default function AchievementsScreen() {
       id: string;
       title: string;
       description: string;
+      category: string;
+      icon: string;
       status: "completed" | "in_progress" | "locked";
       progress: number;
       goal: number;
-      icon: string;
-      category: string;
       awardedAt?: number;
     };
   }) => {
     const pct = Math.min(item.progress / Math.max(item.goal, 1), 1);
+    const pctLabel = `${Math.round(pct * 100)}%`;
     const statusColor =
-      item.status === "completed" ? "#12B886" : item.status === "in_progress" ? "#F59F00" : mutedText;
+      item.status === "completed"
+        ? "#12B886"
+        : item.status === "in_progress"
+        ? "#F59F00"
+        : mutedText;
 
     return (
-      <View style={[styles.card, { backgroundColor: cardBg, borderColor: border }]}>
-        <View style={styles.cardHeader}>
-          <View style={styles.iconWrap}>
-            <Ionicons
-              name={item.status === "completed" ? "trophy" : "trophy-outline"}
-              size={22}
-              color={statusColor}
-            />
-          </View>
-
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
-              {item.title}
-            </Text>
-            <Text style={[styles.subtitle, { color: mutedText }]} numberOfLines={2}>
-              {item.description}
-            </Text>
-          </View>
-
-          <Text style={[styles.badge, { color: statusColor, borderColor: statusColor }]}>
-            {item.status === "completed"
-              ? "Completado"
-              : item.status === "in_progress"
-              ? "En progreso"
-              : "Bloqueado"}
+      <View style={[styles.card, { backgroundColor: colors.card }]}>
+        {/* Header */}
+        <View style={styles.headerRow}>
+          <Text style={[styles.cardTitle, { color: colors.primary }]} numberOfLines={1}>
+            {item.title}
           </Text>
+          <View style={[styles.badge, { backgroundColor: statusColor }]}>
+            <Text style={styles.badgeTxt}>
+              {item.status === "completed"
+                ? "COMPLETADO"
+                : item.status === "in_progress"
+                ? "EN PROGRESO"
+                : "BLOQUEADO"}
+            </Text>
+          </View>
         </View>
 
-        <View style={[styles.progressTrack, { backgroundColor: trackColor }]}>
+        {/* Sub */}
+        <Text style={{ color: colors.text, marginBottom: 2 }} numberOfLines={2}>
+          {item.description}
+        </Text>
+        <Text style={{ color: mutedText, marginBottom: 8 }}>{item.category}</Text>
+
+        {/* Barra de progreso */}
+        <View
+          style={[
+            styles.track,
+            { backgroundColor: theme === "dark" ? "#2A2A2A" : "#EAEAEA" },
+          ]}
+        >
           <View
             style={[
-              styles.progressFill,
-              { width: `${pct * 100}%`, backgroundColor: fillColor },
+              styles.fill,
+              { width: `${pct * 100}%`, backgroundColor: colors.primary },
             ]}
           />
         </View>
 
+        {/* Footer */}
         <View style={styles.footerRow}>
-          <Text style={[styles.progressText, { color: mutedText }]}>{item.category}</Text>
-          <Text style={[styles.progressText, { color: mutedText }]}>
-            {Math.round(pct * 100)}% • {item.progress}/{item.goal}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Ionicons
+              name={item.status === "completed" ? "trophy" : "trophy-outline"}
+              size={16}
+              color={statusColor}
+            />
+            <Text style={{ color: mutedText, fontWeight: "700", fontSize: 12 }}>
+              {pctLabel}
+            </Text>
+          </View>
+          <Text style={{ color: mutedText, fontWeight: "700", fontSize: 12 }}>
+            {item.progress}/{item.goal}
           </Text>
         </View>
       </View>
-    );
-  };
-
-  const FilterButton = ({
-    k,
-    label,
-    icon,
-  }: {
-    k: FilterKey;
-    label: string;
-    icon: React.ComponentProps<typeof Ionicons>["name"];
-  }) => {
-    const active = filter === k;
-    return (
-      <Pressable
-        onPress={() => setFilter(k)}
-        style={[
-          styles.chip,
-          {
-            backgroundColor: active ? (theme === "dark" ? "#1E293B" : "#EEF2FF") : "transparent",
-            borderColor: active ? (theme === "dark" ? "#334155" : "#C7D2FE") : border,
-          },
-        ]}
-      >
-        <Ionicons
-          name={icon}
-          size={14}
-          color={active ? (theme === "dark" ? "#93C5FD" : "#4F46E5") : mutedText}
-          style={{ marginRight: 6 }}
-        />
-        <Text
-          style={{
-            color: active ? (theme === "dark" ? "#BFDBFE" : "#4338CA") : mutedText,
-            fontSize: 12,
-            fontWeight: "700",
-          }}
-        >
-          {label}
-        </Text>
-      </Pressable>
     );
   };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={[styles.screenTitle, { color: colors.text }]}>Logros</Text>
-        <Text style={[styles.screenSubtitle, { color: mutedText }]}>
+      {/* Título */}
+      <Text style={[styles.title, { color: colors.text }]}>Logros</Text>
+
+      {/* Toolbar (estilo estándar) */}
+      <View style={styles.toolbar}>
+        {/* 1) Búsqueda */}
+        <TouchableOpacity
+          onPress={toggleSearch}
+          style={[styles.roundBtn, { backgroundColor: "#fff", borderColor: colors.primary }]}
+          accessibilityLabel={searchActive || searchQuery ? "Cerrar búsqueda" : "Buscar logros"}
+        >
+          <Ionicons
+            name={searchActive || searchQuery ? "close-outline" : "search-outline"}
+            size={16}
+            color={colors.primary}
+          />
+        </TouchableOpacity>
+
+        {/* 2) Estado */}
+        <TouchableOpacity
+          onPress={cycleEstado}
+          style={[styles.pill, { borderColor: colors.primary }]}
+        >
+          <Text style={[styles.pillText, { color: colors.text }]}>
+            Estado:{" "}
+            <Text style={{ color: colors.primary }}>
+              {ESTADO_OPTIONS.find((o) => o.value === filter)?.label ?? "Todos"}
+            </Text>
+          </Text>
+        </TouchableOpacity>
+
+        {/* 3) Reset */}
+        <TouchableOpacity
+          onPress={() => {
+            setFilter("all");
+            setSearchQuery("");
+            setSearchActive(false);
+          }}
+          style={[styles.roundBtn, { backgroundColor: "#fff", borderColor: colors.primary }]}
+          accessibilityLabel="Restablecer filtros"
+        >
+          <Ionicons name="refresh-outline" size={16} color={colors.primary} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Barra de búsqueda */}
+      {searchActive && (
+        <View
+          style={[
+            styles.searchBar,
+            { borderColor: colors.primary, backgroundColor: colors.card },
+          ]}
+        >
+          <Ionicons
+            name="search-outline"
+            size={16}
+            color={colors.primary}
+            style={{ marginRight: 6 }}
+          />
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Buscar por título o categoría"
+            placeholderTextColor={mutedText}
+            style={[styles.searchInput, { color: colors.text }]}
+            returnKeyType="search"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery("")} style={styles.searchClear}>
+              <Ionicons name="close-circle" size={16} color={colors.primary} />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* Resumen */}
+      <View style={{ alignItems: "center", marginBottom: 8 }}>
+        <Text style={{ color: mutedText, fontSize: 12, fontWeight: "700" }}>
           Completados {totals.completed} de {totals.all}
         </Text>
       </View>
 
-      {/* Filtros */}
-      <View style={[styles.filtersRow, { borderColor: border }]}>
-        <FilterButton k="all" label="Todos" icon="layers-outline" />
-        <FilterButton k="in_progress" label="En progreso" icon="play-circle-outline" />
-        <FilterButton k="completed" label="Completados" icon="checkmark-done-outline" />
-        <FilterButton k="locked" label="Bloqueados" icon="lock-closed-outline" />
-      </View>
-
       {/* Lista */}
-      <FlatList
-        data={data}
-        keyExtractor={(a) => a.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
-        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Ionicons name="trophy-outline" size={28} color={mutedText} />
-            <Text style={[styles.emptyText, { color: mutedText }]}>
-              Aún no hay logros en esta categoría.
-            </Text>
-          </View>
-        }
-      />
+      {items.length === 0 ? (
+        <EmptyState
+          icon="trophy-outline"
+          title="Sin resultados"
+          subtitle="No hay logros que coincidan con el filtro actual."
+          color={colors.primary}
+          textColor={colors.text}
+        />
+      ) : (
+        <FlatList
+          data={items}
+          keyExtractor={(a) => a.id}
+          renderItem={renderItem}
+          contentContainerStyle={{ paddingBottom: 20 }}
+        />
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 4,
-  },
-  screenTitle: {
+  container: { flex: 1, paddingHorizontal: 16 },
+  title: {
     fontSize: 22,
     fontWeight: "800",
+    textAlign: "center",
+    marginVertical: 8,
   },
-  screenSubtitle: {
-    marginTop: 2,
-    fontSize: 13,
-    fontWeight: "500",
-  },
-  filtersRow: {
+
+  // Toolbar estándar (como PassengerScreen)
+  toolbar: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    justifyContent: "center",
+    gap: 10,
+    marginBottom: 8,
+    flexWrap: "wrap",
   },
-  chip: {
+  pill: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1.5,
+  },
+  pillText: { fontSize: 12, fontWeight: "700" },
+  roundBtn: {
+    padding: 6,
+    borderRadius: 999,
+    borderWidth: 1.5,
+  },
+
+  // Search bar estándar
+  searchBar: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    borderWidth: 1,
+    borderWidth: 1.5,
+    marginBottom: 10,
+    alignSelf: "center",
+    minWidth: "92%",
   },
-  listContent: {
-    padding: 16,
-    paddingTop: 8,
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    paddingVertical: 4,
   },
+  searchClear: { paddingLeft: 6 },
+
+  // Card estándar (como PassengerScreen)
   card: {
-    borderWidth: 1,
+    width: "93%",
+    alignSelf: "center",
+    padding: 16,
     borderRadius: 14,
-    padding: 12,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
-  cardHeader: {
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    justifyContent: "space-between",
+    marginBottom: 6,
   },
-  iconWrap: {
-    width: 28,
-    height: 28,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: {
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  subtitle: {
-    marginTop: 2,
-    fontSize: 12.5,
-    lineHeight: 18,
-  },
-  badge: {
-    marginLeft: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    borderWidth: 1,
-    fontSize: 11,
-    fontWeight: "800",
-  },
-  progressTrack: {
+  cardTitle: { fontSize: 16, fontWeight: "700" },
+  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+  badgeTxt: { color: "#fff", fontWeight: "700", fontSize: 12 },
+
+  track: {
     height: 8,
     borderRadius: 999,
-    marginTop: 12,
     overflow: "hidden",
+    marginTop: 8,
   },
-  progressFill: {
+  fill: {
     height: "100%",
     borderRadius: 999,
   },
@@ -301,18 +374,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     flexDirection: "row",
     justifyContent: "space-between",
-  },
-  progressText: {
-    fontSize: 12,
-  },
-  empty: {
-    paddingVertical: 40,
     alignItems: "center",
-    gap: 10,
-  },
-  emptyText: {
-    fontSize: 13,
-    textAlign: "center",
-    maxWidth: 260,
   },
 });

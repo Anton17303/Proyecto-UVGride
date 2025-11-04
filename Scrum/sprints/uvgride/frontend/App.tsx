@@ -1,10 +1,11 @@
-// App.tsx (versión corta y correcta)
+// App.tsx
 import React, { useEffect, useState } from 'react';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 
 import RootStack from './src/navigation/RootStack';
-import { UserProvider } from './src/context/UserContext';
+
+import { UserProvider, useUser } from './src/context/UserContext';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { lightColors, darkColors } from './src/constants/colors';
 
@@ -17,8 +18,6 @@ function AchievementGateway() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    // 👇 Log de depuración (borra luego)
-    // console.log('PENDING QUEUE:', state.pendingQueue);
     if (!visible && state.pendingQueue.length > 0) {
       const id = consumeNextPending();
       if (id) {
@@ -44,28 +43,46 @@ function MainApp() {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const colors = isDark ? darkColors : lightColors;
+
   const navTheme = {
     ...(isDark ? DarkTheme : DefaultTheme),
-    colors: { ...(isDark ? DarkTheme.colors : DefaultTheme.colors), ...colors },
+    colors: {
+      ...(isDark ? DarkTheme.colors : DefaultTheme.colors),
+      background: colors.background,
+      text: colors.text,
+      primary: colors.primary,
+      card: colors.card,
+      border: colors.border,
+      notification: colors.notification,
+    },
   };
 
   return (
     <NavigationContainer theme={navTheme}>
-      <UserProvider>
-        <RootStack />
-        <StatusBar style={isDark ? 'light' : 'dark'} />
-      </UserProvider>
+      {/* OJO: ya NO ponemos otro UserProvider aquí */}
+      <RootStack />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
     </NavigationContainer>
   );
 }
 
+// Envuelve children con AchievementsProvider usando una clave por usuario
+function WithAchievements({ children }: { children: React.ReactNode }) {
+  const { user } = useUser();
+  const userKey = user?.id ? String(user.id) : 'anon';
+  return <AchievementsProvider userKey={userKey}>{children}</AchievementsProvider>;
+}
+
 export default function App() {
   return (
-    <AchievementsProvider>
-      <ThemeProvider>
-        <MainApp />
-        <AchievementGateway />
-      </ThemeProvider>
-    </AchievementsProvider>
+    <UserProvider>
+      <WithAchievements>
+        <ThemeProvider>
+          <MainApp />
+          {/* El modal vive aquí para tener acceso a Theme y Achievements */}
+          <AchievementGateway />
+        </ThemeProvider>
+      </WithAchievements>
+    </UserProvider>
   );
 }

@@ -26,6 +26,7 @@ import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
 import { AnimatedInput, PrimaryButton, LinkText } from "../components";
+import { useAchievements } from "../achievements/AchievementsContext"; // 👈 NUEVO
 
 /* ---------------- Utils num ---------------- */
 function clampInt(v: number, min = 1, max = 99) {
@@ -52,6 +53,8 @@ export default function GroupCreateScreen() {
   const { user } = useUser();
   const { theme } = useTheme();
   const colors = theme === "light" ? lightColors : darkColors;
+
+  const { emit, ready } = useAchievements(); // 👈 NUEVO
 
   const [destino, setDestino] = useState("");
   const [cupos, setCupos] = useState("3");
@@ -125,14 +128,15 @@ export default function GroupCreateScreen() {
 
     if (!esRecurrente || term.length < 2) {
       setSuggestions([]);
-      setSearching(false); // ✅ evita spinner colgado
-      return () => { alive = false; };
+      setSearching(false);
+      return () => {
+        alive = false;
+      };
     }
 
     setSearching(true);
     const timer = setTimeout(async () => {
       try {
-        // ✅ Pasamos x-user-id vía opts.userId (tu middleware lo requiere)
         const res = await searchUsers(term, 10, { userId: conductorId });
         if (!alive) return;
         const existingIds = new Set<number>([
@@ -177,15 +181,15 @@ export default function GroupCreateScreen() {
     if (!isFormValid) {
       return Alert.alert(
         "Revisa el formulario",
-        [destinoErr, cuposErr, costoErr, designadosErr]
-          .filter(Boolean)
-          .join("\n")
+        [destinoErr, cuposErr, costoErr, designadosErr].filter(Boolean).join("\n")
       );
     }
 
     try {
       setLoading(true);
-      await createGroup({
+
+      // Llama al servicio y toma el ID creado
+      const created = await createGroup({
         conductor_id: Number(user.id),
         destino_nombre: destino.trim(),
         cupos_totales: nCupos,
@@ -197,6 +201,16 @@ export default function GroupCreateScreen() {
             ? selectedUsers.map((u) => u.id_usuario)
             : undefined,
       });
+
+      // Intenta resolver el ID desde diferentes firmas de respuesta
+      const createdId =
+        (created && (created.id_grupo ?? created.id ?? created.groupId)) ?? Date.now();
+
+      // ✅ Emite el evento para el logro "first_group"
+      if (ready) {
+        emit("GROUP_CREATED", { groupId: createdId });
+      }
+
       Alert.alert("Éxito", "Grupo creado.", [
         { text: "OK", onPress: () => navigation.goBack() },
       ]);
@@ -285,10 +299,7 @@ export default function GroupCreateScreen() {
               >
                 <Text style={{ color: colors.text }}>
                   {fecha
-                    ? fecha.toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })
+                    ? fecha.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
                     : "Selecciona hora"}
                 </Text>
               </TouchableOpacity>

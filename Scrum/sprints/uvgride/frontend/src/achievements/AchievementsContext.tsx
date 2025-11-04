@@ -1,3 +1,4 @@
+// src/achievements/AchievementsContext.tsx
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ACHIEVEMENTS_CATALOG } from "./catalog";
@@ -9,22 +10,20 @@ import {
   AchievementStatus,
 } from "./types";
 
-const STORAGE_KEY = "@uvgride_achievements_v1";
-
 type State = {
   counters: Counters;
   progressById: Record<string, AchievementProgress>;
-  pendingQueue: string[]; // ids de logros recién desbloqueados (para el modal)
+  pendingQueue: string[];
 };
 
 type Ctx = {
   state: State;
-  // API pública
   emit<E extends EventName>(name: E, payload: EventPayloads[E]): void;
   getStatus(id: string): { status: AchievementStatus; progress: number; goal: number; awardedAt?: number };
   consumeNextPending(): string | undefined;
   catalog: typeof ACHIEVEMENTS_CATALOG;
-  resetAll(): Promise<void>; // útil en QA
+  resetAll(): Promise<void>;
+  ready: boolean;
 };
 
 const AchievementsContext = createContext<Ctx | null>(null);
@@ -37,152 +36,130 @@ const initialCounters: Counters = {
   sosTests: 0,
   daysActive: 0,
   lastActiveDay: undefined,
+  favoritesCreated: 0,
 };
 
 const initialProgress = (): Record<string, AchievementProgress> => {
   const map: Record<string, AchievementProgress> = {};
   for (const def of ACHIEVEMENTS_CATALOG) {
-    map[def.id] = {
-      id: def.id,
-      progress: 0,
-      goal: def.goal,
-      awarded: false,
-      awardedAt: undefined,
-    };
+    map[def.id] = { id: def.id, progress: 0, goal: def.goal, awarded: false, awardedAt: undefined };
   }
   return map;
 };
 
-export function AchievementsProvider({ children }: { children: React.ReactNode }) {
+const makeStorageKey = (userKey: string) => `@uvgride:achievements:v1:user:${userKey}`;
+
+export function AchievementsProvider({
+  children,
+  userKey = "anon",
+}: {
+  children: React.ReactNode;
+  userKey?: string;
+}) {
   const [state, setState] = useState<State>({
     counters: initialCounters,
     progressById: initialProgress(),
     pendingQueue: [],
   });
+  const [ready, setReady] = useState(false);
 
-  const readyRef = useRef(false);
+  const STORAGE_KEY = useMemo(() => makeStorageKey(userKey), [userKey]);
 
-  // cargar estado
+  // Cargar estado cuando cambia el usuario
   useEffect(() => {
+    let cancelled = false;
+    setReady(false); // pausa persistencia mientras cambiamos de usuario
     (async () => {
       try {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        if (cancelled) return;
         if (raw) {
           const parsed = JSON.parse(raw) as State;
-          // seguridad por si el catálogo cambió: hidratar faltantes
           const hydrated: State = {
             counters: { ...initialCounters, ...parsed.counters },
             progressById: { ...initialProgress(), ...parsed.progressById },
-            pendingQueue: [],
+            pendingQueue: [], // no revivir modales antiguos
           };
           setState(hydrated);
+        } else {
+          // usuario nuevo → estado en blanco
+          setState({
+            counters: initialCounters,
+            progressById: initialProgress(),
+            pendingQueue: [],
+          });
         }
       } catch {
         // noop
       } finally {
-        readyRef.current = true;
+        if (!cancelled) setReady(true);
       }
     })();
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [STORAGE_KEY]);
 
-  // persistir cambios
+  // Persistir (solo cuando estamos listos)
   useEffect(() => {
-    if (!readyRef.current) return;
+    if (!ready) return;
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state)).catch(() => {});
-  }, [state]);
+  }, [state, ready, STORAGE_KEY]);
 
-  // --------- Motor: Update counters por evento ---------
-  function applyEventToCounters<E extends EventName>(
-    counters: Counters,
-    name: E,
-    payload: EventPayloads[E]
-  ): Counters {
-    const next: Counters = { ...counters };
-
+  // --- Motor (igual que ya tenías) ---
+  function applyEventToCounters(c: Counters, name: EventName, payload: any): Counters {
+    const next = { ...c };
     if (name === "APP_OPENED") {
-      const d = new Date((payload as any).at ?? Date.now());
-      const key = d.toISOString().slice(0, 10); // YYYY-MM-DD
+      const d = new Date(payload?.at ?? Date.now());
+      const key = d.toISOString().slice(0, 10);
       if (next.lastActiveDay !== key) {
         next.daysActive += 1;
         next.lastActiveDay = key;
       }
     }
-
     if (name === "RIDE_COMPLETED") {
-      const { distanceKm } = payload as EventPayloads["RIDE_COMPLETED"];
       next.totalRides += 1;
-      next.totalKm += Math.max(0, Number(distanceKm) || 0);
+      next.totalKm += Math.max(0, Number(payload?.distanceKm) || 0);
     }
-
-    if (name === "GROUP_CREATED") {
-      next.groupsCreated += 1;
-    }
-
-    if (name === "INVITE_SENT") {
-      const { count = 1 } = payload as EventPayloads["INVITE_SENT"];
-      next.invitesSent += Math.max(1, Number(count) || 1);
-    }
-
-    if (name === "SOS_TESTED") {
-      next.sosTests += 1;
-    }
-
+    if (name === "GROUP_CREATED") next.groupsCreated += 1;
+    if (name === "INVITE_SENT") next.invitesSent += Math.max(1, Number(payload?.count) || 1);
+    if (name === "SOS_TESTED") next.sosTests += 1;
+    if (name === "FAVORITE_ADDED") next.favoritesCreated += 1;
     return next;
   }
 
-  // --------- Motor: Evaluación y otorgamiento ---------
-  function evaluateUnlocks(prev: State, counters: Counters): { progressById: State["progressById"]; newlyAwardedIds: string[] } {
-    const nextProgress: State["progressById"] = { ...prev.progressById };
+  function evaluateUnlocks(prev: State, counters: Counters) {
+    const progressById = { ...prev.progressById };
     const newly: string[] = [];
-
     for (const def of ACHIEVEMENTS_CATALOG) {
-      const ap = nextProgress[def.id] ?? { id: def.id, progress: 0, goal: def.goal, awarded: false as const };
-      // actualizar progreso basado en su counterKey
+      const ap = progressById[def.id] ?? { id: def.id, progress: 0, goal: def.goal, awarded: false as const };
       const current = counters[def.counterKey] as number;
-      const clamped = Math.max(0, current);
-      const alreadyAwarded = ap.awarded === true;
-
-      const updated: AchievementProgress = {
-        ...ap,
-        progress: clamped,
-        goal: def.goal,
-      };
-
-      const meets = clamped >= def.goal;
-
-      if (meets && !alreadyAwarded) {
+      const updated = { ...ap, progress: Math.max(0, current), goal: def.goal };
+      const meets = updated.progress >= def.goal;
+      if (meets && !ap.awarded) {
         updated.awarded = true;
-        updated.awardedAt = Date.now();
+        (updated as any).awardedAt = Date.now();
         newly.push(def.id);
       }
-
-      nextProgress[def.id] = updated;
+      progressById[def.id] = updated;
     }
-
-    return { progressById: nextProgress, newlyAwardedIds: newly };
+    return { progressById, newlyAwardedIds: newly };
   }
 
   function emit<E extends EventName>(name: E, payload: EventPayloads[E]) {
+    if (!ready) return; // evita carrera antes de hidratar
     setState((prev) => {
       const counters = applyEventToCounters(prev.counters, name, payload);
       const { progressById, newlyAwardedIds } = evaluateUnlocks(prev, counters);
-
-      // cola (sin duplicados):
       const pendingSet = new Set(prev.pendingQueue);
-      for (const id of newlyAwardedIds) pendingSet.add(id);
-
-      return {
-        counters,
-        progressById,
-        pendingQueue: Array.from(pendingSet),
-      };
+      newlyAwardedIds.forEach((id) => pendingSet.add(id));
+      return { counters, progressById, pendingQueue: Array.from(pendingSet) };
     });
   }
 
   function getStatus(id: string) {
     const ap = state.progressById[id];
     if (!ap) return { status: "locked" as AchievementStatus, progress: 0, goal: 1 };
-    const pct = Math.min(ap.progress / Math.max(ap.goal, 1), 1);
     const status: AchievementStatus = ap.awarded ? "completed" : ap.progress > 0 ? "in_progress" : "locked";
     return { status, progress: ap.progress, goal: ap.goal, awardedAt: ap.awardedAt };
   }
@@ -215,8 +192,9 @@ export function AchievementsProvider({ children }: { children: React.ReactNode }
       consumeNextPending,
       catalog: ACHIEVEMENTS_CATALOG,
       resetAll,
+      ready,
     }),
-    [state]
+    [state, ready]
   );
 
   return <AchievementsContext.Provider value={value}>{children}</AchievementsContext.Provider>;

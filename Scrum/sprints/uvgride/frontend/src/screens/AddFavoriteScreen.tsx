@@ -18,10 +18,10 @@ import { API_URL } from "../services/api";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
+import { useAchievements } from "../achievements/AchievementsContext"; // 👈 importar
 
 import { PrimaryButton, AnimatedInput, LinkText } from "../components";
 
-// 🎨 Paleta más variada y completa
 const COLORES = [
   "#FF6B6B",
   "#FFB347",
@@ -40,6 +40,8 @@ export default function AddFavoriteScreen() {
   const navigation = useNavigation();
   const { theme } = useTheme();
   const colors = theme === "light" ? lightColors : darkColors;
+
+  const { emit, ready } = useAchievements(); // 👈 usar achievements
 
   const [nombre, setNombre] = useState("");
   const [descripcion, setDescripcion] = useState("");
@@ -61,22 +63,31 @@ export default function AddFavoriteScreen() {
 
     try {
       setLoading(true);
-      const response = await axios.post(
-        `${API_URL}/api/favoritos`,
-        nuevoFavorito
-      );
+      const response = await axios.post(`${API_URL}/api/favoritos`, nuevoFavorito);
 
       if (response.status === 201 || response.data?.success) {
+        // ✅ Emitir logro ANTES de navegar (para asegurar encolado del modal)
+        if (ready) {
+          // trata de obtener un id real del backend y si no, usa un fallback
+          const createdId =
+            response.data?.id ??
+            response.data?.favorito?.id ??
+            response.data?.data?.id ??
+            Date.now();
+
+          emit("FAVORITE_ADDED", {
+            favoriteId: createdId,
+            name: nombre.trim(),
+          });
+        }
+
         Alert.alert("Éxito", "Lugar agregado a favoritos");
         navigation.goBack();
       } else {
         throw new Error("No se pudo guardar el lugar");
       }
     } catch (err: any) {
-      console.error(
-        "❌ Error al guardar favorito:",
-        err?.response?.data || err.message
-      );
+      console.error("❌ Error al guardar favorito:", err?.response?.data || err.message);
       Alert.alert(
         "Error",
         err?.response?.data?.error || "No se pudo guardar el lugar"
@@ -96,12 +107,10 @@ export default function AddFavoriteScreen() {
           contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Header */}
           <Text style={[styles.header, { color: colors.text }]}>
             Agregar Lugar Favorito
           </Text>
 
-          {/* Nombre */}
           <View style={styles.block}>
             <Text style={[styles.caption, { color: colors.text }]}>
               Nombre del lugar *
@@ -117,7 +126,6 @@ export default function AddFavoriteScreen() {
             />
           </View>
 
-          {/* Descripción */}
           <View style={styles.block}>
             <Text style={[styles.caption, { color: colors.text }]}>
               Descripción
@@ -133,7 +141,6 @@ export default function AddFavoriteScreen() {
             />
           </View>
 
-          {/* Color */}
           <View style={styles.block}>
             <Text style={[styles.caption, { color: colors.text }]}>
               Color personalizado *
@@ -156,7 +163,6 @@ export default function AddFavoriteScreen() {
             </View>
           </View>
 
-          {/* Botón principal */}
           <PrimaryButton
             title="Guardar lugar"
             onPress={handleGuardar}
@@ -164,7 +170,6 @@ export default function AddFavoriteScreen() {
             color={colors.primary}
           />
 
-          {/* Link regresar */}
           <LinkText
             text="← Cancelar"
             onPress={() => navigation.goBack()}

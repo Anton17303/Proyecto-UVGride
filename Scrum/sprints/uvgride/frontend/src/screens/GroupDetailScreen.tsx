@@ -10,7 +10,7 @@ import {
   Alert,
   TouchableOpacity,
   Image,
-  Linking, // <-- añadido
+  Linking,
 } from "react-native";
 import { useRoute, useNavigation, RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -22,6 +22,7 @@ import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
 import { useUser } from "../context/UserContext";
 import FloatingActionButton from "../components/FloatingActionButton";
+import { useAchievements } from "../achievements/AchievementsContext"; // 👈 NUEVO
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "GroupDetail">;
 type Rt = RouteProp<RootStackParamList, "GroupDetail">;
@@ -29,13 +30,13 @@ type Rt = RouteProp<RootStackParamList, "GroupDetail">;
 export default function GroupDetailScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Rt>();
-  const rawParam =
-    (route?.params as any)?.groupId ?? (route?.params as any)?.grupoId;
+  const rawParam = (route?.params as any)?.groupId ?? (route?.params as any)?.grupoId;
   const groupId = Number(rawParam);
 
   const { theme } = useTheme();
   const colors = theme === "light" ? lightColors : darkColors;
   const { user } = useUser();
+  const { emit, ready } = useAchievements(); // 👈 NUEVO
 
   const [loading, setLoading] = useState(true);
   const [group, setGroup] = useState<Grupo | null>(null);
@@ -46,10 +47,7 @@ export default function GroupDetailScreen() {
   const fmtDate = useMemo(
     () => (s?: string | null) =>
       s
-        ? new Date(s).toLocaleString("es-GT", {
-            dateStyle: "medium",
-            timeStyle: "short",
-          })
+        ? new Date(s).toLocaleString("es-GT", { dateStyle: "medium", timeStyle: "short" })
         : "—",
     []
   );
@@ -65,10 +63,7 @@ export default function GroupDetailScreen() {
     try {
       setLoading(true);
       setError(null);
-      const g = await getGroup(
-        groupId,
-        user?.id ? { user_id: Number(user.id) } : undefined
-      );
+      const g = await getGroup(groupId, user?.id ? { user_id: Number(user.id) } : undefined);
       setGroup(g);
     } catch (e: any) {
       console.error("getGroup error:", e?.response?.data || e?.message);
@@ -84,30 +79,22 @@ export default function GroupDetailScreen() {
   }, [fetchGroup]);
 
   const isOwner = useMemo(
-    () =>
-      user?.id != null && group
-        ? Number(user.id) === Number(group.conductor_id)
-        : false,
+    () => (user?.id != null && group ? Number(user.id) === Number(group.conductor_id) : false),
     [user?.id, group]
   );
 
-  const cuposTotales = Number(
-    group?.capacidad_total ?? group?.cupos_totales ?? 0
-  );
+  const cuposTotales = Number(group?.capacidad_total ?? group?.cupos_totales ?? 0);
   const cuposUsados = Number(group?.cupos_usados ?? 0);
   const cuposDisp = Math.max(0, cuposTotales - cuposUsados);
   const members = group?.miembros ?? [];
 
-  // ⬇️ ¿Usuario es miembro?
   const isMember = useMemo(() => {
     if (!user?.id || !members?.length) return false;
     const uid = Number(user.id);
     return members.some((m: any) => Number(m.id_usuario) === uid);
   }, [members, user?.id]);
 
-  const handleClose = async (
-    estado: "cerrado" | "cancelado" | "finalizado"
-  ) => {
+  const handleClose = async (estado: "cerrado" | "cancelado" | "finalizado") => {
     try {
       if (!group || !user?.id) return;
       await closeGroup(group.id_grupo, { conductor_id: user.id, estado });
@@ -115,10 +102,7 @@ export default function GroupDetailScreen() {
       await fetchGroup();
     } catch (e: any) {
       console.error("closeGroup error:", e?.response?.data || e?.message);
-      Alert.alert(
-        "Error",
-        e?.response?.data?.error || "No se pudo actualizar el grupo"
-      );
+      Alert.alert("Error", e?.response?.data?.error || "No se pudo actualizar el grupo");
     }
   };
 
@@ -131,29 +115,12 @@ export default function GroupDetailScreen() {
   };
 
   // 🎨 Estado → label + colores (cerrado = iniciado)
-  const estadoMap: Record<string, { label: string; color: string; bg: string }> =
-    {
-      abierto: {
-        label: "Abierto",
-        color: "#2e7d32",
-        bg: "rgba(46,125,50,0.15)",
-      },
-      cerrado: {
-        label: "Iniciado",
-        color: "#1565c0",
-        bg: "rgba(21,101,192,0.15)",
-      },
-      cancelado: {
-        label: "Cancelado",
-        color: "#c62828",
-        bg: "rgba(198,40,40,0.15)",
-      },
-      finalizado: {
-        label: "Finalizado",
-        color: "#616161",
-        bg: "rgba(97,97,97,0.15)",
-      },
-    };
+  const estadoMap: Record<string, { label: string; color: string; bg: string }> = {
+    abierto: { label: "Abierto", color: "#2e7d32", bg: "rgba(46,125,50,0.15)" },
+    cerrado: { label: "Iniciado", color: "#1565c0", bg: "rgba(21,101,192,0.15)" },
+    cancelado: { label: "Cancelado", color: "#c62828", bg: "rgba(198,40,40,0.15)" },
+    finalizado: { label: "Finalizado", color: "#616161", bg: "rgba(97,97,97,0.15)" },
+  };
   const estadoInfo = estadoMap[group?.estado ?? ""] ?? {
     label: group?.estado ?? "—",
     color: colors.text,
@@ -173,19 +140,26 @@ export default function GroupDetailScreen() {
           style: "destructive",
           onPress: async () => {
             const url = `tel:${EMERGENCY_NUMBER}`;
+            let tested = false;
             try {
               const supported = await Linking.canOpenURL(url);
-              if (!supported) {
+              if (supported) {
+                await Linking.openURL(url);
+              } else {
                 Alert.alert(
                   "Simulación",
                   "Este dispositivo/emulador no puede abrir el marcador. Se simuló la acción."
                 );
-                return;
               }
-              await Linking.openURL(url);
+              tested = true; // cuenta como prueba aunque sea simulación
             } catch (err) {
               console.error("Error abriendo marcador:", err);
               Alert.alert("Error", "No se pudo abrir el marcador telefónico.");
+            } finally {
+              if (tested && ready) {
+                // 👈 Desbloquea logro "sos_tester"
+                emit("SOS_TESTED", { at: Date.now() });
+              }
             }
           },
         },
@@ -195,12 +169,8 @@ export default function GroupDetailScreen() {
 
   const Header = () => (
     <>
-      {/* Header tipo ProfileScreen */}
-      <Text style={[styles.screenTitle, { color: colors.text }]}>
-        Detalle del grupo
-      </Text>
+      <Text style={[styles.screenTitle, { color: colors.text }]}>Detalle del grupo</Text>
 
-      {/* Card de detalles */}
       <View style={[styles.card, { backgroundColor: colors.card }]}>
         <Text style={[styles.label, { color: colors.text }]}>Conductor</Text>
         <Text style={[styles.value, { color: colors.text }]}>
@@ -213,9 +183,7 @@ export default function GroupDetailScreen() {
         </Text>
 
         <View style={[styles.estadoPill, { backgroundColor: estadoInfo.bg }]}>
-          <Text style={{ color: estadoInfo.color, fontWeight: "700" }}>
-            {estadoInfo.label}
-          </Text>
+          <Text style={{ color: estadoInfo.color, fontWeight: "700" }}>{estadoInfo.label}</Text>
         </View>
 
         <Text style={[styles.label, { color: colors.text }]}>Cupos</Text>
@@ -228,7 +196,6 @@ export default function GroupDetailScreen() {
           {fmtDate(group?.viaje?.fecha_inicio ?? group?.fecha_salida)}
         </Text>
 
-        {/* Botones dinámicos (solo conductor) */}
         {isOwner && (
           <View style={styles.actionsRow}>
             {group?.estado === "abierto" && (
@@ -267,44 +234,32 @@ export default function GroupDetailScreen() {
         )}
       </View>
 
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>
-        Miembros
-      </Text>
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>Miembros</Text>
     </>
   );
 
   if (loading) {
     return (
-      <SafeAreaView
-        style={[styles.center, { backgroundColor: colors.background }]}
-      >
+      <SafeAreaView style={[styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
       </SafeAreaView>
     );
   }
   if (error) {
     return (
-      <SafeAreaView
-        style={[styles.center, { backgroundColor: colors.background }]}
-      >
+      <SafeAreaView style={[styles.center, { backgroundColor: colors.background }]}>
         <Text style={{ color: colors.text }}>{error}</Text>
       </SafeAreaView>
     );
   }
 
-  // ⬇️ Mostrar SOS si el usuario es miembro y el viaje no está cancelado/finalizado
-  const showSOS =
-    isMember && group && !["cancelado", "finalizado"].includes(group.estado ?? "");
+  const showSOS = isMember && group && !["cancelado", "finalizado"].includes(group.estado ?? "");
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: colors.background }]}
-    >
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <FlatList
         data={members}
-        keyExtractor={(m: any) =>
-          String(m.id_grupo_miembro ?? `${m.id_usuario}-${m.joined_at}`)
-        }
+        keyExtractor={(m: any) => String(m.id_grupo_miembro ?? `${m.id_usuario}-${m.joined_at}`)}
         ListHeaderComponent={<Header />}
         renderItem={({ item }: any) => (
           <View style={[styles.memberRow, { backgroundColor: colors.card }]}>
@@ -317,12 +272,7 @@ export default function GroupDetailScreen() {
               <Text style={[styles.memberName, { color: colors.text }]}>
                 {item.usuario?.nombre} {item.usuario?.apellido}
               </Text>
-              <View
-                style={[
-                  styles.memberPill,
-                  { backgroundColor: "rgba(0,0,0,0.08)" },
-                ]}
-              >
+              <View style={[styles.memberPill, { backgroundColor: "rgba(0,0,0,0.08)" }]}>
                 <Text style={{ fontSize: 12, color: colors.text }}>
                   {item.rol} · {item.estado_solicitud}
                 </Text>
@@ -345,7 +295,7 @@ export default function GroupDetailScreen() {
         />
       )}
 
-      {/* ⬇️ FAB SOS con hold-to-activate + cooldown + haptics */}
+      {/* FAB SOS con hold-to-activate + cooldown + haptics */}
       {showSOS && (
         <FloatingActionButton
           id={`fab_sos_${group?.id_grupo}_${user?.id}`}
@@ -355,10 +305,10 @@ export default function GroupDetailScreen() {
           color="#fff"
           size={24}
           onPress={confirmAndCallEmergency}
-          requireLongPress={true}       // ← mantener presionado para activar
+          requireLongPress={true}
           longPressDelayMs={650}
-          cooldownMs={4000}             // ← evita doble disparo
-          enableHaptics={true}          // ← vibración corta
+          cooldownMs={4000}
+          enableHaptics={true}
           accessibilityLabel="Botón de emergencia SOS"
           accessibilityHint="Mantén presionado para llamar al número de emergencia"
           style={{ position: "absolute", bottom: 50, right: 20, zIndex: 20 }}
