@@ -109,6 +109,7 @@ export default function AddFavoriteScreen() {
           contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
           keyboardShouldPersistTaps="handled"
         >
+          <LogoHeader />
           <Text style={[styles.header, { color: colors.text }]}>
             Agregar Lugar Favorito
           </Text>
