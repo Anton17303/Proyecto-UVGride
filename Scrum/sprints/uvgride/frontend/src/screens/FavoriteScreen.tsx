@@ -20,6 +20,7 @@ import { lightColors, darkColors } from "../constants/colors";
 import FloatingActionButton from "../components/FloatingActionButton";
 import FavoriteCard from "../components/FavoriteCard";
 import EmptyState from "../components/EmptyState";
+import LogoHeader from "../components/LogoHeader";
 
 type LugarFavorito = {
   id_lugar_favorito: number;
@@ -115,6 +116,7 @@ export default function FavoriteScreen() {
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
     >
+      <LogoHeader />
       {/* Header */}
       <Text style={[styles.title, { color: colors.text }]}>
         Lugares Favoritos
