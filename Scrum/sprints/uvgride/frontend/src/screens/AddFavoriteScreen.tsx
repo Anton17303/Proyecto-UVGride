@@ -22,6 +22,8 @@ import { useAchievements } from "../achievements/AchievementsContext"; // 👈 i
 
 import { PrimaryButton, AnimatedInput, LinkText } from "../components";
 
+import { PrimaryButton, AnimatedInput, LinkText, LogoHeader } from "../components";
+
 const COLORES = [
   "#FF6B6B",
   "#FFB347",

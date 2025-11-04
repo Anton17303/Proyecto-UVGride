@@ -15,6 +15,7 @@ import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
 import { useAchievements } from "../achievements/AchievementsContext";
 import { EmptyState } from "../components";
+import { EmptyState, LogoHeader } from "../components";
 
 type FilterKey = "all" | "in_progress" | "completed" | "locked";
 
@@ -184,6 +185,7 @@ export default function AchievementsScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <LogoHeader />
       {/* Título */}
       <Text style={[styles.title, { color: colors.text }]}>Logros</Text>
 
