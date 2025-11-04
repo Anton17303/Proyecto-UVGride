@@ -22,7 +22,8 @@ import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
 import { useUser } from "../context/UserContext";
 import FloatingActionButton from "../components/FloatingActionButton";
-import { useAchievements } from "../achievements/AchievementsContext"; // 👈 NUEVO
+import { useAchievements } from "../achievements/AchievementsContext";
+import LogoHeader from "../components/LogoHeader"; // 👈 NUEVO
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "GroupDetail">;
 type Rt = RouteProp<RootStackParamList, "GroupDetail">;
@@ -241,6 +242,7 @@ export default function GroupDetailScreen() {
   if (loading) {
     return (
       <SafeAreaView style={[styles.center, { backgroundColor: colors.background }]}>
+        <LogoHeader />
         <ActivityIndicator size="large" color={colors.primary} />
       </SafeAreaView>
     );
@@ -248,6 +250,7 @@ export default function GroupDetailScreen() {
   if (error) {
     return (
       <SafeAreaView style={[styles.center, { backgroundColor: colors.background }]}>
+        <LogoHeader />
         <Text style={{ color: colors.text }}>{error}</Text>
       </SafeAreaView>
     );
@@ -257,6 +260,7 @@ export default function GroupDetailScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <LogoHeader />
       <FlatList
         data={members}
         keyExtractor={(m: any) => String(m.id_grupo_miembro ?? `${m.id_usuario}-${m.joined_at}`)}
