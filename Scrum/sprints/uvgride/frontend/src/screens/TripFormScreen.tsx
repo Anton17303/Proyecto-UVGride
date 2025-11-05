@@ -27,7 +27,7 @@ import { TravelStackParamList } from "../navigation/TravelStack";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
-import { PrimaryButton, AnimatedInput, LinkText } from "../components";
+import { PrimaryButton, AnimatedInput, LinkText, LogoHeader } from "../components";
 import { useAchievements } from "../achievements/AchievementsContext"; // 👈 NUEVO
 
 type TripFormScreenRouteProp = RouteProp<TravelStackParamList, "TripFormScreen">;
@@ -188,6 +188,7 @@ export default function TripFormScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
+       <LogoHeader />
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : undefined}

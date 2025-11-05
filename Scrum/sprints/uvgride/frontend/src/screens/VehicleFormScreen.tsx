@@ -14,7 +14,7 @@ import { API_URL } from "../services/api";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
-import { PrimaryButton, AnimatedInput, LinkText } from "../components";
+import { PrimaryButton, AnimatedInput, LinkText, LogoHeader } from "../components";
 
 export default function VehicleFormScreen({ navigation }: any) {
   const { user } = useUser();
@@ -57,6 +57,7 @@ export default function VehicleFormScreen({ navigation }: any) {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
+      <LogoHeader />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
