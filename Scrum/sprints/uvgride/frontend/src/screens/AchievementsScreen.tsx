@@ -14,8 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
 import { useAchievements } from "../achievements/AchievementsContext";
-import { EmptyState } from "../components";
-import { EmptyState, LogoHeader } from "../components";
+import { EmptyState, LogoHeader, BackButton } from "../components";
 
 type FilterKey = "all" | "in_progress" | "completed" | "locked";
 
@@ -186,6 +185,7 @@ export default function AchievementsScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <LogoHeader />
+      <BackButton />
       {/* Título */}
       <Text style={[styles.title, { color: colors.text }]}>Logros</Text>
 
