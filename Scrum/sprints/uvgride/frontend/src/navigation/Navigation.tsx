@@ -48,11 +48,7 @@ export default function Navigation() {
 
       {/* Grupos */}
       <Stack.Screen name="GroupCreate" component={GroupCreateScreen} />
-      <Stack.Screen
-        name="GroupDetail"
-        component={GroupDetailScreen}
-        options={{ headerShown: true, title: 'Detalle del grupo' }}
-      />
+      <Stack.Screen name="GroupDetail" component={GroupDetailScreen} />
 
       {/* Perfil de conductor */}
       <Stack.Screen name="DriverProfile" component={DriverProfileScreen} />
