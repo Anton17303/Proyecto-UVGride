@@ -15,4 +15,5 @@ export { default as FavoriteCard } from "./FavoriteCard";
 export { default as ScheduledTripCard } from "./ScheduledTripCard";
 export { default as AchievementUnlockModal } from "./AchievementUnlockModal";
 export { default as LogoHeader } from "./LogoHeader";
+export { default as BackButton } from "./BackButton";
 
