@@ -18,7 +18,6 @@ import { lightColors, darkColors } from "../constants/colors";
 
 import ScheduledTripCard from "../components/ScheduledTripCard";
 import EmptyState from "../components/EmptyState";
-import LogoHeader from "../components/LogoHeader";
 
 type TripItem = {
   id_viaje_maestro: number;
@@ -126,7 +125,6 @@ export default function ScheduledTripScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
-      <LogoHeader />
       {/* Encabezado */}
       <Text style={[styles.header, { color: colors.text }]}>
         Viajes Programados

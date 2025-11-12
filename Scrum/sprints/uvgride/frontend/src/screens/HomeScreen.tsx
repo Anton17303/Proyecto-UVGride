@@ -22,7 +22,6 @@ import EmptyState from "../components/EmptyState";
 import FloatingActionButton from "../components/FloatingActionButton";
 
 import StreakCard from "../components/StreakCard";          // 👈 nueva card
-import LogoHeader from "../components/LogoHeader";
 import { useStreak } from "../hooks/useStreak";             // 👈 hook mejorado
 
 export default function HomeScreen() {
@@ -96,7 +95,6 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <LogoHeader />
       <View style={styles.container}>
         <Text style={[styles.title, { color: colors.text }]}>
           Bienvenido, {user?.name || "Usuario"}

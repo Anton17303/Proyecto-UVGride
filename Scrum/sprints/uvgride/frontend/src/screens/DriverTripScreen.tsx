@@ -21,7 +21,6 @@ import { lightColors, darkColors } from "../constants/colors";
 import { useUser } from "../context/UserContext";
 import EmptyState from "../components/EmptyState";
 import FloatingActionButton from "../components/FloatingActionButton";
-import LogoHeader from "../components/LogoHeader";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -254,7 +253,6 @@ export default function DriverTripScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <LogoHeader />
       {/* Header */}
       <Text style={[styles.title, { color: colors.text }]}>Mis grupos</Text>
 

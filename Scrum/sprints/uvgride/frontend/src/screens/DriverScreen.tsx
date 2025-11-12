@@ -21,7 +21,7 @@ import { RootStackParamList } from "../navigation/type";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
 import { useUser } from "../context/UserContext";
-import { EmptyState, LogoHeader } from "../components";
+import { EmptyState } from "../components";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -417,7 +417,6 @@ export default function PassengerScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <LogoHeader />
       {/* Header */}
       <Text style={[styles.title, { color: colors.text }]}>Grupos</Text>
 

@@ -25,7 +25,7 @@ import { searchUsers, type UserLite } from "../services/users";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
-import { AnimatedInput, PrimaryButton, LinkText, LogoHeader } from "../components";
+import { AnimatedInput, PrimaryButton, LinkText } from "../components";
 import { useAchievements } from "../achievements/AchievementsContext"; // 👈 NUEVO
 
 /* ---------------- Utils num ---------------- */
@@ -227,7 +227,6 @@ export default function GroupCreateScreen() {
   /* ---------------- Render ---------------- */
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
-      <LogoHeader />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}

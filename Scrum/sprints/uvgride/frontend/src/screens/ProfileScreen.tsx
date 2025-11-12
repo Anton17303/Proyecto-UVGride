@@ -11,7 +11,6 @@ import {
   SectionCard,
   SettingsItem,
   LogoutButton,
-  LogoHeader,
 } from "../components";
 import { lightColors, darkColors } from "../constants/colors";
 
@@ -30,7 +29,6 @@ export default function ProfileScreen() {
           { backgroundColor: colors.background, justifyContent: "center" },
         ]}
       >
-        <LogoHeader />
         <Text style={[styles.fallbackText, { color: colors.text }]}>
           No hay usuario logueado.
         </Text>
@@ -51,7 +49,6 @@ export default function ProfileScreen() {
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
     >
-      <LogoHeader />
       {/* Header */}
       <ProfileHeader user={user} />
 

@@ -25,7 +25,6 @@ import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
 import { useUser } from "../context/UserContext";
 import { getDriverRatingSummary, rateDriverSimple } from "../services/groups";
-import LogoHeader from "../components/LogoHeader";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "DriverProfile">;
 type RouteProps = RouteProp<RootStackParamList, "DriverProfile">;
@@ -134,7 +133,6 @@ export default function DriverProfileScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top }}>
-      <LogoHeader />
       {/* Back */}
       <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
         <Ionicons name="arrow-back" size={22} color={colors.primary} />

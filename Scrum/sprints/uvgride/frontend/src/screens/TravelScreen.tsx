@@ -16,7 +16,6 @@ import {
   ZoomControls,
   RouteInfoCard,
   LoadingModal,
-  LogoHeader,
 } from "../components";
 
 type TravelRouteProp = RouteProp<RootStackParamList, "Travel">;
@@ -194,10 +193,6 @@ export default function TravelScreen() {
           <Polyline coordinates={coords} strokeColor={colors.primary} strokeWidth={4} />
         )}
       </MapView>
-      <View pointerEvents="none" style={[styles.logoContainer, { top: STATUS_OFFSET - 8 }]}>
-        <LogoHeader />
-      </View>
-
       {summary && (
         <RouteInfoCard
           durationSec={summary.durationSec}
@@ -321,12 +316,6 @@ function distanceMeters(
 const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { flex: 1 },
-  logoContainer: {
-    position: "absolute",
-    left: 16,
-    right: 16,
-    zIndex: 10,
-  },
   hintContainer: {
     position: "absolute",
     top: "50%",

@@ -19,10 +19,8 @@ import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
 import { useAchievements } from "../achievements/AchievementsContext"; // 👈 importar
-
 import { PrimaryButton, AnimatedInput, LinkText } from "../components";
 
-import { PrimaryButton, AnimatedInput, LinkText, LogoHeader } from "../components";
 
 const COLORES = [
   "#FF6B6B",
@@ -109,7 +107,7 @@ export default function AddFavoriteScreen() {
           contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
           keyboardShouldPersistTaps="handled"
         >
-          <LogoHeader />
+
           <Text style={[styles.header, { color: colors.text }]}>
             Agregar Lugar Favorito
           </Text>

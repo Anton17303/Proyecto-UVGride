@@ -18,7 +18,7 @@ import { API_URL } from "../services/api";
 import { RootStackParamList } from "../type";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
-import { PrimaryButton, AnimatedInput, LinkText, LogoHeader } from "../components";
+import { PrimaryButton, AnimatedInput, LinkText } from "../components";
 
 export default function RegisterScreen() {
   const navigation =
@@ -71,7 +71,6 @@ export default function RegisterScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
-      <LogoHeader />
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
