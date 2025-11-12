@@ -17,9 +17,7 @@ import {
 type Variant = "text" | "email" | "password" | "short" | "long" | "phone";
 
 export type AnimatedInputRef = {
-  /** Ejecuta la validación y devuelve si es válido */
   validate: () => boolean;
-  /** Devuelve el último estado de validez conocido */
   isValid: () => boolean;
 };
 
@@ -31,17 +29,13 @@ type Props = {
   color?: string;
   borderColor?: string;
   textColor?: string;
-  errorMessage?: string; // si viene, sobreescribe el error interno
+  errorMessage?: string;
 
-  /** Opcional: valida en cada cambio de texto (por defecto false) */
   validateOnChange?: boolean;
-  /** Notifica cambios de validez al padre */
   onValidityChange?: (valid: boolean) => void;
 
-  /** Dominios explícitos permitidos (además de outlook.xx si allowOutlookCountryTLD) */
-  allowedEmailDomains?: string[]; // por defecto ["gmail.com","uvg.edu.gt","outlook.com"]
-  /** Permitir outlook.xx (outlook.es, outlook.mx, etc.) */
-  allowOutlookCountryTLD?: boolean; // por defecto true
+  allowedEmailDomains?: string[];
+  allowOutlookCountryTLD?: boolean;
 };
 
 function InnerAnimatedInput(
@@ -73,10 +67,8 @@ function InnerAnimatedInput(
     }).start();
   };
 
-  // ---------- Helpers ----------
   const onlyDigits = (s: string) => s.replace(/\D+/g, "");
 
-  // Formatea a: "+502 ####-####" o "####-####"
   const formatGtPhone = (input: string) => {
     let digits = onlyDigits(input);
     let hasCC = false;
@@ -93,7 +85,7 @@ function InnerAnimatedInput(
 
   const isValidGtPhone = (text: string) => {
     const digits = onlyDigits(text);
-    if (digits.startsWith("502")) return digits.length === 11; // 502 + 8
+    if (digits.startsWith("502")) return digits.length === 11
     return digits.length === 8;
   };
 
@@ -105,13 +97,10 @@ function InnerAnimatedInput(
     const localPart = trimmed.slice(0, atIdx);
     const domain = trimmed.slice(atIdx + 1);
 
-    // local-part básico (sin espacios, sin @, sin comillas)
     if (!/^[^\s"@]+$/.test(localPart)) return false;
 
-    // Dominios explícitos
     if (allowedEmailDomains.includes(domain)) return true;
 
-    // outlook.xx (ej. outlook.es, outlook.mx)
     if (allowOutlookCountryTLD && /^outlook\.[a-z]{2}$/.test(domain)) {
       return true;
     }
@@ -122,17 +111,21 @@ function InnerAnimatedInput(
     if (variant === "email") {
       return isValidEmail(text)
         ? undefined
-        : "Usa un correo @gmail.com, @outlook.com/.xx o @uvg.edu.gt";
+        : "Usa un correo válido";
     }
     if (variant === "phone") {
       return isValidGtPhone(text)
         ? undefined
-        : "Número inválido. Ej: ####-#### o +502 ####-####";
+        : "Usa un número de teléfono valido";
+    }
+    if (variant === "password") {
+      return text.length >= 6
+        ? undefined
+        : "La contraseña debe tener al menos 6 caracteres";
     }
     return undefined;
   };
 
-  // expone métodos al padre
   useImperativeHandle(ref, () => ({
     validate: () => {
       const err = validate(value);
@@ -147,7 +140,6 @@ function InnerAnimatedInput(
     isValid: () => lastValid,
   }));
 
-  // ---------- Config ----------
   const config = useMemo(() => {
     switch (variant) {
       case "email":
@@ -207,7 +199,6 @@ function InnerAnimatedInput(
     }
   }, [variant]);
 
-  // ---------- Validación y handlers ----------
   const applyValidation = (text: string) => {
     const err = validate(text);
     setLocalError(err);
@@ -240,7 +231,6 @@ function InnerAnimatedInput(
   };
 
   const handleEndEditing: TextInputProps["onEndEditing"] = () => {
-    // Se dispara al terminar la edición (incluye submit desde teclado)
     applyValidation(value);
   };
 
@@ -296,7 +286,7 @@ const styles = StyleSheet.create({
   input: {
     fontSize: 16,
     paddingVertical: 12,
-    textAlignVertical: "top", // importante para multiline
+    textAlignVertical: "top",
   },
   error: {
     marginTop: 4,
