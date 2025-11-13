@@ -16,7 +16,7 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 
-import { listGroups, joinGroup, Grupo } from "../services/groups";
+import { listGroups, joinGroup, leaveGroup, Grupo } from "../services/groups";
 import { RootStackParamList } from "../navigation/type";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
@@ -137,6 +137,34 @@ export default function PassengerScreen() {
     } finally {
       setJoiningId(null);
     }
+  };
+
+    const onLeave = async (id: number) => {
+    try {
+      if (!user?.id) return Alert.alert("Sesión", "Inicia sesión.");
+      if (leavingId) return;
+      setLeavingId(id);
+
+      await leaveGroup(id, { id_usuario: Number(user.id) });
+      Alert.alert("Listo", "Saliste del grupo.");
+      fetchData();
+    } catch (e: any) {
+      console.error(e);
+      Alert.alert("Error", e?.response?.data?.error || "No se pudo salir del grupo");
+    } finally {
+      setLeavingId(null);
+    }
+  };
+
+  const confirmLeave = (g: Grupo) => {
+    Alert.alert("Salir del grupo", "¿Deseas abandonar este grupo?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Salir",
+        style: "destructive",
+        onPress: () => onLeave(g.id_grupo),
+      },
+    ]);
   };
 
   const currency = useMemo(
@@ -301,28 +329,46 @@ export default function PassengerScreen() {
     // Reglas de unión:
     // - Recurrente: no permite unirse salvo que ya seas miembro designado (es_miembro)
     // - Resto: igual que antes
-    const disabledJoin =
-      isOwner ||
-      (!isOpen && !isMemberHere) ||
-      cuposDisp <= 0 ||
-      (hasJoinedAny && !isMemberHere) ||
-      (esRecurrente && !isMemberHere);
+     const isJoining = joiningId === item.id_grupo;
+    const isLeaving = leavingId === item.id_grupo;
 
-    const joinLabel = isOwner
-      ? "Tu grupo"
-      : isMemberHere
-      ? "Ya unido"
-      : esRecurrente
-      ? "Solo designados"
-      : !isOpen
-      ? "No disponible"
-      : cuposDisp <= 0
-      ? "Sin cupos"
-      : hasJoinedAny
-      ? "Unido en otro"
-      : joiningId === item.id_grupo
-      ? "Uniendo..."
-      : "Unirse";
+    let primaryLabel = "Unirse";
+    let primaryDisabled = false;
+    let primaryAction = () => {
+      onJoin(item.id_grupo);
+    };
+    let primaryBg = colors.primary;
+
+    if (isOwner) {
+      primaryLabel = "Tu grupo";
+      primaryDisabled = true;
+      primaryAction = () => {};
+      primaryBg = "#9e9e9e";
+    } else if (isMemberHere) {
+      primaryLabel = isLeaving ? "Saliendo..." : "Salir";
+      primaryDisabled = isLeaving;
+      primaryAction = () => confirmLeave(item);
+      primaryBg = "#c62828";
+    } else if (!isOpen) {
+      primaryLabel = "No disponible";
+      primaryDisabled = true;
+      primaryBg = "#9e9e9e";
+    } else if (cuposDisp <= 0) {
+      primaryLabel = "Sin cupos";
+      primaryDisabled = true;
+      primaryBg = "#9e9e9e";
+    } else if (hasJoinedAny) {
+      primaryLabel = "Unido en otro";
+      primaryDisabled = true;
+      primaryBg = "#9e9e9e";
+    } else if (esRecurrente && !isMemberHere) {
+      primaryLabel = "Solo designados";
+      primaryDisabled = true;
+      primaryBg = "#9e9e9e";
+    } else if (isJoining) {
+      primaryLabel = "Uniendo...";
+      primaryDisabled = true;
+    }
 
     const canSeeDetail = isOwner || isMemberHere;
 
@@ -367,17 +413,14 @@ export default function PassengerScreen() {
         {/* Acciones */}
         <View style={styles.actionsRow}>
           <TouchableOpacity
-            onPress={() => onJoin(item.id_grupo)}
-            style={[
-              styles.joinBtn,
-              { backgroundColor: disabledJoin ? "#9e9e9e" : colors.primary },
-            ]}
-            disabled={disabledJoin}
+            onPress={primaryAction}
+            style={[styles.joinBtn, { backgroundColor: primaryBg }]}
+            disabled={primaryDisabled}
           >
-            {joiningId === item.id_grupo ? (
+           {isJoining || (isMemberHere && isLeaving) ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Text style={styles.joinBtnText}>{joinLabel}</Text>
+              <Text style={styles.joinBtnText}>{primaryLabel}</Text>
             )}
           </TouchableOpacity>
 

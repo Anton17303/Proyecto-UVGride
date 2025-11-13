@@ -17,7 +17,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 
 import { RootStackParamList } from "../navigation/type";
-import { getGroup, closeGroup, Grupo } from "../services/groups";
+import { getGroup, closeGroup, leaveGroup, Grupo } from "../services/groups";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
 import { useUser } from "../context/UserContext";
@@ -41,6 +41,7 @@ export default function GroupDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [group, setGroup] = useState<Grupo | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [leaving, setLeaving] = useState(false);
 
   const isFetching = useRef(false);
 
@@ -91,8 +92,43 @@ export default function GroupDetailScreen() {
   const isMember = useMemo(() => {
     if (!user?.id || !members?.length) return false;
     const uid = Number(user.id);
-    return members.some((m: any) => Number(m.id_usuario) === uid);
+    return members.some(
+      (m: any) =>
+        Number(m.id_usuario) === uid && String(m.estado_solicitud ?? "").toLowerCase() === "aprobado"
+    );
   }, [members, user?.id]);
+
+  const handleLeave = useCallback(async () => {
+    try {
+      if (!group || !user?.id) return;
+      setLeaving(true);
+      await leaveGroup(group.id_grupo, { id_usuario: Number(user.id) });
+      Alert.alert("Listo", "Saliste del grupo.");
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        await fetchGroup();
+      }
+    } catch (e: any) {
+      console.error("leaveGroup error:", e?.response?.data || e?.message);
+      Alert.alert("Error", e?.response?.data?.error || "No se pudo salir del grupo");
+    } finally {
+      setLeaving(false);
+    }
+  }, [fetchGroup, group, navigation, user?.id]);
+
+  const confirmLeave = useCallback(() => {
+    if (!group || leaving) return;
+    Alert.alert("Salir del grupo", "¿Deseas abandonar este grupo?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Salir",
+        style: "destructive",
+        onPress: handleLeave,
+      },
+    ]);
+  }, [group, handleLeave, leaving]);
+
 
   const handleClose = async (estado: "cerrado" | "cancelado" | "finalizado") => {
     try {
@@ -232,6 +268,21 @@ export default function GroupDetailScreen() {
             )}
           </View>
         )}
+         {!isOwner && isMember && (
+          <TouchableOpacity
+            onPress={confirmLeave}
+            style={[styles.leaveBtn, { backgroundColor: "#c62828" }]}
+            disabled={leaving}
+          >
+            {leaving ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.leaveTxt}>Salir del grupo</Text>
+            )}
+          </TouchableOpacity>
+        )}
+
+
       </View>
 
       <Text style={[styles.sectionTitle, { color: colors.text }]}>Miembros</Text>
@@ -350,6 +401,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   actionTxt: { color: "#fff", fontWeight: "700" },
+  leaveBtn: {
+    marginTop: 12,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  leaveTxt: { color: "#fff", fontWeight: "700" },
   sectionTitle: { fontSize: 16, fontWeight: "700", marginVertical: 10 },
   memberRow: {
     padding: 12,
