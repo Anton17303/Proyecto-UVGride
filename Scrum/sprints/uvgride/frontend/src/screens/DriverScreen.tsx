@@ -68,6 +68,7 @@ export default function PassengerScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [grupos, setGrupos] = useState<Grupo[]>([]);
   const [joiningId, setJoiningId] = useState<number | null>(null);
+  const [leavingId, setLeavingId] = useState<number | null>(null); // NUEVO
 
   const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("todos");
   const [cupoFilter, setCupoFilter] = useState<CupoFilter>("cualquiera");
@@ -139,13 +140,14 @@ export default function PassengerScreen() {
     }
   };
 
-    const onLeave = async (id: number) => {
+  const onLeave = async (id: number) => {
     try {
       if (!user?.id) return Alert.alert("Sesión", "Inicia sesión.");
       if (leavingId) return;
       setLeavingId(id);
 
       await leaveGroup(id, { id_usuario: Number(user.id) });
+
       Alert.alert("Listo", "Saliste del grupo.");
       fetchData();
     } catch (e: any) {
@@ -243,7 +245,12 @@ export default function PassengerScreen() {
       if (!okFecha) return false;
 
       // usar precio_base (preferido) -> costo_estimado (compat)
-      const precio = g.precio_base != null ? Number(g.precio_base) : g.costo_estimado != null ? Number(g.costo_estimado) : undefined;
+      const precio =
+        g.precio_base != null
+          ? Number(g.precio_base)
+          : g.costo_estimado != null
+          ? Number(g.costo_estimado)
+          : undefined;
       const okPrecio = isInPrecioFilter(precio, precioFilter);
       if (!okPrecio) return false;
 
@@ -261,7 +268,8 @@ export default function PassengerScreen() {
       finalizado: "#616161",
     };
     // Si es recurrente y está "cerrado", ese es su estado fijo; no mostramos "INICIADO"
-    const label = estado === "cerrado" ? (esRecurrente ? "CERRADO" : "INICIADO") : estado.toUpperCase();
+    const label =
+      estado === "cerrado" ? (esRecurrente ? "CERRADO" : "INICIADO") : estado.toUpperCase();
 
     return (
       <View style={[styles.badge, { backgroundColor: map[estado] || colors.border }]}>
@@ -326,11 +334,14 @@ export default function PassengerScreen() {
         ? Number(item.costo_estimado)
         : null;
 
-    // Reglas de unión:
-    // - Recurrente: no permite unirse salvo que ya seas miembro designado (es_miembro)
-    // - Resto: igual que antes
-     const isJoining = joiningId === item.id_grupo;
+    const isJoining = joiningId === item.id_grupo;
     const isLeaving = leavingId === item.id_grupo;
+
+    // 🔥 Solo puedes SALIR si:
+    // - eres miembro aprobado
+    // - no eres el conductor
+    // - el grupo sigue ABIERTO (no iniciado)
+    const puedeSalir = isMemberHere && !isOwner && isOpen;
 
     let primaryLabel = "Unirse";
     let primaryDisabled = false;
@@ -345,10 +356,18 @@ export default function PassengerScreen() {
       primaryAction = () => {};
       primaryBg = "#9e9e9e";
     } else if (isMemberHere) {
-      primaryLabel = isLeaving ? "Saliendo..." : "Salir";
-      primaryDisabled = isLeaving;
-      primaryAction = () => confirmLeave(item);
-      primaryBg = "#c62828";
+      if (!puedeSalir) {
+        // Ya inició / no se permite salir
+        primaryLabel = "En curso";
+        primaryDisabled = true;
+        primaryAction = () => {};
+        primaryBg = "#9e9e9e";
+      } else {
+        primaryLabel = isLeaving ? "Saliendo..." : "Salir";
+        primaryDisabled = isLeaving;
+        primaryAction = () => confirmLeave(item);
+        primaryBg = "#c62828";
+      }
     } else if (!isOpen) {
       primaryLabel = "No disponible";
       primaryDisabled = true;
@@ -417,7 +436,7 @@ export default function PassengerScreen() {
             style={[styles.joinBtn, { backgroundColor: primaryBg }]}
             disabled={primaryDisabled}
           >
-           {isJoining || (isMemberHere && isLeaving) ? (
+            {isJoining || (isMemberHere && isLeaving) ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <Text style={styles.joinBtnText}>{primaryLabel}</Text>
@@ -525,8 +544,18 @@ export default function PassengerScreen() {
 
       {/* Barra de búsqueda */}
       {searchActive && (
-        <View style={[styles.searchBar, { borderColor: colors.primary, backgroundColor: colors.card }]}>
-          <Ionicons name="search-outline" size={16} color={colors.primary} style={{ marginRight: 6 }} />
+        <View
+          style={[
+            styles.searchBar,
+            { borderColor: colors.primary, backgroundColor: colors.card },
+          ]}
+        >
+          <Ionicons
+            name="search-outline"
+            size={16}
+            color={colors.primary}
+            style={{ marginRight: 6 }}
+          />
           <TextInput
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -564,7 +593,11 @@ export default function PassengerScreen() {
           renderItem={renderItem}
           contentContainerStyle={{ paddingBottom: 20 }}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+            />
           }
         />
       )}
