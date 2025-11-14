@@ -1,5 +1,10 @@
 // src/screens/DriverTripScreen.tsx
-import React, { useCallback, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useMemo,
+  useState,
+  useEffect,
+} from "react";
 import {
   View,
   Text,
@@ -21,6 +26,19 @@ import { lightColors, darkColors } from "../constants/colors";
 import { useUser } from "../context/UserContext";
 import EmptyState from "../components/EmptyState";
 import FloatingActionButton from "../components/FloatingActionButton";
+
+// 🌀 Reanimated
+import Animated,
+{
+  Easing,
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withRepeat,
+  withSequence,
+  FadeInUp,
+  Layout,
+} from "react-native-reanimated";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -50,16 +68,27 @@ export default function DriverTripScreen() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const all = await listGroups(user?.id ? { user_id: Number(user.id) } : undefined);
-      const mine = user?.id ? all.filter((g) => g.conductor_id === Number(user.id)) : [];
+      const all = await listGroups(
+        user?.id ? { user_id: Number(user.id) } : undefined
+      );
+      const mine = user?.id
+        ? all.filter((g) => g.conductor_id === Number(user.id))
+        : [];
       setGrupos(mine);
 
       const iJoinedOther =
-        user?.id ? all.some((g) => g.es_miembro === true && g.es_propietario !== true) : false;
+        user?.id
+          ? all.some(
+              (g) => g.es_miembro === true && g.es_propietario !== true
+            )
+          : false;
       setJoinedOther(iJoinedOther);
     } catch (e: any) {
       console.error(e);
-      Alert.alert("Error", e?.response?.data?.error || "No se pudieron cargar los grupos");
+      Alert.alert(
+        "Error",
+        e?.response?.data?.error || "No se pudieron cargar los grupos"
+      );
     } finally {
       setLoading(false);
     }
@@ -77,7 +106,10 @@ export default function DriverTripScreen() {
     setRefreshing(false);
   }, [fetchData]);
 
-  const doClose = async (g: Grupo, estado: "cerrado" | "cancelado" | "finalizado") => {
+  const doClose = async (
+    g: Grupo,
+    estado: "cerrado" | "cancelado" | "finalizado"
+  ) => {
     try {
       if (!user?.id) return Alert.alert("Sesión", "Inicia sesión.");
       if (busyId) return;
@@ -88,7 +120,10 @@ export default function DriverTripScreen() {
       fetchData();
     } catch (e: any) {
       console.error(e);
-      Alert.alert("Error", e?.response?.data?.error || "No se pudo actualizar el grupo");
+      Alert.alert(
+        "Error",
+        e?.response?.data?.error || "No se pudo actualizar el grupo"
+      );
     } finally {
       setBusyId(null);
     }
@@ -113,7 +148,10 @@ export default function DriverTripScreen() {
                 fetchData();
               } catch (e: any) {
                 console.error(e);
-                Alert.alert("Error", e?.response?.data?.error || "No se pudo eliminar el grupo");
+                Alert.alert(
+                  "Error",
+                  e?.response?.data?.error || "No se pudo eliminar el grupo"
+                );
               } finally {
                 setBusyId(null);
               }
@@ -126,15 +164,25 @@ export default function DriverTripScreen() {
     }
   };
 
-  const EstadoBadge = ({ estado, esRecurrente }: { estado: Grupo["estado"]; esRecurrente?: boolean }) => {
+  const EstadoBadge = ({
+    estado,
+    esRecurrente,
+  }: {
+    estado: Grupo["estado"];
+    esRecurrente?: boolean;
+  }) => {
     // Si es recurrente, 'cerrado' no significa "iniciado", sino un estado fijo
     const map: Record<string, { color: string; label: string }> = {
       abierto: { color: "#2e7d32", label: "ABIERTO" },
-      cerrado: { color: esRecurrente ? "#1565c0" : "#1565c0", label: esRecurrente ? "CERRADO" : "INICIADO" },
+      cerrado: {
+        color: "#1565c0",
+        label: esRecurrente ? "CERRADO" : "INICIADO",
+      },
       cancelado: { color: "#c62828", label: "CANCELADO" },
       finalizado: { color: "#616161", label: "FINALIZADO" },
     };
-    const { color, label } = map[estado] || { color: colors.border, label: estado };
+    const { color, label } =
+      map[estado] || { color: colors.border, label: estado };
     return (
       <View style={[styles.badge, { backgroundColor: color }]}>
         <Text style={styles.badgeTxt}>{label}</Text>
@@ -143,13 +191,63 @@ export default function DriverTripScreen() {
   };
 
   const RecurrentBadge = () => (
-    <View style={[styles.badge, { backgroundColor: "#455a64", marginLeft: 6 }]}>
+    <View
+      style={[styles.badge, { backgroundColor: "#455a64", marginLeft: 6 }]}
+    >
       <Text style={styles.badgeTxt}>RECURRENTE</Text>
     </View>
   );
 
-  const renderItem = ({ item }: { item: Grupo }) => {
-    const cuposTotales = Number(item.capacidad_total ?? item.cupos_totales ?? 0);
+  // 🌀 Reanimated: header + FAB
+  const headerOpacity = useSharedValue(0);
+  const headerTranslateY = useSharedValue(-10);
+  const fabScale = useSharedValue(1);
+
+  const headerAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ translateY: headerTranslateY.value }],
+  }));
+
+  const fabAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: fabScale.value }],
+  }));
+
+  useEffect(() => {
+    // header
+    headerOpacity.value = withTiming(1, {
+      duration: 320,
+      easing: Easing.out(Easing.quad),
+    });
+    headerTranslateY.value = withTiming(0, {
+      duration: 320,
+      easing: Easing.out(Easing.quad),
+    });
+
+    // latido FAB
+    fabScale.value = withRepeat(
+      withSequence(
+        withTiming(1.04, {
+          duration: 900,
+          easing: Easing.out(Easing.quad),
+        }),
+        withTiming(1, {
+          duration: 900,
+          easing: Easing.in(Easing.quad),
+        })
+      ),
+      -1,
+      true
+    );
+
+    return () => {
+      fabScale.value = 1;
+    };
+  }, [headerOpacity, headerTranslateY, fabScale]);
+
+  const renderItem = ({ item, index }: { item: Grupo; index: number }) => {
+    const cuposTotales = Number(
+      item.capacidad_total ?? item.cupos_totales ?? 0
+    );
     const cuposUsados = Number(item.cupos_usados ?? 0);
     const cuposDisp = Math.max(0, cuposTotales - cuposUsados);
 
@@ -163,88 +261,128 @@ export default function DriverTripScreen() {
         : null;
 
     return (
-      <View style={[styles.card, { backgroundColor: colors.card }]}>
-        {/* Header */}
-        <View style={styles.headerRow}>
-          <Text style={[styles.cardTitle, { color: colors.primary }]}>
-            {item.viaje?.destino ?? (item as any).destino_nombre ?? "Destino"}
+      <Animated.View
+        entering={FadeInUp.delay(80 + index * 40)
+          .duration(280)
+          .easing(Easing.out(Easing.cubic))}
+        layout={Layout.springify().damping(14).stiffness(120)}
+        style={{ marginBottom: 12 }}
+      >
+        <View style={[styles.card, { backgroundColor: colors.card }]}>
+          {/* Header */}
+          <View style={styles.headerRow}>
+            <Text style={[styles.cardTitle, { color: colors.primary }]}>
+              {item.viaje?.destino ??
+                (item as any).destino_nombre ??
+                "Destino"}
+            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <EstadoBadge
+                estado={item.estado}
+                esRecurrente={item.es_recurrente}
+              />
+              {item.es_recurrente ? <RecurrentBadge /> : null}
+            </View>
+          </View>
+
+          {/* Info */}
+          {v && (
+            <Text style={{ color: colors.text, marginBottom: 2 }}>
+              <Text style={styles.label}>Vehículo: </Text>
+              {v.marca} {v.modelo} · {v.placa}
+            </Text>
+          )}
+          <Text style={{ color: colors.text, marginBottom: 2 }}>
+            <Text style={styles.label}>Cupos: </Text>
+            {cuposDisp} / {cuposTotales}
           </Text>
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <EstadoBadge estado={item.estado} esRecurrente={item.es_recurrente} />
-            {item.es_recurrente ? <RecurrentBadge /> : null}
+          {precio !== null && Number.isFinite(precio) && (
+            <Text style={{ color: colors.text, marginBottom: 2 }}>
+              <Text style={styles.label}>Estimado: </Text>
+              Q{precio.toFixed(2)}
+            </Text>
+          )}
+          <Text style={{ color: colors.text, marginBottom: 6 }}>
+            <Text style={styles.label}>Salida: </Text>
+            {fmtDate(
+              item.viaje?.fecha_inicio ?? (item as any).fecha_salida
+            )}
+          </Text>
+
+          {/* Botones dinámicos */}
+          <View style={styles.actionsRow}>
+            {item.es_recurrente ? (
+              // Solo ELIMINAR para recurrentes
+              <TouchableOpacity
+                onPress={() => doDelete(item)}
+                disabled={isBusy}
+                style={[
+                  styles.actionBtn,
+                  { backgroundColor: "#b71c1c", flex: 1 },
+                ]}
+              >
+                <Text style={styles.actionTxt}>
+                  {isBusy ? "..." : "Eliminar"}
+                </Text>
+              </TouchableOpacity>
+            ) : item.estado === "abierto" ? (
+              <>
+                <TouchableOpacity
+                  onPress={() => doClose(item, "cerrado")}
+                  disabled={isBusy}
+                  style={[
+                    styles.actionBtn,
+                    { backgroundColor: "#1565c0", flex: 1 },
+                  ]}
+                >
+                  <Text style={styles.actionTxt}>
+                    {isBusy ? "..." : "Iniciar"}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => doClose(item, "cancelado")}
+                  disabled={isBusy}
+                  style={[
+                    styles.actionBtn,
+                    { backgroundColor: "#c62828", flex: 1 },
+                  ]}
+                >
+                  <Text style={styles.actionTxt}>
+                    {isBusy ? "..." : "Cancelar"}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            ) : item.estado === "cerrado" ? (
+              <>
+                <TouchableOpacity
+                  onPress={() => doClose(item, "finalizado")}
+                  disabled={isBusy}
+                  style={[
+                    styles.actionBtn,
+                    { backgroundColor: "#616161", flex: 1 },
+                  ]}
+                >
+                  <Text style={styles.actionTxt}>
+                    {isBusy ? "..." : "Finalizar"}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => doClose(item, "cancelado")}
+                  disabled={isBusy}
+                  style={[
+                    styles.actionBtn,
+                    { backgroundColor: "#c62828", flex: 1 },
+                  ]}
+                >
+                  <Text style={styles.actionTxt}>
+                    {isBusy ? "..." : "Cancelar"}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
           </View>
         </View>
-
-        {/* Info */}
-        {v && (
-          <Text style={{ color: colors.text, marginBottom: 2 }}>
-            <Text style={styles.label}>Vehículo: </Text>
-            {v.marca} {v.modelo} · {v.placa}
-          </Text>
-        )}
-        <Text style={{ color: colors.text, marginBottom: 2 }}>
-          <Text style={styles.label}>Cupos: </Text>
-          {cuposDisp} / {cuposTotales}
-        </Text>
-        {precio !== null && Number.isFinite(precio) && (
-          <Text style={{ color: colors.text, marginBottom: 2 }}>
-            <Text style={styles.label}>Estimado: </Text>
-            Q{precio.toFixed(2)}
-          </Text>
-        )}
-        <Text style={{ color: colors.text, marginBottom: 6 }}>
-          <Text style={styles.label}>Salida: </Text>
-          {fmtDate(item.viaje?.fecha_inicio ?? (item as any).fecha_salida)}
-        </Text>
-
-        {/* Botones dinámicos */}
-        <View style={styles.actionsRow}>
-          {item.es_recurrente ? (
-            // Solo ELIMINAR para recurrentes
-            <TouchableOpacity
-              onPress={() => doDelete(item)}
-              disabled={isBusy}
-              style={[styles.actionBtn, { backgroundColor: "#b71c1c", flex: 1 }]}
-            >
-              <Text style={styles.actionTxt}>{isBusy ? "..." : "Eliminar"}</Text>
-            </TouchableOpacity>
-          ) : item.estado === "abierto" ? (
-            <>
-              <TouchableOpacity
-                onPress={() => doClose(item, "cerrado")}
-                disabled={isBusy}
-                style={[styles.actionBtn, { backgroundColor: "#1565c0", flex: 1 }]}
-              >
-                <Text style={styles.actionTxt}>{isBusy ? "..." : "Iniciar"}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => doClose(item, "cancelado")}
-                disabled={isBusy}
-                style={[styles.actionBtn, { backgroundColor: "#c62828", flex: 1 }]}
-              >
-                <Text style={styles.actionTxt}>{isBusy ? "..." : "Cancelar"}</Text>
-              </TouchableOpacity>
-            </>
-          ) : item.estado === "cerrado" ? (
-            <>
-              <TouchableOpacity
-                onPress={() => doClose(item, "finalizado")}
-                disabled={isBusy}
-                style={[styles.actionBtn, { backgroundColor: "#616161", flex: 1 }]}
-              >
-                <Text style={styles.actionTxt}>{isBusy ? "..." : "Finalizar"}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => doClose(item, "cancelado")}
-                disabled={isBusy}
-                style={[styles.actionBtn, { backgroundColor: "#c62828", flex: 1 }]}
-              >
-                <Text style={styles.actionTxt}>{isBusy ? "..." : "Cancelar"}</Text>
-              </TouchableOpacity>
-            </>
-          ) : null}
-        </View>
-      </View>
+      </Animated.View>
     );
   };
 
@@ -252,12 +390,22 @@ export default function DriverTripScreen() {
   const createDisabled = joinedOther || !esConductor;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <Text style={[styles.title, { color: colors.text }]}>Mis grupos</Text>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
+      {/* Header animado */}
+      <Animated.View style={headerAnimatedStyle}>
+        <Text style={[styles.title, { color: colors.text }]}>
+          Mis grupos
+        </Text>
+      </Animated.View>
 
       {loading ? (
-        <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 30 }} />
+        <ActivityIndicator
+          size="large"
+          color={colors.primary}
+          style={{ marginTop: 30 }}
+        />
       ) : grupos.length === 0 ? (
         <EmptyState
           icon="car-sport-outline"
@@ -273,32 +421,42 @@ export default function DriverTripScreen() {
           renderItem={renderItem}
           contentContainerStyle={{ paddingBottom: 80 }}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+            />
           }
         />
       )}
 
-      {/* FAB crear grupo */}
+      {/* FAB crear grupo con latido suave */}
       {esConductor && (
-        <FloatingActionButton
-          id="fab_create_group"
-          icon="add"
-          label="Crear grupo"
-          backgroundColor={colors.primary}
-          disabled={createDisabled}
-          onPress={() => {
-            if (createDisabled) {
-              return Alert.alert(
-                "No disponible",
-                joinedOther
-                  ? "No puedes crear un grupo porque estás unido en otro como pasajero."
-                  : "Solo los conductores pueden crear grupos."
-              );
-            }
-            navigation.navigate("GroupCreate");
-          }}
-          style={{ position: "absolute", bottom: 30, right: 20 }}
-        />
+        <Animated.View
+          style={[
+            { position: "absolute", bottom: 30, right: 20 },
+            fabAnimatedStyle,
+          ]}
+        >
+          <FloatingActionButton
+            id="fab_create_group"
+            icon="add"
+            label="Crear grupo"
+            backgroundColor={colors.primary}
+            disabled={createDisabled}
+            onPress={() => {
+              if (createDisabled) {
+                return Alert.alert(
+                  "No disponible",
+                  joinedOther
+                    ? "No puedes crear un grupo porque estás unido en otro como pasajero."
+                    : "Solo los conductores pueden crear grupos."
+                );
+              }
+              navigation.navigate("GroupCreate");
+            }}
+          />
+        </Animated.View>
       )}
     </SafeAreaView>
   );
@@ -317,7 +475,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     padding: 16,
     borderRadius: 14,
-    marginBottom: 12,
+    // marginBottom lo maneja el wrapper animado
     shadowColor: "#000",
     shadowOpacity: 0.08,
     shadowRadius: 6,

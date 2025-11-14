@@ -10,7 +10,7 @@ import {
   Platform,
   SafeAreaView,
   ScrollView,
-  Animated,
+  Animated as RNAnimated,
 } from "react-native";
 import axios from "axios";
 import { useNavigation } from "@react-navigation/native";
@@ -20,12 +20,15 @@ import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
 import { useAchievements } from "../achievements/AchievementsContext";
-import {
-  PrimaryButton,
-  AnimatedInput,
-  LinkText,
-  BackButton,
-} from "../components";
+import { PrimaryButton, AnimatedInput, BackButton } from "../components";
+
+// 👉 Reanimated
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  Easing,
+} from "react-native-reanimated";
 
 const COLORES = [
   "#FF6B6B",
@@ -55,26 +58,22 @@ function ColorDot({
   borderColor,
   primaryColor,
 }: ColorDotProps) {
-  const scale = useRef(new Animated.Value(1)).current;
+  const scale = useSharedValue(1);
 
   useEffect(() => {
-    Animated.spring(scale, {
-      toValue: selected ? 1.12 : 1,
-      friction: 6,
-      tension: 120,
-      useNativeDriver: true,
-    }).start();
+    // Animación rápida, sin rebote y muy sutil
+    scale.value = withTiming(selected ? 1.06 : 1, {
+      duration: 120,
+      easing: Easing.out(Easing.quad),
+    });
   }, [selected, scale]);
 
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
   return (
-    <Animated.View
-      style={[
-        styles.colorCircleWrapper,
-        {
-          transform: [{ scale }],
-        },
-      ]}
-    >
+    <Animated.View style={[styles.colorCircleWrapper, animatedStyle]}>
       <TouchableOpacity
         style={[
           styles.colorCircle,
@@ -104,20 +103,20 @@ export default function AddFavoriteScreen() {
   const [color, setColor] = useState(COLORES[0]);
   const [loading, setLoading] = useState(false);
 
-  // Animaciones header
-  const headerOpacity = useRef(new Animated.Value(0)).current;
-  const headerTranslateY = useRef(new Animated.Value(-12)).current;
+  // Animaciones header (puede seguir con Animated de RN, es simple y rápido)
+  const headerOpacity = useRef(new RNAnimated.Value(0)).current;
+  const headerTranslateY = useRef(new RNAnimated.Value(-12)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(headerOpacity, {
+    RNAnimated.parallel([
+      RNAnimated.timing(headerOpacity, {
         toValue: 1,
-        duration: 320,
+        duration: 280,
         useNativeDriver: true,
       }),
-      Animated.timing(headerTranslateY, {
+      RNAnimated.timing(headerTranslateY, {
         toValue: 0,
-        duration: 320,
+        duration: 280,
         useNativeDriver: true,
       }),
     ]).start();
@@ -172,7 +171,7 @@ export default function AddFavoriteScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
-      <Animated.View
+      <RNAnimated.View
         style={{
           opacity: headerOpacity,
           transform: [{ translateY: headerTranslateY }],
@@ -182,7 +181,7 @@ export default function AddFavoriteScreen() {
         <Text style={[styles.header, { color: colors.text }]}>
           Agregar Lugar Favorito
         </Text>
-      </Animated.View>
+      </RNAnimated.View>
 
       <KeyboardAvoidingView
         style={styles.container}
@@ -246,7 +245,6 @@ export default function AddFavoriteScreen() {
             loading={loading}
             color={colors.primary}
           />
-
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -272,7 +270,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   colorCircleWrapper: {
-    // wrapper animado, deja el círculo centrado
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
   },
   colorCircle: {
     width: 40,

@@ -14,7 +14,14 @@ import { API_URL } from "../services/api";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
-import { PrimaryButton, AnimatedInput, LinkText, BackButton } from "../components";
+import { PrimaryButton, AnimatedInput, BackButton } from "../components";
+
+// 🌀 Reanimated (animaciones sutiles)
+import Animated, {
+  FadeInUp,
+  Layout,
+  Easing,
+} from "react-native-reanimated";
 
 export default function VehicleFormScreen({ navigation }: any) {
   const { user } = useUser();
@@ -67,72 +74,84 @@ export default function VehicleFormScreen({ navigation }: any) {
           contentContainerStyle={styles.scrollContainer}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Header */}
-          <Text style={[styles.title, { color: colors.primary }]}>
-            Registrar vehículo
-          </Text>
-          <Text style={[styles.subtitle, { color: colors.text }]}>
-            Completa la información de tu vehículo
-          </Text>
+          {/* Header animado */}
+          <Animated.View
+            entering={FadeInUp.duration(60).easing(Easing.out(Easing.quad))}
+            layout={Layout}
+          >
+            <Text style={[styles.title, { color: colors.primary }]}>
+              Registrar vehículo
+            </Text>
+            <Text style={[styles.subtitle, { color: colors.text }]}>
+              Completa la información de tu vehículo
+            </Text>
+          </Animated.View>
 
-          {/* Inputs */}
-          <AnimatedInput
-            placeholder="Marca"
-            value={marca}
-            onChangeText={setMarca}
-            variant="short"
-            textColor={colors.text}
-            borderColor={colors.border}
-            color={colors.primary}
-          />
+          {/* Formulario animado (bloque completo) */}
+          <Animated.View
+            entering={FadeInUp.delay(60)
+              .duration(60)
+              .easing(Easing.out(Easing.quad))}
+            layout={Layout}
+          >
+            <AnimatedInput
+              placeholder="Marca"
+              value={marca}
+              onChangeText={setMarca}
+              variant="short"
+              textColor={colors.text}
+              borderColor={colors.border}
+              color={colors.primary}
+            />
 
-          <AnimatedInput
-            placeholder="Modelo"
-            value={modelo}
-            onChangeText={setModelo}
-            variant="short"
-            textColor={colors.text}
-            borderColor={colors.border}
-            color={colors.primary}
-          />
+            <AnimatedInput
+              placeholder="Modelo"
+              value={modelo}
+              onChangeText={setModelo}
+              variant="short"
+              textColor={colors.text}
+              borderColor={colors.border}
+              color={colors.primary}
+            />
 
-          <AnimatedInput
-            placeholder="Placa"
-            value={placa}
-            onChangeText={setPlaca}
-            variant="short"
-            textColor={colors.text}
-            borderColor={colors.border}
-            color={colors.primary}
-          />
+            <AnimatedInput
+              placeholder="Placa"
+              value={placa}
+              onChangeText={setPlaca}
+              variant="short"
+              textColor={colors.text}
+              borderColor={colors.border}
+              color={colors.primary}
+            />
 
-          <AnimatedInput
-            placeholder="Color"
-            value={color}
-            onChangeText={setColor}
-            variant="short"
-            textColor={colors.text}
-            borderColor={colors.border}
-            color={colors.primary}
-          />
+            <AnimatedInput
+              placeholder="Color"
+              value={color}
+              onChangeText={setColor}
+              variant="short"
+              textColor={colors.text}
+              borderColor={colors.border}
+              color={colors.primary}
+            />
 
-          <AnimatedInput
-            placeholder="Capacidad de pasajeros"
-            value={capacidad}
-            onChangeText={setCapacidad}
-            variant="number"
-            textColor={colors.text}
-            borderColor={colors.border}
-            color={colors.primary}
-          />
+            <AnimatedInput
+              placeholder="Capacidad de pasajeros"
+              value={capacidad}
+              onChangeText={setCapacidad}
+              variant="number"
+              textColor={colors.text}
+              borderColor={colors.border}
+              color={colors.primary}
+            />
 
-          {/* Botón */}
-          <PrimaryButton
-            title="Registrar vehículo"
-            onPress={handleRegister}
-            loading={loading}
-            color={colors.primary}
-          />
+            {/* Botón */}
+            <PrimaryButton
+              title="Registrar vehículo"
+              onPress={handleRegister}
+              loading={loading}
+              color={colors.primary}
+            />
+          </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -145,17 +164,18 @@ const styles = StyleSheet.create({
     padding: 24,
     flexGrow: 1,
     justifyContent: "center",
+    gap: 12,
   },
   title: {
     fontSize: 28,
     fontWeight: "700",
     textAlign: "center",
-    marginBottom: 8,
+    marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
     textAlign: "center",
-    marginBottom: 24,
+    marginBottom: 20,
     opacity: 0.7,
   },
 });

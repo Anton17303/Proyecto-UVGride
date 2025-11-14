@@ -1,5 +1,5 @@
 // src/screens/LoginScreen.tsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,11 +8,19 @@ import {
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
-  Animated,
 } from "react-native";
 import axios from "axios";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+
+// 🌀 Reanimated
+import Animated, {
+  Easing,
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withDelay,
+} from "react-native-reanimated";
 
 import { API_URL } from "../services/api";
 import { useUser } from "../context/UserContext";
@@ -40,42 +48,49 @@ export default function LoginScreen() {
   const { theme } = useTheme();
   const colors = theme === "light" ? lightColors : darkColors;
 
-  // 🔹 Animaciones
-  const headerOpacity = useRef(new Animated.Value(0)).current;
-  const headerTranslateY = useRef(new Animated.Value(-20)).current;
-  const formOpacity = useRef(new Animated.Value(0)).current;
-  const formTranslateY = useRef(new Animated.Value(10)).current;
+  // 🔹 Reanimated shared values
+  const headerOpacity = useSharedValue(0);
+  const headerTranslateY = useSharedValue(-24);
+  const formOpacity = useSharedValue(0);
+  const formTranslateY = useSharedValue(12);
 
   useEffect(() => {
-    // Animación de entrada del header + luego el formulario
-    Animated.sequence([
-      Animated.parallel([
-        Animated.timing(headerOpacity, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }),
-        Animated.timing(headerTranslateY, {
-          toValue: 0,
-          duration: 400,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.delay(100),
-      Animated.parallel([
-        Animated.timing(formOpacity, {
-          toValue: 1,
-          duration: 350,
-          useNativeDriver: true,
-        }),
-        Animated.timing(formTranslateY, {
-          toValue: 0,
-          duration: 350,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]).start();
+    // Animación de entrada: primero el header, luego el formulario
+    headerOpacity.value = withTiming(1, {
+      duration: 450,
+      easing: Easing.out(Easing.quad),
+    });
+    headerTranslateY.value = withTiming(0, {
+      duration: 450,
+      easing: Easing.out(Easing.quad),
+    });
+
+    formOpacity.value = withDelay(
+      120,
+      withTiming(1, {
+        duration: 380,
+        easing: Easing.out(Easing.quad),
+      })
+    );
+    formTranslateY.value = withDelay(
+      120,
+      withTiming(0, {
+        duration: 380,
+        easing: Easing.out(Easing.quad),
+      })
+    );
   }, [headerOpacity, headerTranslateY, formOpacity, formTranslateY]);
+
+  // 🎨 Estilos animados
+  const headerAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ translateY: headerTranslateY.value }],
+  }));
+
+  const formAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: formOpacity.value,
+    transform: [{ translateY: formTranslateY.value }],
+  }));
 
   const handleLogin = async () => {
     if (!correo_institucional || !contrasenia) {
@@ -92,7 +107,6 @@ export default function LoginScreen() {
 
       setUserFromBackend(res.data.usuario);
 
-      Alert.alert("¡Bienvenido!", `Hola ${res.data.usuario.nombre}`);
     } catch (err: any) {
       console.error(err);
       Alert.alert(
@@ -111,15 +125,7 @@ export default function LoginScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         {/* Header animado */}
-        <Animated.View
-          style={[
-            styles.headerBlock,
-            {
-              opacity: headerOpacity,
-              transform: [{ translateY: headerTranslateY }],
-            },
-          ]}
-        >
+        <Animated.View style={[styles.headerBlock, headerAnimatedStyle]}>
           <Text style={[styles.appName, { color: colors.primary }]}>
             UVGride
           </Text>
@@ -130,12 +136,7 @@ export default function LoginScreen() {
         </Animated.View>
 
         {/* Form animado */}
-        <Animated.View
-          style={{
-            opacity: formOpacity,
-            transform: [{ translateY: formTranslateY }],
-          }}
-        >
+        <Animated.View style={formAnimatedStyle}>
           {/* Email */}
           <AnimatedInput
             placeholder="Correo institucional"

@@ -1,5 +1,5 @@
 // src/screens/TripFormScreen.tsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,7 +10,6 @@ import {
   Platform,
   Switch,
   SafeAreaView,
-  Animated,
 } from "react-native";
 import axios from "axios";
 import {
@@ -22,6 +21,14 @@ import {
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Location from "expo-location";
+
+// 🌀 Reanimated
+import Animated, {
+  Easing,
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+} from "react-native-reanimated";
 
 import { API_URL } from "../services/api";
 import { TravelStackParamList } from "../navigation/TravelStack";
@@ -68,24 +75,51 @@ export default function TripFormScreen() {
   const [scheduledAt, setScheduledAt] = useState<Date>(new Date());
   const [showPicker, setShowPicker] = useState<"date" | "time" | null>(null);
 
-  // Animación header
-  const headerOpacity = useRef(new Animated.Value(0)).current;
-  const headerTranslateY = useRef(new Animated.Value(-12)).current;
+  // 🔹 Animaciones (Reanimated)
+  const headerOpacity = useSharedValue(0);
+  const headerTranslateY = useSharedValue(-12);
 
+  const scheduleOpacity = useSharedValue(0);
+  const scheduleTranslateY = useSharedValue(6);
+
+  const headerAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ translateY: headerTranslateY.value }],
+  }));
+
+  const scheduleAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: scheduleOpacity.value,
+    transform: [{ translateY: scheduleTranslateY.value }],
+  }));
+
+  // Animación header al montar
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(headerOpacity, {
-        toValue: 1,
-        duration: 320,
-        useNativeDriver: true,
-      }),
-      Animated.timing(headerTranslateY, {
-        toValue: 0,
-        duration: 320,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    headerOpacity.value = withTiming(1, {
+      duration: 320,
+      easing: Easing.out(Easing.quad),
+    });
+    headerTranslateY.value = withTiming(0, {
+      duration: 320,
+      easing: Easing.out(Easing.quad),
+    });
   }, [headerOpacity, headerTranslateY]);
+
+  // Animación bloque "Programar viaje" cuando está activo
+  useEffect(() => {
+    if (isScheduled) {
+      scheduleOpacity.value = withTiming(1, {
+        duration: 220,
+        easing: Easing.out(Easing.quad),
+      });
+      scheduleTranslateY.value = withTiming(0, {
+        duration: 220,
+        easing: Easing.out(Easing.quad),
+      });
+    } else {
+      scheduleOpacity.value = 0;
+      scheduleTranslateY.value = 6;
+    }
+  }, [isScheduled, scheduleOpacity, scheduleTranslateY]);
 
   // 📍 Obtener ubicación inicial
   useEffect(() => {
@@ -97,7 +131,10 @@ export default function TripFormScreen() {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") {
-          Alert.alert("Permiso denegado", "No se puede acceder a la ubicación.");
+          Alert.alert(
+            "Permiso denegado",
+            "No se puede acceder a la ubicación."
+          );
           return;
         }
         const location = await Location.getCurrentPositionAsync({});
@@ -123,13 +160,19 @@ export default function TripFormScreen() {
     const trimmedDest = destination.trim();
 
     if (!trimmedDest) {
-      return Alert.alert("Destino requerido", "Por favor ingresa un destino válido.");
+      return Alert.alert(
+        "Destino requerido",
+        "Por favor ingresa un destino válido."
+      );
     }
     if (!user?.id) {
       return Alert.alert("Error", "Usuario no autenticado.");
     }
     if (!isScheduled && !coords) {
-      return Alert.alert("Ubicación faltante", "No se pudo determinar tu ubicación.");
+      return Alert.alert(
+        "Ubicación faltante",
+        "No se pudo determinar tu ubicación."
+      );
     }
     if (isScheduled && !validateScheduledAt(scheduledAt)) {
       return Alert.alert(
@@ -216,15 +259,18 @@ export default function TripFormScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
+    <SafeAreaView
+      style={[styles.safe, { backgroundColor: colors.background }]}
+    >
       {/* Header animado */}
       <Animated.View
-        style={{
-          opacity: headerOpacity,
-          transform: [{ translateY: headerTranslateY }],
-          paddingHorizontal: 20,
-          paddingTop: 8,
-        }}
+        style={[
+          {
+            paddingHorizontal: 20,
+            paddingTop: 8,
+          },
+          headerAnimatedStyle,
+        ]}
       >
         <BackButton />
         <Text style={[styles.headerTitle, { color: colors.text }]}>
@@ -269,8 +315,11 @@ export default function TripFormScreen() {
           />
         </View>
 
+        {/* Bloque programado con animación sutil */}
         {isScheduled && (
-          <View style={[styles.block, styles.datetimeBox]}>
+          <Animated.View
+            style={[styles.block, styles.datetimeBox, scheduleAnimatedStyle]}
+          >
             <View style={styles.datetimeRow}>
               <TouchableOpacity
                 style={[
@@ -320,7 +369,7 @@ export default function TripFormScreen() {
                 minimumDate={new Date()}
               />
             )}
-          </View>
+          </Animated.View>
         )}
 
         {/* Botón principal */}

@@ -1,11 +1,35 @@
+// src/screens/TravelScreen.tsx
 import React, { useEffect, useRef, useState } from "react";
-import { View, StyleSheet, Text, Alert, Platform, TouchableOpacity, Animated } from "react-native";
-import MapView, { Marker, Polyline, MapPressEvent, Circle } from "react-native-maps";
+import {
+  View,
+  StyleSheet,
+  Text,
+  Alert,
+  Platform,
+  TouchableOpacity,
+} from "react-native";
+import MapView, {
+  Marker,
+  Polyline,
+  MapPressEvent,
+  Circle,
+} from "react-native-maps";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RouteProp } from "@react-navigation/core";
 import * as Location from "expo-location";
 import Ionicons from "react-native-vector-icons/Ionicons";
+
+// 🌀 Reanimated
+import Animated, {
+  Easing,
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withRepeat,
+  withSequence,
+  runOnJS,
+} from "react-native-reanimated";
 
 import { RootStackParamList } from "../navigation/type";
 import { useTheme } from "../context/ThemeContext";
@@ -45,16 +69,31 @@ export default function TravelScreen() {
 
   // Seguir al usuario y throttling de recálculo
   const [followUser, setFollowUser] = useState(false);
-  const lastRouteRef = useRef<{ at: number; lat?: number; lng?: number }>({ at: 0 });
+  const lastRouteRef = useRef<{ at: number; lat?: number; lng?: number }>({
+    at: 0,
+  });
 
-  // 🔹 Animaciones
-  const [showHint, setShowHint] = useState(true);
-  const hintOpacity = useRef(new Animated.Value(0)).current;
+  // 🔹 Animaciones (Reanimated)
+  const [showHint, setShowHint] = useState(!origin);
+  const hintOpacity = useSharedValue(origin ? 0 : 1);
 
-  const summaryOpacity = useRef(new Animated.Value(0)).current;
-  const summaryTranslateY = useRef(new Animated.Value(-10)).current;
+  const summaryOpacity = useSharedValue(0);
+  const summaryTranslateY = useSharedValue(-10);
 
-  const fabScale = useRef(new Animated.Value(1)).current;
+  const fabScale = useSharedValue(1);
+
+  const hintAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: hintOpacity.value,
+  }));
+
+  const summaryAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: summaryOpacity.value,
+    transform: [{ translateY: summaryTranslateY.value }],
+  }));
+
+  const fabAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: fabScale.value }],
+  }));
 
   const handleMapPress = (event: MapPressEvent) => {
     const { latitude, longitude } = event.nativeEvent.coordinate;
@@ -79,7 +118,10 @@ export default function TravelScreen() {
     if (watcherRef.current) return watcherRef.current;
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permiso denegado", "Activa los permisos de ubicación para continuar.");
+      Alert.alert(
+        "Permiso denegado",
+        "Activa los permisos de ubicación para continuar."
+      );
       return null;
     }
     const sub = await Location.watchPositionAsync(
@@ -137,12 +179,17 @@ export default function TravelScreen() {
       watcherRef.current?.remove();
       watcherRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Cuando ya existe una ruta, actualiza la referencia de último origen usado
   useEffect(() => {
     if (origin && coords.length > 0) {
-      lastRouteRef.current = { at: Date.now(), lat: origin.latitude, lng: origin.longitude };
+      lastRouteRef.current = {
+        at: Date.now(),
+        lat: origin.latitude,
+        lng: origin.longitude,
+      };
     }
   }, [coords.length, origin]);
 
@@ -178,73 +225,68 @@ export default function TravelScreen() {
   useEffect(() => {
     if (!origin) {
       setShowHint(true);
-      Animated.timing(hintOpacity, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      Animated.timing(hintOpacity, {
-        toValue: 0,
-        duration: 250,
-        useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (finished) setShowHint(false);
+      hintOpacity.value = withTiming(1, {
+        duration: 280,
+        easing: Easing.out(Easing.quad),
       });
+    } else {
+      hintOpacity.value = withTiming(
+        0,
+        {
+          duration: 220,
+          easing: Easing.in(Easing.quad),
+        },
+        (finished) => {
+          if (finished) {
+            runOnJS(setShowHint)(false);
+          }
+        }
+      );
     }
   }, [origin, hintOpacity]);
 
   // 🔹 Animación de entrada de la RouteInfoCard cuando hay summary
   useEffect(() => {
     if (summary) {
-      Animated.parallel([
-        Animated.timing(summaryOpacity, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(summaryTranslateY, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      summaryOpacity.value = withTiming(1, {
+        duration: 280,
+        easing: Easing.out(Easing.quad),
+      });
+      summaryTranslateY.value = withTiming(0, {
+        duration: 280,
+        easing: Easing.out(Easing.quad),
+      });
     } else {
-      Animated.parallel([
-        Animated.timing(summaryOpacity, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(summaryTranslateY, {
-          toValue: -8,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      summaryOpacity.value = withTiming(0, {
+        duration: 200,
+        easing: Easing.in(Easing.quad),
+      });
+      summaryTranslateY.value = withTiming(-8, {
+        duration: 200,
+        easing: Easing.in(Easing.quad),
+      });
     }
   }, [summary, summaryOpacity, summaryTranslateY]);
 
-  // 🔹 Animación “latido” para los FABs
+  // 🔹 Animación “latido” para los FABs (sutil)
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(fabScale, {
-          toValue: 1.04,
+    fabScale.value = withRepeat(
+      withSequence(
+        withTiming(1.03, {
           duration: 900,
-          useNativeDriver: true,
+          easing: Easing.out(Easing.quad),
         }),
-        Animated.timing(fabScale, {
-          toValue: 1,
+        withTiming(1, {
           duration: 900,
-          useNativeDriver: true,
-        }),
-      ])
+          easing: Easing.in(Easing.quad),
+        })
+      ),
+      -1, // infinito
+      true // auto-reverse
     );
-    loop.start();
 
     return () => {
-      loop.stop();
+      fabScale.value = 1;
     };
   }, [fabScale]);
 
@@ -274,21 +316,29 @@ export default function TravelScreen() {
         )}
 
         {origin && <Marker coordinate={origin} title="Origen" />}
-        {destination && <Marker coordinate={destination} title="Destino" pinColor="red" />}
+        {destination && (
+          <Marker coordinate={destination} title="Destino" pinColor="red" />
+        )}
         {coords.length > 0 && (
-          <Polyline coordinates={coords} strokeColor={colors.primary} strokeWidth={4} />
+          <Polyline
+            coordinates={coords}
+            strokeColor={colors.primary}
+            strokeWidth={4}
+          />
         )}
       </MapView>
 
+      {/* Route info animada */}
       {summary && (
         <Animated.View
-          style={{
-            position: "absolute",
-            top: STATUS_OFFSET + 20,
-            alignSelf: "center",
-            opacity: summaryOpacity,
-            transform: [{ translateY: summaryTranslateY }],
-          }}
+          style={[
+            {
+              position: "absolute",
+              top: STATUS_OFFSET + 20,
+              alignSelf: "center",
+            },
+            summaryAnimatedStyle,
+          ]}
         >
           <RouteInfoCard
             durationSec={summary.durationSec}
@@ -300,14 +350,13 @@ export default function TravelScreen() {
         </Animated.View>
       )}
 
+      {/* Hint para tocar el mapa */}
       {showHint && (
         <Animated.View
           style={[
             styles.hintContainer,
-            {
-              backgroundColor: `${colors.card}DD`,
-              opacity: hintOpacity,
-            },
+            hintAnimatedStyle,
+            { backgroundColor: `${colors.card}DD` },
           ]}
         >
           <Text style={[styles.hintText, { color: colors.text }]}>
@@ -356,10 +405,12 @@ export default function TravelScreen() {
         style={{ position: "absolute", bottom: 40, left: 20 }}
       />
 
+      {/* FABs con latido compartido */}
       <Animated.View
         style={[
           styles.fabContainer,
-          { bottom: 40, right: 20, transform: [{ scale: fabScale }] },
+          { bottom: 40, right: 20 },
+          fabAnimatedStyle,
         ]}
       >
         <FloatingActionButton
@@ -374,7 +425,8 @@ export default function TravelScreen() {
       <Animated.View
         style={[
           styles.fabContainer,
-          { bottom: 110, right: 20, transform: [{ scale: fabScale }] },
+          { bottom: 110, right: 20 },
+          fabAnimatedStyle,
         ]}
       >
         <FloatingActionButton
@@ -398,57 +450,64 @@ export default function TravelScreen() {
 }
 
 function BlueDot() {
-  const scale = useRef(new Animated.Value(1)).current;
-  const opacity = useRef(new Animated.Value(1)).current;
+  const scale = useSharedValue(1);
+  const opacity = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
 
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.parallel([
-          Animated.timing(scale, {
-            toValue: 1.15,
-            duration: 700,
-            useNativeDriver: true,
-          }),
-          Animated.timing(opacity, {
-            toValue: 0.7,
-            duration: 700,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.parallel([
-          Animated.timing(scale, {
-            toValue: 1,
-            duration: 700,
-            useNativeDriver: true,
-          }),
-          Animated.timing(opacity, {
-            toValue: 1,
-            duration: 700,
-            useNativeDriver: true,
-          }),
-        ]),
-      ])
+    scale.value = withRepeat(
+      withSequence(
+        withTiming(1.12, {
+          duration: 700,
+          easing: Easing.out(Easing.quad),
+        }),
+        withTiming(1, {
+          duration: 700,
+          easing: Easing.in(Easing.quad),
+        })
+      ),
+      -1,
+      true
     );
-    loop.start();
+
+    opacity.value = withRepeat(
+      withSequence(
+        withTiming(0.7, {
+          duration: 700,
+          easing: Easing.out(Easing.quad),
+        }),
+        withTiming(1, {
+          duration: 700,
+          easing: Easing.in(Easing.quad),
+        })
+      ),
+      -1,
+      true
+    );
 
     return () => {
-      loop.stop();
+      scale.value = 1;
+      opacity.value = 1;
     };
   }, [scale, opacity]);
 
   return (
     <Animated.View
-      style={{
-        width: 14,
-        height: 14,
-        borderRadius: 7,
-        backgroundColor: "#1E90FF",
-        borderWidth: 2,
-        borderColor: "#fff",
-        transform: [{ scale }],
-        opacity,
-      }}
+      style={[
+        {
+          width: 14,
+          height: 14,
+          borderRadius: 7,
+          backgroundColor: "#1E90FF",
+          borderWidth: 2,
+          borderColor: "#fff",
+        },
+        animatedStyle,
+      ]}
     />
   );
 }
@@ -465,7 +524,9 @@ function distanceMeters(
   const lat2 = (b.latitude * Math.PI) / 180;
   const sinDLat = Math.sin(dLat / 2);
   const sinDLon = Math.sin(dLon / 2);
-  const x = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLon * sinDLon;
+  const x =
+    sinDLat * sinDLat +
+    Math.cos(lat1) * Math.cos(lat2) * sinDLon * sinDLon;
   const y = 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
   return R * y;
 }

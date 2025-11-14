@@ -1,3 +1,4 @@
+// src/screens/ProfileScreen.tsx
 import React from "react";
 import { SafeAreaView, Alert, Text, StyleSheet } from "react-native";
 import { useNavigation } from "@react-navigation/native";
@@ -13,6 +14,9 @@ import {
   LogoutButton,
 } from "../components";
 import { lightColors, darkColors } from "../constants/colors";
+
+// 🌀 Reanimated (súper sutil)
+import Animated, { FadeIn, Layout } from "react-native-reanimated";
 
 export default function ProfileScreen() {
   const navigation =
@@ -49,70 +53,83 @@ export default function ProfileScreen() {
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
     >
-      {/* Header */}
-      <ProfileHeader user={user} />
+      {/* Header con fade súper rápido */}
+      <Animated.View
+        entering={FadeIn.duration(150)}
+        layout={Layout}
+      >
+        <ProfileHeader user={user} />
+      </Animated.View>
 
       {/* Sección Cuenta */}
-      <SectionCard title="Cuenta">
-        <SettingsItem
-          icon="person-circle-outline"
-          label="Editar Perfil"
-          textColor={colors.text}
-          onPress={() => navigation.navigate("EditProfile")}
-        />
-        <SettingsItem
-          icon="trophy-outline"
-          label="Logros"
-          textColor={colors.text}
-          onPress={() => navigation.navigate("Achievements")}
-        />
-
-        {esConductor && (
+      <Animated.View layout={Layout}>
+        <SectionCard title="Cuenta">
           <SettingsItem
-            icon="car-outline"
-            label="Registrar Vehículo"
+            icon="person-circle-outline"
+            label="Editar Perfil"
             textColor={colors.text}
-            onPress={() => navigation.navigate("VehicleForm")}
+            onPress={() => navigation.navigate("EditProfile")}
           />
-        )}
-      </SectionCard>
+          <SettingsItem
+            icon="trophy-outline"
+            label="Logros"
+            textColor={colors.text}
+            onPress={() => navigation.navigate("Achievements")}
+          />
+
+          {esConductor && (
+            <SettingsItem
+              icon="car-outline"
+              label="Registrar Vehículo"
+              textColor={colors.text}
+              onPress={() => navigation.navigate("VehicleForm")}
+            />
+          )}
+        </SectionCard>
+      </Animated.View>
 
       {/* Sección Preferencias */}
-      <SectionCard title="Preferencias">
-        <SettingsItem
-          icon="moon-outline"
-          label="Tema oscuro"
-          textColor={colors.text}
-          hasSwitch
-          switchValue={theme === "dark"}
-          onSwitchChange={toggleTheme}
-        />
-        <SettingsItem
-          icon="language-outline"
-          label="Idioma"
-          textColor={colors.text}
-          onPress={() => Alert.alert("Idioma")}
-        />
-      </SectionCard>
+      <Animated.View layout={Layout}>
+        <SectionCard title="Preferencias">
+          <SettingsItem
+            icon="moon-outline"
+            label="Tema oscuro"
+            textColor={colors.text}
+            hasSwitch
+            switchValue={theme === "dark"}
+            onSwitchChange={toggleTheme}
+          />
+          <SettingsItem
+            icon="language-outline"
+            label="Idioma"
+            textColor={colors.text}
+            onPress={() => Alert.alert("Idioma")}
+          />
+        </SectionCard>
+      </Animated.View>
 
       {/* Sección Legal */}
-      <SectionCard title="Legal">
-        <SettingsItem
-          icon="document-text-outline"
-          label="Términos y Condiciones"
-          textColor={colors.text}
-          onPress={() => Alert.alert("Términos y Condiciones")}
-        />
-        <SettingsItem
-          icon="lock-closed-outline"
-          label="Política de Privacidad"
-          textColor={colors.text}
-          onPress={() => Alert.alert("Política de Privacidad")}
-        />
-      </SectionCard>
+      <Animated.View layout={Layout}>
+        <SectionCard title="Legal">
+          <SettingsItem
+            icon="document-text-outline"
+            label="Términos y Condiciones"
+            textColor={colors.text}
+            onPress={() => Alert.alert("Términos y Condiciones")}
+          />
+          <SettingsItem
+            icon="lock-closed-outline"
+            label="Política de Privacidad"
+            textColor={colors.text}
+            onPress={() => Alert.alert("Política de Privacidad")}
+          />
+        </SectionCard>
+      </Animated.View>
 
       {/* Logout */}
-      <LogoutButton onPress={handleLogout} />
+      <Animated.View layout={Layout}>
+        <LogoutButton onPress={handleLogout} />
+      </Animated.View>
     </SafeAreaView>
   );
 }

@@ -16,6 +16,14 @@ import { lightColors, darkColors } from "../constants/colors";
 import { useAchievements } from "../achievements/AchievementsContext";
 import { EmptyState, BackButton } from "../components";
 
+// 🌀 Reanimated sutil
+import Animated, {
+  FadeInUp,
+  FadeIn,
+  Layout,
+  Easing,
+} from "react-native-reanimated";
+
 type FilterKey = "all" | "in_progress" | "completed" | "locked";
 
 const ESTADO_OPTIONS: { label: string; value: FilterKey }[] = [
@@ -24,6 +32,18 @@ const ESTADO_OPTIONS: { label: string; value: FilterKey }[] = [
   { label: "Completados", value: "completed" },
   { label: "Bloqueados", value: "locked" },
 ];
+
+type AchievementItem = {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  icon: string;
+  status: "completed" | "in_progress" | "locked";
+  progress: number;
+  goal: number;
+  awardedAt?: number;
+};
 
 export default function AchievementsScreen() {
   const { theme } = useTheme();
@@ -80,7 +100,7 @@ export default function AchievementsScreen() {
     });
 
     // Orden: En progreso -> Completados -> Bloqueados; dentro, mayor % primero
-    const score = (st: typeof searched[number]["status"]) =>
+    const score = (st: AchievementItem["status"]) =>
       st === "in_progress" ? 0 : st === "completed" ? 1 : 2;
 
     return searched.sort((a, b) => {
@@ -95,24 +115,17 @@ export default function AchievementsScreen() {
   const totals = useMemo(() => {
     const all = catalog.length;
     let completed = 0;
-    for (const def of catalog) if (getStatus(def.id).status === "completed") completed++;
+    for (const def of catalog)
+      if (getStatus(def.id).status === "completed") completed++;
     return { all, completed };
   }, [catalog, getStatus]);
 
   const renderItem = ({
     item,
+    index,
   }: {
-    item: {
-      id: string;
-      title: string;
-      description: string;
-      category: string;
-      icon: string;
-      status: "completed" | "in_progress" | "locked";
-      progress: number;
-      goal: number;
-      awardedAt?: number;
-    };
+    item: AchievementItem;
+    index: number;
   }) => {
     const pct = Math.min(item.progress / Math.max(item.goal, 1), 1);
     const pctLabel = `${Math.round(pct * 100)}%`;
@@ -124,158 +137,240 @@ export default function AchievementsScreen() {
         : mutedText;
 
     return (
-      <View style={[styles.card, { backgroundColor: colors.card }]}>
-        {/* Header */}
-        <View style={styles.headerRow}>
-          <Text style={[styles.cardTitle, { color: colors.primary }]} numberOfLines={1}>
-            {item.title}
-          </Text>
-          <View style={[styles.badge, { backgroundColor: statusColor }]}>
-            <Text style={styles.badgeTxt}>
-              {item.status === "completed"
-                ? "COMPLETADO"
-                : item.status === "in_progress"
-                ? "EN PROGRESO"
-                : "BLOQUEADO"}
+      <Animated.View
+        entering={FadeInUp.duration(180)
+          .delay(index * 45)
+          .easing(Easing.out(Easing.quad))}
+        layout={Layout.springify().damping(18).stiffness(160)}
+      >
+        <View style={[styles.card, { backgroundColor: colors.card }]}>
+          {/* Header */}
+          <View style={styles.headerRow}>
+            <Text
+              style={[styles.cardTitle, { color: colors.primary }]}
+              numberOfLines={1}
+            >
+              {item.title}
             </Text>
+            <View style={[styles.badge, { backgroundColor: statusColor }]}>
+              <Text style={styles.badgeTxt}>
+                {item.status === "completed"
+                  ? "COMPLETADO"
+                  : item.status === "in_progress"
+                  ? "EN PROGRESO"
+                  : "BLOQUEADO"}
+              </Text>
+            </View>
           </View>
-        </View>
 
-        {/* Sub */}
-        <Text style={{ color: colors.text, marginBottom: 2 }} numberOfLines={2}>
-          {item.description}
-        </Text>
-        <Text style={{ color: mutedText, marginBottom: 8 }}>{item.category}</Text>
+          {/* Sub */}
+          <Text
+            style={{ color: colors.text, marginBottom: 2 }}
+            numberOfLines={2}
+          >
+            {item.description}
+          </Text>
+          <Text style={{ color: mutedText, marginBottom: 8 }}>
+            {item.category}
+          </Text>
 
-        {/* Barra de progreso */}
-        <View
-          style={[
-            styles.track,
-            { backgroundColor: theme === "dark" ? "#2A2A2A" : "#EAEAEA" },
-          ]}
-        >
+          {/* Barra de progreso */}
           <View
             style={[
-              styles.fill,
-              { width: `${pct * 100}%`, backgroundColor: colors.primary },
+              styles.track,
+              { backgroundColor: theme === "dark" ? "#2A2A2A" : "#EAEAEA" },
             ]}
-          />
-        </View>
-
-        {/* Footer */}
-        <View style={styles.footerRow}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Ionicons
-              name={item.status === "completed" ? "trophy" : "trophy-outline"}
-              size={16}
-              color={statusColor}
+          >
+            <View
+              style={[
+                styles.fill,
+                { width: `${pct * 100}%`, backgroundColor: colors.primary },
+              ]}
             />
-            <Text style={{ color: mutedText, fontWeight: "700", fontSize: 12 }}>
-              {pctLabel}
+          </View>
+
+          {/* Footer */}
+          <View style={styles.footerRow}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Ionicons
+                name={item.status === "completed" ? "trophy" : "trophy-outline"}
+                size={16}
+                color={statusColor}
+              />
+              <Text
+                style={{
+                  color: mutedText,
+                  fontWeight: "700",
+                  fontSize: 12,
+                }}
+              >
+                {pctLabel}
+              </Text>
+            </View>
+            <Text
+              style={{
+                color: mutedText,
+                fontWeight: "700",
+                fontSize: 12,
+              }}
+            >
+              {item.progress}/{item.goal}
             </Text>
           </View>
-          <Text style={{ color: mutedText, fontWeight: "700", fontSize: 12 }}>
-            {item.progress}/{item.goal}
-          </Text>
         </View>
-      </View>
+      </Animated.View>
     );
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
       <BackButton />
-      {/* Título */}
-      <Text style={[styles.title, { color: colors.text }]}>Logros</Text>
 
-      {/* Toolbar (estilo estándar) */}
-      <View style={styles.toolbar}>
-        {/* 1) Búsqueda */}
-        <TouchableOpacity
-          onPress={toggleSearch}
-          style={[styles.roundBtn, { backgroundColor: "#fff", borderColor: colors.primary }]}
-          accessibilityLabel={searchActive || searchQuery ? "Cerrar búsqueda" : "Buscar logros"}
-        >
-          <Ionicons
-            name={searchActive || searchQuery ? "close-outline" : "search-outline"}
-            size={16}
-            color={colors.primary}
-          />
-        </TouchableOpacity>
+      {/* Título animado */}
+      <Animated.View
+        entering={FadeInUp.duration(180).easing(Easing.out(Easing.quad))}
+        layout={Layout}
+      >
+        <Text style={[styles.title, { color: colors.text }]}>Logros</Text>
+      </Animated.View>
 
-        {/* 2) Estado */}
-        <TouchableOpacity
-          onPress={cycleEstado}
-          style={[styles.pill, { borderColor: colors.primary }]}
-        >
-          <Text style={[styles.pillText, { color: colors.text }]}>
-            Estado:{" "}
-            <Text style={{ color: colors.primary }}>
-              {ESTADO_OPTIONS.find((o) => o.value === filter)?.label ?? "Todos"}
+      {/* Toolbar + búsqueda + resumen */}
+      <Animated.View
+        entering={FadeIn.delay(60).duration(160)}
+        layout={Layout}
+      >
+        {/* Toolbar (estilo estándar) */}
+        <View className="toolbar" style={styles.toolbar}>
+          {/* 1) Búsqueda */}
+          <TouchableOpacity
+            onPress={toggleSearch}
+            style={[
+              styles.roundBtn,
+              { backgroundColor: "#fff", borderColor: colors.primary },
+            ]}
+            accessibilityLabel={
+              searchActive || searchQuery
+                ? "Cerrar búsqueda"
+                : "Buscar logros"
+            }
+          >
+            <Ionicons
+              name={
+                searchActive || searchQuery
+                  ? "close-outline"
+                  : "search-outline"
+              }
+              size={16}
+              color={colors.primary}
+            />
+          </TouchableOpacity>
+
+          {/* 2) Estado */}
+          <TouchableOpacity
+            onPress={cycleEstado}
+            style={[styles.pill, { borderColor: colors.primary }]}
+          >
+            <Text style={[styles.pillText, { color: colors.text }]}>
+              Estado:{" "}
+              <Text style={{ color: colors.primary }}>
+                {ESTADO_OPTIONS.find((o) => o.value === filter)?.label ??
+                  "Todos"}
+              </Text>
             </Text>
-          </Text>
-        </TouchableOpacity>
+          </TouchableOpacity>
 
-        {/* 3) Reset */}
-        <TouchableOpacity
-          onPress={() => {
-            setFilter("all");
-            setSearchQuery("");
-            setSearchActive(false);
-          }}
-          style={[styles.roundBtn, { backgroundColor: "#fff", borderColor: colors.primary }]}
-          accessibilityLabel="Restablecer filtros"
-        >
-          <Ionicons name="refresh-outline" size={16} color={colors.primary} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Barra de búsqueda */}
-      {searchActive && (
-        <View
-          style={[
-            styles.searchBar,
-            { borderColor: colors.primary, backgroundColor: colors.card },
-          ]}
-        >
-          <Ionicons
-            name="search-outline"
-            size={16}
-            color={colors.primary}
-            style={{ marginRight: 6 }}
-          />
-          <TextInput
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Buscar por título o categoría"
-            placeholderTextColor={mutedText}
-            style={[styles.searchInput, { color: colors.text }]}
-            returnKeyType="search"
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery("")} style={styles.searchClear}>
-              <Ionicons name="close-circle" size={16} color={colors.primary} />
-            </TouchableOpacity>
-          )}
+          {/* 3) Reset */}
+          <TouchableOpacity
+            onPress={() => {
+              setFilter("all");
+              setSearchQuery("");
+              setSearchActive(false);
+            }}
+            style={[
+              styles.roundBtn,
+              { backgroundColor: "#fff", borderColor: colors.primary },
+            ]}
+            accessibilityLabel="Restablecer filtros"
+          >
+            <Ionicons
+              name="refresh-outline"
+              size={16}
+              color={colors.primary}
+            />
+          </TouchableOpacity>
         </View>
-      )}
 
-      {/* Resumen */}
-      <View style={{ alignItems: "center", marginBottom: 8 }}>
-        <Text style={{ color: mutedText, fontSize: 12, fontWeight: "700" }}>
-          Completados {totals.completed} de {totals.all}
-        </Text>
-      </View>
+        {/* Barra de búsqueda */}
+        {searchActive && (
+          <View
+            style={[
+              styles.searchBar,
+              {
+                borderColor: colors.primary,
+                backgroundColor: colors.card,
+              },
+            ]}
+          >
+            <Ionicons
+              name="search-outline"
+              size={16}
+              color={colors.primary}
+              style={{ marginRight: 6 }}
+            />
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Buscar por título o categoría"
+              placeholderTextColor={mutedText}
+              style={[styles.searchInput, { color: colors.text }]}
+              returnKeyType="search"
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setSearchQuery("")}
+                style={styles.searchClear}
+              >
+                <Ionicons
+                  name="close-circle"
+                  size={16}
+                  color={colors.primary}
+                />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Resumen */}
+        <View style={{ alignItems: "center", marginBottom: 8 }}>
+          <Text
+            style={{
+              color: mutedText,
+              fontSize: 12,
+              fontWeight: "700",
+            }}
+          >
+            Completados {totals.completed} de {totals.all}
+          </Text>
+        </View>
+      </Animated.View>
 
       {/* Lista */}
       {items.length === 0 ? (
-        <EmptyState
-          icon="trophy-outline"
-          title="Sin resultados"
-          subtitle="No hay logros que coincidan con el filtro actual."
-          color={colors.primary}
-          textColor={colors.text}
-        />
+        <Animated.View
+          entering={FadeIn.duration(160)}
+          layout={Layout}
+          style={{ flex: 1, justifyContent: "center" }}
+        >
+          <EmptyState
+            icon="trophy-outline"
+            title="Sin resultados"
+            subtitle="No hay logros que coincidan con el filtro actual."
+            color={colors.primary}
+            textColor={colors.text}
+          />
+        </Animated.View>
       ) : (
         <FlatList
           data={items}

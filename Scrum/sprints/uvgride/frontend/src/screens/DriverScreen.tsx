@@ -1,5 +1,10 @@
 // src/screens/PassengerScreen.tsx
-import React, { useCallback, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useMemo,
+  useState,
+  useEffect,
+} from "react";
 import {
   View,
   Text,
@@ -16,6 +21,16 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 
+// 🌀 Reanimated
+import Animated, {
+  Easing,
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  FadeInUp,
+  Layout,
+} from "react-native-reanimated";
+
 import { listGroups, joinGroup, leaveGroup, Grupo } from "../services/groups";
 import { RootStackParamList } from "../navigation/type";
 import { useTheme } from "../context/ThemeContext";
@@ -25,7 +40,12 @@ import { EmptyState } from "../components";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
-type EstadoFilter = "todos" | "abierto" | "cerrado" | "cancelado" | "finalizado";
+type EstadoFilter =
+  | "todos"
+  | "abierto"
+  | "cerrado"
+  | "cancelado"
+  | "finalizado";
 type CupoFilter = "cualquiera" | "con" | "sin";
 type FechaFilter = "todos" | "hoy" | "24h" | "semana";
 type PrecioFilter = "cualquiera" | "lte20" | "21a50" | "gt50";
@@ -58,340 +78,168 @@ const PRECIO_OPTIONS: { label: string; value: PrecioFilter }[] = [
   { label: "> Q50", value: "gt50" },
 ];
 
-export default function PassengerScreen() {
-  const navigation = useNavigation<Nav>();
-  const { theme } = useTheme();
-  const colors = theme === "light" ? lightColors : darkColors;
-  const { user } = useUser();
+/* =========================================================
+   Badges reutilizables
+   ========================================================= */
 
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [grupos, setGrupos] = useState<Grupo[]>([]);
-  const [joiningId, setJoiningId] = useState<number | null>(null);
-  const [leavingId, setLeavingId] = useState<number | null>(null); // NUEVO
+type ColorPalette = {
+  primary: string;
+  text: string;
+  card: string;
+  border: string;
+  muted?: string;
+};
 
-  const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("todos");
-  const [cupoFilter, setCupoFilter] = useState<CupoFilter>("cualquiera");
-  const [fechaFilter, setFechaFilter] = useState<FechaFilter>("todos");
-  const [precioFilter, setPrecioFilter] = useState<PrecioFilter>("cualquiera");
+function EstadoBadge({
+  estado,
+  esRecurrente,
+  colors,
+}: {
+  estado: Grupo["estado"];
+  esRecurrente?: boolean;
+  colors: ColorPalette;
+}) {
+  const map: Record<string, string> = {
+    abierto: "#2e7d32",
+    cerrado: "#1565c0",
+    cancelado: "#c62828",
+    finalizado: "#616161",
+  };
+  const label =
+    estado === "cerrado"
+      ? esRecurrente
+        ? "CERRADO"
+        : "INICIADO"
+      : estado.toUpperCase();
 
-  // Búsqueda
-  const [searchActive, setSearchActive] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-
-  const fetchData = useCallback(async () => {
-    try {
-      setLoading(true);
-      const data = await listGroups(user?.id ? { user_id: Number(user.id) } : undefined);
-      setGrupos(data);
-    } catch (e: any) {
-      console.error(e);
-      Alert.alert("Error", e?.response?.data?.error || "No se pudieron cargar los grupos");
-    } finally {
-      setLoading(false);
-    }
-  }, [user?.id]);
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchData();
-    }, [fetchData])
+  return (
+    <View style={[styles.badge, { backgroundColor: map[estado] || colors.border }]}>
+      <Text style={styles.badgeTxt}>{label}</Text>
+    </View>
   );
+}
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await fetchData();
-    setRefreshing(false);
-  }, [fetchData]);
-
-  const onJoin = async (id: number) => {
-    try {
-      if (!user?.id) return Alert.alert("Sesión", "Inicia sesión.");
-      if (joiningId) return;
-      setJoiningId(id);
-
-      // actualización optimista
-      setGrupos((prev) =>
-        prev.map((g) =>
-          g.id_grupo !== id
-            ? g
-            : {
-                ...g,
-                es_miembro: true,
-                cupos_usados:
-                  g.cupos_usados != null ? Number(g.cupos_usados) + 1 : (g.cupos_usados as any),
-                cupos_disponibles: Math.max(
-                  (g.cupos_disponibles ?? g.capacidad_total ?? 0) - 1,
-                  0
-                ),
-              }
-        )
-      );
-
-      await joinGroup(id, { id_usuario: Number(user.id) });
-      Alert.alert("¡Listo!", "Te uniste al grupo");
-      fetchData();
-    } catch (e: any) {
-      console.error(e);
-      Alert.alert("Error", e?.response?.data?.error || "No fue posible unirte");
-      fetchData();
-    } finally {
-      setJoiningId(null);
-    }
-  };
-
-  const onLeave = async (id: number) => {
-    try {
-      if (!user?.id) return Alert.alert("Sesión", "Inicia sesión.");
-      if (leavingId) return;
-      setLeavingId(id);
-
-      await leaveGroup(id, { id_usuario: Number(user.id) });
-
-      Alert.alert("Listo", "Saliste del grupo.");
-      fetchData();
-    } catch (e: any) {
-      console.error(e);
-      Alert.alert("Error", e?.response?.data?.error || "No se pudo salir del grupo");
-    } finally {
-      setLeavingId(null);
-    }
-  };
-
-  const confirmLeave = (g: Grupo) => {
-    Alert.alert("Salir del grupo", "¿Deseas abandonar este grupo?", [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Salir",
-        style: "destructive",
-        onPress: () => onLeave(g.id_grupo),
-      },
-    ]);
-  };
-
-  const currency = useMemo(
-    () => new Intl.NumberFormat("es-GT", { style: "currency", currency: "GTQ" }),
-    []
-  );
-
-  const hasJoinedAny = useMemo(() => grupos.some((g) => g.es_miembro), [grupos]);
-
-  const getCuposDisp = (g: Grupo) => {
-    const total = Number(g.capacidad_total ?? g.cupos_totales ?? 0);
-    const usados = Number(g.cupos_usados ?? 0);
-    return Math.max(0, total - usados);
-    // Nota: el backend ya calcula cupos_disponibles; aquí solo hacemos fallback robusto.
-  };
-
-  // Helpers de filtros
-  const isInFechaFilter = (dateISO?: string | null, f: FechaFilter = "todos") => {
-    if (!dateISO || f === "todos") return true;
-    const now = new Date();
-    const d = new Date(dateISO);
-
-    switch (f) {
-      case "hoy": {
-        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const end = new Date(start);
-        end.setDate(end.getDate() + 1);
-        return d >= start && d < end;
-      }
-      case "24h": {
-        const end = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-        return d >= now && d <= end;
-      }
-      case "semana": {
-        const end = new Date(now);
-        end.setDate(end.getDate() + 7);
-        return d >= now && d <= end;
-      }
-      default:
-        return true;
-    }
-  };
-
-  const isInPrecioFilter = (costo?: number | null, f: PrecioFilter = "cualquiera") => {
-    if (costo == null || Number.isNaN(costo) || f === "cualquiera") return true;
-    const v = Number(costo);
-    if (f === "lte20") return v <= 20;
-    if (f === "21a50") return v >= 21 && v <= 50;
-    if (f === "gt50") return v > 50;
-    return true;
-  };
-
-  const matchesSearch = (g: Grupo, q: string) => {
-    if (!q.trim()) return true;
-    const needle = q.trim().toLowerCase();
-    const fields: (string | undefined | null)[] = [
-      g.viaje?.destino,
-      g.destino_nombre,
-      (g as any).origen_nombre,
-      g.conductor?.nombre,
-      g.conductor?.apellido,
-    ];
-    return fields.some((x) => (x ?? "").toString().toLowerCase().includes(needle));
-  };
-
-  const gruposFiltrados = useMemo(() => {
-    return grupos.filter((g) => {
-      const okEstado = estadoFilter === "todos" ? true : g.estado === estadoFilter;
-      if (!okEstado) return false;
-
-      const disp = getCuposDisp(g);
-      if (cupoFilter === "con" && disp <= 0) return false;
-      if (cupoFilter === "sin" && disp > 0) return false;
-
-      const okFecha = isInFechaFilter(g.fecha_salida ?? null, fechaFilter);
-      if (!okFecha) return false;
-
-      // usar precio_base (preferido) -> costo_estimado (compat)
-      const precio =
-        g.precio_base != null
-          ? Number(g.precio_base)
-          : g.costo_estimado != null
-          ? Number(g.costo_estimado)
-          : undefined;
-      const okPrecio = isInPrecioFilter(precio, precioFilter);
-      if (!okPrecio) return false;
-
-      if (!matchesSearch(g, searchQuery)) return false;
-
-      return true;
-    });
-  }, [grupos, estadoFilter, cupoFilter, fechaFilter, precioFilter, searchQuery]);
-
-  const EstadoBadge = ({ estado, esRecurrente }: { estado: Grupo["estado"]; esRecurrente?: boolean }) => {
-    const map: Record<string, string> = {
-      abierto: "#2e7d32",
-      cerrado: "#1565c0",
-      cancelado: "#c62828",
-      finalizado: "#616161",
-    };
-    // Si es recurrente y está "cerrado", ese es su estado fijo; no mostramos "INICIADO"
-    const label =
-      estado === "cerrado" ? (esRecurrente ? "CERRADO" : "INICIADO") : estado.toUpperCase();
-
-    return (
-      <View style={[styles.badge, { backgroundColor: map[estado] || colors.border }]}>
-        <Text style={styles.badgeTxt}>{label}</Text>
-      </View>
-    );
-  };
-
-  const RecurrentBadge = () => (
-    <View style={[styles.badge, { backgroundColor: "#455a64", marginLeft: 6 }]}>
+function RecurrentBadge({ colors }: { colors: ColorPalette }) {
+  return (
+    <View
+      style={[
+        styles.badge,
+        { backgroundColor: "#455a64", marginLeft: 6 },
+      ]}
+    >
       <Text style={styles.badgeTxt}>RECURRENTE</Text>
     </View>
   );
+}
 
-  const RotatingPill = ({
-    label,
-    valueLabel,
-    onPress,
-  }: {
-    label: string;
-    valueLabel: string;
-    onPress: () => void;
-  }) => (
-    <TouchableOpacity onPress={onPress} style={[styles.pill, { borderColor: colors.primary }]}>
-      <Text style={[styles.pillText, { color: colors.text }]}>
-        {label}: <Text style={{ color: colors.primary }}>{valueLabel}</Text>
-      </Text>
-    </TouchableOpacity>
-  );
+/* =========================================================
+   Fila animada de grupo (Reanimated)
+   ========================================================= */
 
-  const cycleEstado = () => {
-    const idx = ESTADO_OPTIONS.findIndex((o) => o.value === estadoFilter);
-    setEstadoFilter(ESTADO_OPTIONS[(idx + 1) % ESTADO_OPTIONS.length].value);
+type GroupRowProps = {
+  item: Grupo;
+  index: number;
+  colors: ColorPalette;
+  userId?: number;
+  joiningId: number | null;
+  leavingId: number | null;
+  hasJoinedAny: boolean;
+  currency: Intl.NumberFormat;
+  getCuposDisp: (g: Grupo) => number;
+  onJoin: (id: number) => void;
+  confirmLeave: (g: Grupo) => void;
+  navigation: Nav;
+};
+
+function GroupCardRow({
+  item,
+  index,
+  colors,
+  userId,
+  joiningId,
+  leavingId,
+  hasJoinedAny,
+  currency,
+  getCuposDisp,
+  onJoin,
+  confirmLeave,
+  navigation,
+}: GroupRowProps) {
+  const cuposTotales = Number(item.capacidad_total ?? item.cupos_totales ?? 0);
+  const cuposDisp = getCuposDisp(item);
+
+  const isOwner = Number(userId) === Number(item.conductor_id);
+  const isMemberHere = Boolean(item.es_miembro);
+  const isOpen = item.estado === "abierto";
+  const esRecurrente = Boolean(item.es_recurrente);
+
+  const precio =
+    item.precio_base != null
+      ? Number(item.precio_base)
+      : item.costo_estimado != null
+      ? Number(item.costo_estimado)
+      : null;
+
+  const isJoining = joiningId === item.id_grupo;
+  const isLeaving = leavingId === item.id_grupo;
+
+  const puedeSalir = isMemberHere && !isOwner && isOpen;
+
+  let primaryLabel = "Unirse";
+  let primaryDisabled = false;
+  let primaryAction = () => {
+    onJoin(item.id_grupo);
   };
-  const cycleCupo = () => {
-    const idx = CUPO_OPTIONS.findIndex((o) => o.value === cupoFilter);
-    setCupoFilter(CUPO_OPTIONS[(idx + 1) % CUPO_OPTIONS.length].value);
-  };
-  const cycleFecha = () => {
-    const idx = FECHA_OPTIONS.findIndex((o) => o.value === fechaFilter);
-    setFechaFilter(FECHA_OPTIONS[(idx + 1) % FECHA_OPTIONS.length].value);
-  };
-  const cyclePrecio = () => {
-    const idx = PRECIO_OPTIONS.findIndex((o) => o.value === precioFilter);
-    setPrecioFilter(PRECIO_OPTIONS[(idx + 1) % PRECIO_OPTIONS.length].value);
-  };
+  let primaryBg = colors.primary;
 
-  const renderItem = ({ item }: { item: Grupo }) => {
-    const cuposTotales = Number(item.capacidad_total ?? item.cupos_totales ?? 0);
-    const cuposDisp = getCuposDisp(item);
-
-    const isOwner = Number(user?.id) === Number(item.conductor_id);
-    const isMemberHere = Boolean(item.es_miembro);
-    const isOpen = item.estado === "abierto";
-    const esRecurrente = Boolean(item.es_recurrente);
-
-    // Precio preferido: precio_base -> costo_estimado
-    const precio =
-      item.precio_base != null
-        ? Number(item.precio_base)
-        : item.costo_estimado != null
-        ? Number(item.costo_estimado)
-        : null;
-
-    const isJoining = joiningId === item.id_grupo;
-    const isLeaving = leavingId === item.id_grupo;
-
-    // 🔥 Solo puedes SALIR si:
-    // - eres miembro aprobado
-    // - no eres el conductor
-    // - el grupo sigue ABIERTO (no iniciado)
-    const puedeSalir = isMemberHere && !isOwner && isOpen;
-
-    let primaryLabel = "Unirse";
-    let primaryDisabled = false;
-    let primaryAction = () => {
-      onJoin(item.id_grupo);
-    };
-    let primaryBg = colors.primary;
-
-    if (isOwner) {
-      primaryLabel = "Tu grupo";
+  if (isOwner) {
+    primaryLabel = "Tu grupo";
+    primaryDisabled = true;
+    primaryAction = () => {};
+    primaryBg = "#9e9e9e";
+  } else if (isMemberHere) {
+    if (!puedeSalir) {
+      primaryLabel = "En curso";
       primaryDisabled = true;
       primaryAction = () => {};
       primaryBg = "#9e9e9e";
-    } else if (isMemberHere) {
-      if (!puedeSalir) {
-        // Ya inició / no se permite salir
-        primaryLabel = "En curso";
-        primaryDisabled = true;
-        primaryAction = () => {};
-        primaryBg = "#9e9e9e";
-      } else {
-        primaryLabel = isLeaving ? "Saliendo..." : "Salir";
-        primaryDisabled = isLeaving;
-        primaryAction = () => confirmLeave(item);
-        primaryBg = "#c62828";
-      }
-    } else if (!isOpen) {
-      primaryLabel = "No disponible";
-      primaryDisabled = true;
-      primaryBg = "#9e9e9e";
-    } else if (cuposDisp <= 0) {
-      primaryLabel = "Sin cupos";
-      primaryDisabled = true;
-      primaryBg = "#9e9e9e";
-    } else if (hasJoinedAny) {
-      primaryLabel = "Unido en otro";
-      primaryDisabled = true;
-      primaryBg = "#9e9e9e";
-    } else if (esRecurrente && !isMemberHere) {
-      primaryLabel = "Solo designados";
-      primaryDisabled = true;
-      primaryBg = "#9e9e9e";
-    } else if (isJoining) {
-      primaryLabel = "Uniendo...";
-      primaryDisabled = true;
+    } else {
+      primaryLabel = isLeaving ? "Saliendo..." : "Salir";
+      primaryDisabled = isLeaving;
+      primaryAction = () => confirmLeave(item);
+      primaryBg = "#c62828";
     }
+  } else if (!isOpen) {
+    primaryLabel = "No disponible";
+    primaryDisabled = true;
+    primaryBg = "#9e9e9e";
+  } else if (cuposDisp <= 0) {
+    primaryLabel = "Sin cupos";
+    primaryDisabled = true;
+    primaryBg = "#9e9e9e";
+  } else if (hasJoinedAny) {
+    primaryLabel = "Unido en otro";
+    primaryDisabled = true;
+    primaryBg = "#9e9e9e";
+  } else if (esRecurrente && !isMemberHere) {
+    primaryLabel = "Solo designados";
+    primaryDisabled = true;
+    primaryBg = "#9e9e9e";
+  } else if (isJoining) {
+    primaryLabel = "Uniendo...";
+    primaryDisabled = true;
+  }
 
-    const canSeeDetail = isOwner || isMemberHere;
+  const canSeeDetail = isOwner || isMemberHere;
 
-    return (
+  return (
+    <Animated.View
+      entering={FadeInUp.delay(80 + index * 40)
+        .duration(260)
+        .easing(Easing.out(Easing.cubic))}
+      layout={Layout.springify().damping(14).stiffness(120)}
+      style={{ marginBottom: 12 }}
+    >
       <View style={[styles.card, { backgroundColor: colors.card }]}>
         {/* Header */}
         <View style={styles.headerRow}>
@@ -399,8 +247,12 @@ export default function PassengerScreen() {
             {item.conductor?.nombre} {item.conductor?.apellido}
           </Text>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <EstadoBadge estado={item.estado} esRecurrente={esRecurrente} />
-            {esRecurrente && <RecurrentBadge />}
+            <EstadoBadge
+              estado={item.estado}
+              esRecurrente={esRecurrente}
+              colors={colors}
+            />
+            {esRecurrente && <RecurrentBadge colors={colors} />}
           </View>
         </View>
 
@@ -445,7 +297,10 @@ export default function PassengerScreen() {
 
           <TouchableOpacity
             onPress={() =>
-              canSeeDetail && navigation.navigate("GroupDetail", { grupoId: item.id_grupo })
+              canSeeDetail &&
+              navigation.navigate("GroupDetail", {
+                grupoId: item.id_grupo,
+              })
             }
             disabled={!canSeeDetail}
             style={[
@@ -457,17 +312,340 @@ export default function PassengerScreen() {
             ]}
           >
             <Text
-              style={[styles.detailTxt, { color: canSeeDetail ? colors.primary : "#aaa" }]}
+              style={[
+                styles.detailTxt,
+                { color: canSeeDetail ? colors.primary : "#aaa" },
+              ]}
             >
               Ver detalle
             </Text>
           </TouchableOpacity>
         </View>
       </View>
+    </Animated.View>
+  );
+}
+
+/* =========================================================
+   Pantalla principal
+   ========================================================= */
+
+export default function PassengerScreen() {
+  const navigation = useNavigation<Nav>();
+  const { theme } = useTheme();
+  const colors: ColorPalette =
+    theme === "light" ? (lightColors as any) : (darkColors as any);
+  const { user } = useUser();
+
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [grupos, setGrupos] = useState<Grupo[]>([]);
+  const [joiningId, setJoiningId] = useState<number | null>(null);
+  const [leavingId, setLeavingId] = useState<number | null>(null);
+
+  const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("todos");
+  const [cupoFilter, setCupoFilter] = useState<CupoFilter>("cualquiera");
+  const [fechaFilter, setFechaFilter] = useState<FechaFilter>("todos");
+  const [precioFilter, setPrecioFilter] = useState<PrecioFilter>("cualquiera");
+
+  const [searchActive, setSearchActive] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // 🔹 Header animado con Reanimated
+  const headerOpacity = useSharedValue(0);
+  const headerTranslateY = useSharedValue(-10);
+
+  const headerAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ translateY: headerTranslateY.value }],
+  }));
+
+  useEffect(() => {
+    headerOpacity.value = withTiming(1, {
+      duration: 320,
+      easing: Easing.out(Easing.quad),
+    });
+    headerTranslateY.value = withTiming(0, {
+      duration: 320,
+      easing: Easing.out(Easing.quad),
+    });
+  }, [headerOpacity, headerTranslateY]);
+
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await listGroups(
+        user?.id ? { user_id: Number(user.id) } : undefined
+      );
+      setGrupos(data);
+    } catch (e: any) {
+      console.error(e);
+      Alert.alert(
+        "Error",
+        e?.response?.data?.error || "No se pudieron cargar los grupos"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [fetchData])
+  );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchData();
+    setRefreshing(false);
+  }, [fetchData]);
+
+  const onJoin = async (id: number) => {
+    try {
+      if (!user?.id) return Alert.alert("Sesión", "Inicia sesión.");
+      if (joiningId) return;
+      setJoiningId(id);
+
+      // actualización optimista
+      setGrupos((prev) =>
+        prev.map((g) =>
+          g.id_grupo !== id
+            ? g
+            : {
+                ...g,
+                es_miembro: true,
+                cupos_usados:
+                  g.cupos_usados != null
+                    ? Number(g.cupos_usados) + 1
+                    : (g.cupos_usados as any),
+                cupos_disponibles: Math.max(
+                  (g.cupos_disponibles ?? g.capacidad_total ?? 0) - 1,
+                  0
+                ),
+              }
+        )
+      );
+
+      await joinGroup(id, { id_usuario: Number(user.id) });
+      Alert.alert("¡Listo!", "Te uniste al grupo");
+      fetchData();
+    } catch (e: any) {
+      console.error(e);
+      Alert.alert(
+        "Error",
+        e?.response?.data?.error || "No fue posible unirte"
+      );
+      fetchData();
+    } finally {
+      setJoiningId(null);
+    }
+  };
+
+  const onLeave = async (id: number) => {
+    try {
+      if (!user?.id) return Alert.alert("Sesión", "Inicia sesión.");
+      if (leavingId) return;
+      setLeavingId(id);
+
+      await leaveGroup(id, { id_usuario: Number(user.id) });
+
+      Alert.alert("Listo", "Saliste del grupo.");
+      fetchData();
+    } catch (e: any) {
+      console.error(e);
+      Alert.alert(
+        "Error",
+        e?.response?.data?.error || "No se pudo salir del grupo"
+      );
+    } finally {
+      setLeavingId(null);
+    }
+  };
+
+  const confirmLeave = (g: Grupo) => {
+    Alert.alert("Salir del grupo", "¿Deseas abandonar este grupo?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Salir",
+        style: "destructive",
+        onPress: () => onLeave(g.id_grupo),
+      },
+    ]);
+  };
+
+  const currency = useMemo(
+    () =>
+      new Intl.NumberFormat("es-GT", {
+        style: "currency",
+        currency: "GTQ",
+      }),
+    []
+  );
+
+  const hasJoinedAny = useMemo(
+    () => grupos.some((g) => g.es_miembro),
+    [grupos]
+  );
+
+  const getCuposDisp = (g: Grupo) => {
+    const total = Number(g.capacidad_total ?? g.cupos_totales ?? 0);
+    const usados = Number(g.cupos_usados ?? 0);
+    return Math.max(0, total - usados);
+  };
+
+  const isInFechaFilter = (
+    dateISO?: string | null,
+    f: FechaFilter = "todos"
+  ) => {
+    if (!dateISO || f === "todos") return true;
+    const now = new Date();
+    const d = new Date(dateISO);
+
+    switch (f) {
+      case "hoy": {
+        const start = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate()
+        );
+        const end = new Date(start);
+        end.setDate(end.getDate() + 1);
+        return d >= start && d < end;
+      }
+      case "24h": {
+        const end = new Date(
+          now.getTime() + 24 * 60 * 60 * 1000
+        );
+        return d >= now && d <= end;
+      }
+      case "semana": {
+        const end = new Date(now);
+        end.setDate(end.getDate() + 7);
+        return d >= now && d <= end;
+      }
+      default:
+        return true;
+    }
+  };
+
+  const isInPrecioFilter = (
+    costo?: number | null,
+    f: PrecioFilter = "cualquiera"
+  ) => {
+    if (costo == null || Number.isNaN(costo) || f === "cualquiera")
+      return true;
+    const v = Number(costo);
+    if (f === "lte20") return v <= 20;
+    if (f === "21a50") return v >= 21 && v <= 50;
+    if (f === "gt50") return v > 50;
+    return true;
+  };
+
+  const matchesSearch = (g: Grupo, q: string) => {
+    if (!q.trim()) return true;
+    const needle = q.trim().toLowerCase();
+    const fields: (string | undefined | null)[] = [
+      g.viaje?.destino,
+      g.destino_nombre,
+      (g as any).origen_nombre,
+      g.conductor?.nombre,
+      g.conductor?.apellido,
+    ];
+    return fields.some((x) =>
+      (x ?? "").toString().toLowerCase().includes(needle)
     );
   };
 
-  // Lógica del botón de lupa
+  const gruposFiltrados = useMemo(() => {
+    return grupos.filter((g) => {
+      const okEstado =
+        estadoFilter === "todos" ? true : g.estado === estadoFilter;
+      if (!okEstado) return false;
+
+      const disp = getCuposDisp(g);
+      if (cupoFilter === "con" && disp <= 0) return false;
+      if (cupoFilter === "sin" && disp > 0) return false;
+
+      const okFecha = isInFechaFilter(
+        g.fecha_salida ?? null,
+        fechaFilter
+      );
+      if (!okFecha) return false;
+
+      const precio =
+        g.precio_base != null
+          ? Number(g.precio_base)
+          : g.costo_estimado != null
+          ? Number(g.costo_estimado)
+          : undefined;
+      const okPrecio = isInPrecioFilter(precio, precioFilter);
+      if (!okPrecio) return false;
+
+      if (!matchesSearch(g, searchQuery)) return false;
+
+      return true;
+    });
+  }, [
+    grupos,
+    estadoFilter,
+    cupoFilter,
+    fechaFilter,
+    precioFilter,
+    searchQuery,
+  ]);
+
+  const RotatingPill = ({
+    label,
+    valueLabel,
+    onPress,
+  }: {
+    label: string;
+    valueLabel: string;
+    onPress: () => void;
+  }) => (
+    <TouchableOpacity
+      onPress={onPress}
+      style={[styles.pill, { borderColor: colors.primary }]}
+    >
+      <Text style={[styles.pillText, { color: colors.text }]}>
+        {label}:{" "}
+        <Text style={{ color: colors.primary }}>{valueLabel}</Text>
+      </Text>
+    </TouchableOpacity>
+  );
+
+  const cycleEstado = () => {
+    const idx = ESTADO_OPTIONS.findIndex(
+      (o) => o.value === estadoFilter
+    );
+    setEstadoFilter(
+      ESTADO_OPTIONS[(idx + 1) % ESTADO_OPTIONS.length].value
+    );
+  };
+  const cycleCupo = () => {
+    const idx = CUPO_OPTIONS.findIndex((o) => o.value === cupoFilter);
+    setCupoFilter(
+      CUPO_OPTIONS[(idx + 1) % CUPO_OPTIONS.length].value
+    );
+  };
+  const cycleFecha = () => {
+    const idx = FECHA_OPTIONS.findIndex(
+      (o) => o.value === fechaFilter
+    );
+    setFechaFilter(
+      FECHA_OPTIONS[(idx + 1) % FECHA_OPTIONS.length].value
+    );
+  };
+  const cyclePrecio = () => {
+    const idx = PRECIO_OPTIONS.findIndex(
+      (o) => o.value === precioFilter
+    );
+    setPrecioFilter(
+      PRECIO_OPTIONS[(idx + 1) % PRECIO_OPTIONS.length].value
+    );
+  };
+
   const toggleSearch = () => {
     if (searchActive) {
       if (searchQuery.length > 0) setSearchQuery("");
@@ -478,54 +656,74 @@ export default function PassengerScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <Text style={[styles.title, { color: colors.text }]}>Grupos</Text>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
+      {/* Header animado */}
+      <Animated.View style={[styles.headerWrapper, headerAnimatedStyle]}>
+        <Text style={[styles.title, { color: colors.text }]}>
+          Grupos
+        </Text>
+      </Animated.View>
 
       {/* Filtros */}
       <View style={styles.toolbar}>
-        {/* 1) Búsqueda (lupa) */}
         <TouchableOpacity
           onPress={toggleSearch}
           style={[styles.roundBtn, { backgroundColor: "#fff" }]}
-          accessibilityLabel={searchActive || searchQuery ? "Cerrar búsqueda" : "Buscar grupos"}
+          accessibilityLabel={
+            searchActive || searchQuery
+              ? "Cerrar búsqueda"
+              : "Buscar grupos"
+          }
         >
           <Ionicons
-            name={searchActive || searchQuery ? "close-outline" : "search-outline"}
+            name={
+              searchActive || searchQuery
+                ? "close-outline"
+                : "search-outline"
+            }
             size={16}
             color={colors.primary}
           />
         </TouchableOpacity>
 
-        {/* 2) Estado */}
         <RotatingPill
           label="Estado"
-          valueLabel={ESTADO_OPTIONS.find((o) => o.value === estadoFilter)?.label ?? "Todos"}
+          valueLabel={
+            ESTADO_OPTIONS.find((o) => o.value === estadoFilter)
+              ?.label ?? "Todos"
+          }
           onPress={cycleEstado}
         />
 
-        {/* 3) Fecha */}
         <RotatingPill
           label="Fecha"
-          valueLabel={FECHA_OPTIONS.find((o) => o.value === fechaFilter)?.label ?? "Todos"}
+          valueLabel={
+            FECHA_OPTIONS.find((o) => o.value === fechaFilter)
+              ?.label ?? "Todos"
+          }
           onPress={cycleFecha}
         />
 
-        {/* 4) Cupos */}
         <RotatingPill
           label="Cupos"
-          valueLabel={CUPO_OPTIONS.find((o) => o.value === cupoFilter)?.label ?? "Cualquiera"}
+          valueLabel={
+            CUPO_OPTIONS.find((o) => o.value === cupoFilter)?.label ??
+            "Cualquiera"
+          }
           onPress={cycleCupo}
         />
 
-        {/* 5) Precio */}
         <RotatingPill
           label="Precio"
-          valueLabel={PRECIO_OPTIONS.find((o) => o.value === precioFilter)?.label ?? "Cualquiera"}
+          valueLabel={
+            PRECIO_OPTIONS.find((o) => o.value === precioFilter)
+              ?.label ?? "Cualquiera"
+          }
           onPress={cyclePrecio}
         />
 
-        {/* 6) Reset */}
         <TouchableOpacity
           onPress={() => {
             setEstadoFilter("todos");
@@ -538,7 +736,11 @@ export default function PassengerScreen() {
           style={[styles.roundBtn, { backgroundColor: "#fff" }]}
           accessibilityLabel="Restablecer filtros"
         >
-          <Ionicons name="refresh-outline" size={16} color={colors.primary} />
+          <Ionicons
+            name="refresh-outline"
+            size={16}
+            color={colors.primary}
+          />
         </TouchableOpacity>
       </View>
 
@@ -547,7 +749,10 @@ export default function PassengerScreen() {
         <View
           style={[
             styles.searchBar,
-            { borderColor: colors.primary, backgroundColor: colors.card },
+            {
+              borderColor: colors.primary,
+              backgroundColor: colors.card,
+            },
           ]}
         >
           <Ionicons
@@ -565,19 +770,34 @@ export default function PassengerScreen() {
             returnKeyType="search"
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery("")} style={styles.searchClear}>
-              <Ionicons name="close-circle" size={16} color={colors.primary} />
+            <TouchableOpacity
+              onPress={() => setSearchQuery("")}
+              style={styles.searchClear}
+            >
+              <Ionicons
+                name="close-circle"
+                size={16}
+                color={colors.primary}
+              />
             </TouchableOpacity>
           )}
         </View>
       )}
 
       {loading ? (
-        <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 30 }} />
+        <ActivityIndicator
+          size="large"
+          color={colors.primary}
+          style={{ marginTop: 30 }}
+        />
       ) : gruposFiltrados.length === 0 ? (
         <EmptyState
           icon="car-outline"
-          title={grupos.length === 0 ? "No hay grupos disponibles" : "Sin resultados"}
+          title={
+            grupos.length === 0
+              ? "No hay grupos disponibles"
+              : "Sin resultados"
+          }
           subtitle={
             grupos.length === 0
               ? "Aún no se han creado grupos de viaje. ¡Sé el primero en unirte cuando aparezcan!"
@@ -590,7 +810,22 @@ export default function PassengerScreen() {
         <FlatList
           data={gruposFiltrados}
           keyExtractor={(item) => String(item.id_grupo)}
-          renderItem={renderItem}
+          renderItem={({ item, index }) => (
+            <GroupCardRow
+              item={item}
+              index={index}
+              colors={colors}
+              userId={user?.id ? Number(user.id) : undefined}
+              joiningId={joiningId}
+              leavingId={leavingId}
+              hasJoinedAny={hasJoinedAny}
+              currency={currency}
+              getCuposDisp={getCuposDisp}
+              onJoin={onJoin}
+              confirmLeave={confirmLeave}
+              navigation={navigation}
+            />
+          )}
           contentContainerStyle={{ paddingBottom: 20 }}
           refreshControl={
             <RefreshControl
@@ -607,6 +842,10 @@ export default function PassengerScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 16 },
+  headerWrapper: {
+    marginTop: 8,
+    marginBottom: 4,
+  },
   title: {
     fontSize: 22,
     fontWeight: "800",
@@ -637,7 +876,6 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
 
-  // barra de búsqueda
   searchBar: {
     flexDirection: "row",
     alignItems: "center",

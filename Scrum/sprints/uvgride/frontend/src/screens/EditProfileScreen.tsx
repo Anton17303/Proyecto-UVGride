@@ -20,6 +20,14 @@ import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
 import { PrimaryButton, AnimatedInput, BackButton } from "../components";
 
+// 🌀 Reanimated sutil
+import Animated, {
+  FadeInUp,
+  FadeIn,
+  Layout,
+  Easing,
+} from "react-native-reanimated";
+
 type RootStackParamList = {
   Profile: undefined;
   EditProfile: undefined;
@@ -80,13 +88,34 @@ export default function EditProfileScreen() {
 
   // touched evita que el fetch pise lo escrito
   const touched = useRef(false);
-  const onChangeNombre = (v: string) => { touched.current = true; setNombre(v); };
-  const onChangeApellido = (v: string) => { touched.current = true; setApellido(v); };
-  const onChangeTelefono = (v: string) => { touched.current = true; setTelefono(v); };
-  const onChangeBio = (v: string) => { touched.current = true; setBio(v); };
-  const onChangeEmergNombre = (v: string) => { touched.current = true; setEmergNombre(v); };
-  const onChangeEmergTelefono = (v: string) => { touched.current = true; setEmergTelefono(v); };
-  const onChangeAccesNecesidades = (v: string) => { touched.current = true; setAccesNecesidades(v); };
+  const onChangeNombre = (v: string) => {
+    touched.current = true;
+    setNombre(v);
+  };
+  const onChangeApellido = (v: string) => {
+    touched.current = true;
+    setApellido(v);
+  };
+  const onChangeTelefono = (v: string) => {
+    touched.current = true;
+    setTelefono(v);
+  };
+  const onChangeBio = (v: string) => {
+    touched.current = true;
+    setBio(v);
+  };
+  const onChangeEmergNombre = (v: string) => {
+    touched.current = true;
+    setEmergNombre(v);
+  };
+  const onChangeEmergTelefono = (v: string) => {
+    touched.current = true;
+    setEmergTelefono(v);
+  };
+  const onChangeAccesNecesidades = (v: string) => {
+    touched.current = true;
+    setAccesNecesidades(v);
+  };
 
   // deshabilitar "Guardar" si no hay cambios
   const dirty =
@@ -166,7 +195,11 @@ export default function EditProfileScreen() {
           accesNecesidades: (() => {
             const raw = (user as any)?.acces_necesidades;
             if (!raw) return "";
-            try { return JSON.stringify(raw, null, 2); } catch { return ""; }
+            try {
+              return JSON.stringify(raw, null, 2);
+            } catch {
+              return "";
+            }
           })(),
         };
       } finally {
@@ -174,13 +207,18 @@ export default function EditProfileScreen() {
       }
     })();
 
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [user?.id]);
 
   // ---------------- Actions ----------------
   function validateClient() {
     if (!nombre?.trim() || !apellido?.trim() || !telefono?.trim()) {
-      Alert.alert("Campos requeridos", "Nombre, apellido y teléfono son obligatorios.");
+      Alert.alert(
+        "Campos requeridos",
+        "Nombre, apellido y teléfono son obligatorios."
+      );
       return false;
     }
     if (bio && bio.length > 300) {
@@ -193,12 +231,18 @@ export default function EditProfileScreen() {
     }
     if (emergTelefono) {
       if (emergTelefono.length > 20) {
-        Alert.alert("Teléfono de emergencia", "No puede exceder 20 caracteres.");
+        Alert.alert(
+          "Teléfono de emergencia",
+          "No puede exceder 20 caracteres."
+        );
         return false;
       }
       const rx = /^[0-9+()\-.\s]{6,20}$/;
       if (!rx.test(emergTelefono)) {
-        Alert.alert("Teléfono inválido", "Usa solo dígitos y símbolos + ( ) - . espacio (6-20).");
+        Alert.alert(
+          "Teléfono inválido",
+          "Usa solo dígitos y símbolos + ( ) - . espacio (6-20)."
+        );
         return false;
       }
     }
@@ -208,7 +252,7 @@ export default function EditProfileScreen() {
       } catch {
         Alert.alert(
           "Necesidades especiales",
-          "El campo debe ser JSON válido. Ej: {\"nota\":\"ayuda para abordar\"}"
+          'El campo debe ser JSON válido. Ej: {"nota":"ayuda para abordar"}'
         );
         return false;
       }
@@ -265,7 +309,10 @@ export default function EditProfileScreen() {
       ]);
     } catch (e: any) {
       console.error(e);
-      Alert.alert("Error", e?.response?.data?.error || "No se pudo actualizar el perfil");
+      Alert.alert(
+        "Error",
+        e?.response?.data?.error || "No se pudo actualizar el perfil"
+      );
     } finally {
       setSaving(false);
     }
@@ -274,8 +321,9 @@ export default function EditProfileScreen() {
   // ---------------- Render ----------------
   if (loading) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
-
+      <SafeAreaView
+        style={[styles.safe, { backgroundColor: colors.background }]}
+      >
         <View style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={{ color: colors.text, marginTop: 8 }}>Cargando…</Text>
@@ -285,101 +333,126 @@ export default function EditProfileScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
+    <SafeAreaView
+      style={[styles.safe, { backgroundColor: colors.background }]}
+    >
       <BackButton />
-      
+
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <Text style={[styles.title, { color: colors.primary }]}>Editar Perfil</Text>
-        <Text style={[styles.subtitle, { color: colors.text }]}>Actualiza tu información</Text>
+        {/* Header con entrada sutil */}
+        <Animated.View
+          entering={FadeInUp.duration(180).easing(Easing.out(Easing.quad))}
+          layout={Layout}
+        >
+          <Text style={[styles.title, { color: colors.primary }]}>
+            Editar Perfil
+          </Text>
+          <Text style={[styles.subtitle, { color: colors.text }]}>
+            Actualiza tu información
+          </Text>
+        </Animated.View>
 
-        {/* Inputs básicos */}
-        <AnimatedInput
-          placeholder="Nombre"
-          value={nombre}
-          onChangeText={onChangeNombre}
-          variant="short"
-          textColor={colors.text}
-          borderColor={colors.border}
-          color={colors.primary}
-        />
-        <AnimatedInput
-          placeholder="Apellido"
-          value={apellido}
-          onChangeText={onChangeApellido}
-          variant="short"
-          textColor={colors.text}
-          borderColor={colors.border}
-          color={colors.primary}
-        />
-        <AnimatedInput
-          placeholder="Teléfono"
-          value={telefono}
-          onChangeText={onChangeTelefono}
-          variant="phone"
-          textColor={colors.text}
-          borderColor={colors.border}
-          color={colors.primary}
-        />
+        {/* Formulario con fade corto */}
+        <Animated.View
+          entering={FadeIn.delay(80).duration(180)}
+          layout={Layout}
+        >
+          {/* Inputs básicos */}
+          <AnimatedInput
+            placeholder="Nombre"
+            value={nombre}
+            onChangeText={onChangeNombre}
+            variant="short"
+            textColor={colors.text}
+            borderColor={colors.border}
+            color={colors.primary}
+          />
+          <AnimatedInput
+            placeholder="Apellido"
+            value={apellido}
+            onChangeText={onChangeApellido}
+            variant="short"
+            textColor={colors.text}
+            borderColor={colors.border}
+            color={colors.primary}
+          />
+          <AnimatedInput
+            placeholder="Teléfono"
+            value={telefono}
+            onChangeText={onChangeTelefono}
+            variant="phone"
+            textColor={colors.text}
+            borderColor={colors.border}
+            color={colors.primary}
+          />
 
-        {/* Bio */}
-        <AnimatedInput
-          placeholder="Bio (máx. 300)"
-          value={bio}
-          onChangeText={onChangeBio}
-          variant="short"
-          textColor={colors.text}
-          borderColor={colors.border}
-          color={colors.primary}
-          multiline
-          numberOfLines={3}
-        />
+          {/* Bio */}
+          <AnimatedInput
+            placeholder="Bio (máx. 300)"
+            value={bio}
+            onChangeText={onChangeBio}
+            variant="short"
+            textColor={colors.text}
+            borderColor={colors.border}
+            color={colors.primary}
+            multiline
+            numberOfLines={3}
+          />
 
-        {/* Contacto de emergencia */}
-        <AnimatedInput
-          placeholder="Contacto de emergencia - Nombre"
-          value={emergNombre}
-          onChangeText={onChangeEmergNombre}
-          variant="short"
-          textColor={colors.text}
-          borderColor={colors.border}
-          color={colors.primary}
-        />
-        <AnimatedInput
-          placeholder="Contacto de emergencia - Teléfono"
-          value={emergTelefono}
-          onChangeText={onChangeEmergTelefono}
-          variant="phone"
-          textColor={colors.text}
-          borderColor={colors.border}
-          color={colors.primary}
-        />
+          {/* Contacto de emergencia */}
+          <AnimatedInput
+            placeholder="Contacto de emergencia - Nombre"
+            value={emergNombre}
+            onChangeText={onChangeEmergNombre}
+            variant="short"
+            textColor={colors.text}
+            borderColor={colors.border}
+            color={colors.primary}
+          />
+          <AnimatedInput
+            placeholder="Contacto de emergencia - Teléfono"
+            value={emergTelefono}
+            onChangeText={onChangeEmergTelefono}
+            variant="phone"
+            textColor={colors.text}
+            borderColor={colors.border}
+            color={colors.primary}
+          />
 
-        {/* Necesidades especiales (JSON) */}
-        <AnimatedInput
-          placeholder='Necesidades especiales'
-          value={accesNecesidades}
-          onChangeText={onChangeAccesNecesidades}
-          variant="short"
-          textColor={colors.text}
-          borderColor={colors.border}
-          color={colors.primary}
-          multiline
-          numberOfLines={4}
-        />
-        <Text style={{ color: colors.text, opacity: 0.6, fontSize: 12, marginBottom: 12 }}>
-          Deja vacío si no aplica.
-        </Text>
+          {/* Necesidades especiales (JSON) */}
+          <AnimatedInput
+            placeholder="Necesidades especiales"
+            value={accesNecesidades}
+            onChangeText={onChangeAccesNecesidades}
+            variant="short"
+            textColor={colors.text}
+            borderColor={colors.border}
+            color={colors.primary}
+            multiline
+            numberOfLines={4}
+          />
+          <Text
+            style={{
+              color: colors.text,
+              opacity: 0.6,
+              fontSize: 12,
+              marginBottom: 12,
+            }}
+          >
+            Deja vacío si no aplica.
+          </Text>
 
-        <PrimaryButton
-          title={saving ? "Guardando…" : "Guardar cambios"}
-          onPress={onSave}
-          loading={saving}
-          color={dirty ? colors.primary : "#9e9e9e"}
-          disabled={!dirty || saving}
-        />
+          <PrimaryButton
+            title={saving ? "Guardando…" : "Guardar cambios"}
+            onPress={onSave}
+            loading={saving}
+            color={dirty ? colors.primary : "#9e9e9e"}
+            disabled={!dirty || saving}
+          />
+        </Animated.View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -388,7 +461,17 @@ export default function EditProfileScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   container: { flex: 1, padding: 24, justifyContent: "center" },
-  title: { fontSize: 28, fontWeight: "800", textAlign: "center", marginBottom: 6 },
-  subtitle: { fontSize: 14, textAlign: "center", marginBottom: 18, opacity: 0.75 },
+  title: {
+    fontSize: 28,
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: 6,
+  },
+  subtitle: {
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 18,
+    opacity: 0.75,
+  },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
 });

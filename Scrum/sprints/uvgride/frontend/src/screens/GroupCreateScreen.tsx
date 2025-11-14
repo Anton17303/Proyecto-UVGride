@@ -19,14 +19,22 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 
+// 🌀 Reanimated
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  Easing,
+} from "react-native-reanimated";
+
 import { RootStackParamList } from "../navigation/type";
 import { createGroup } from "../services/groups";
 import { searchUsers, type UserLite } from "../services/users";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
-import { AnimatedInput, PrimaryButton, LinkText, BackButton } from "../components";
-import { useAchievements } from "../achievements/AchievementsContext"; // 👈 NUEVO
+import { AnimatedInput, PrimaryButton, BackButton } from "../components";
+import { useAchievements } from "../achievements/AchievementsContext";
 
 /* ---------------- Utils num ---------------- */
 function clampInt(v: number, min = 1, max = 99) {
@@ -54,7 +62,7 @@ export default function GroupCreateScreen() {
   const { theme } = useTheme();
   const colors = theme === "light" ? lightColors : darkColors;
 
-  const { emit, ready } = useAchievements(); // 👈 NUEVO
+  const { emit, ready } = useAchievements();
 
   const [destino, setDestino] = useState("");
   const [cupos, setCupos] = useState("3");
@@ -72,6 +80,66 @@ export default function GroupCreateScreen() {
 
   const esConductor = (user?.tipo_usuario || "").toLowerCase() === "conductor";
   const conductorId = Number(user?.id) || 0;
+
+  /* ---------------- Animaciones Reanimated ---------------- */
+
+  // Header
+  const headerOpacity = useSharedValue(0);
+  const headerTranslateY = useSharedValue(-10);
+
+  const headerAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ translateY: headerTranslateY.value }],
+  }));
+
+  useEffect(() => {
+    headerOpacity.value = 0;
+    headerTranslateY.value = -10;
+
+    headerOpacity.value = withTiming(1, {
+      duration: 320,
+      easing: Easing.out(Easing.quad),
+    });
+    headerTranslateY.value = withTiming(0, {
+      duration: 320,
+      easing: Easing.out(Easing.quad),
+    });
+  }, [headerOpacity, headerTranslateY]);
+
+  // Bloque “Miembros designados”
+  const recurrentOpacity = useSharedValue(0);
+  const recurrentTranslateY = useSharedValue(-8);
+
+  const recurrentAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: recurrentOpacity.value,
+    transform: [{ translateY: recurrentTranslateY.value }],
+  }));
+
+  useEffect(() => {
+    if (esRecurrente) {
+      // entrada suave
+      recurrentOpacity.value = 0;
+      recurrentTranslateY.value = -8;
+      recurrentOpacity.value = withTiming(1, {
+        duration: 260,
+        easing: Easing.out(Easing.quad),
+      });
+      recurrentTranslateY.value = withTiming(0, {
+        duration: 260,
+        easing: Easing.out(Easing.quad),
+      });
+    } else {
+      // salida rápida pero sin drama
+      recurrentOpacity.value = withTiming(0, {
+        duration: 180,
+        easing: Easing.in(Easing.quad),
+      });
+      recurrentTranslateY.value = withTiming(-8, {
+        duration: 180,
+        easing: Easing.in(Easing.quad),
+      });
+    }
+  }, [esRecurrente, recurrentOpacity, recurrentTranslateY]);
 
   /* ---------------- Validaciones ---------------- */
   const destinoErr = useMemo(
@@ -188,7 +256,6 @@ export default function GroupCreateScreen() {
     try {
       setLoading(true);
 
-      // Llama al servicio y toma el ID creado
       const created = await createGroup({
         conductor_id: Number(user.id),
         destino_nombre: destino.trim(),
@@ -202,11 +269,10 @@ export default function GroupCreateScreen() {
             : undefined,
       });
 
-      // Intenta resolver el ID desde diferentes firmas de respuesta
       const createdId =
-        (created && (created.id_grupo ?? created.id ?? created.groupId)) ?? Date.now();
+        (created && (created.id_grupo ?? created.id ?? created.groupId)) ??
+        Date.now();
 
-      // ✅ Emite el evento para el logro "first_group"
       if (ready) {
         emit("GROUP_CREATED", { groupId: createdId });
       }
@@ -237,7 +303,10 @@ export default function GroupCreateScreen() {
           contentContainerStyle={styles.scrollContainer}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={[styles.header, { color: colors.text }]}>Crear grupo</Text>
+          {/* Header animado */}
+          <Animated.View style={headerAnimatedStyle}>
+            <Text style={[styles.header, { color: colors.text }]}>Crear grupo</Text>
+          </Animated.View>
 
           {!esConductor && (
             <Text style={[styles.note, { color: colors.text }]}>
@@ -301,7 +370,10 @@ export default function GroupCreateScreen() {
               >
                 <Text style={{ color: colors.text }}>
                   {fecha
-                    ? fecha.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                    ? fecha.toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
                     : "Selecciona hora"}
                 </Text>
               </TouchableOpacity>
@@ -347,8 +419,9 @@ export default function GroupCreateScreen() {
             <View style={{ flex: 1 }}>
               <Text style={[styles.label, { color: colors.text }]}>Viaje recurrente</Text>
               <Text style={[styles.help, { color: colors.text }]}>
-                Si está activado, el grupo se crea <Text style={{ fontWeight: "700" }}>cerrado</Text> y podrás
-                agregar miembros designados.
+                Si está activado, el grupo se crea{" "}
+                <Text style={{ fontWeight: "700" }}>cerrado</Text> y podrás agregar
+                miembros designados.
               </Text>
             </View>
             <Switch
@@ -365,10 +438,12 @@ export default function GroupCreateScreen() {
             />
           </View>
 
-          {/* Búsqueda y selección de miembros (solo recurrente) */}
+          {/* Búsqueda y selección de miembros (solo recurrente, con animación) */}
           {esRecurrente && (
-            <View style={styles.block}>
-              <Text style={[styles.label, { color: colors.text }]}>Miembros designados</Text>
+            <Animated.View style={[styles.block, recurrentAnimatedStyle]}>
+              <Text style={[styles.label, { color: colors.text }]}>
+                Miembros designados
+              </Text>
 
               {/* Chips seleccionados */}
               {selectedUsers.length > 0 && (
@@ -378,13 +453,19 @@ export default function GroupCreateScreen() {
                       key={u.id_usuario}
                       style={[
                         styles.chipPill,
-                        { borderColor: colors.border, backgroundColor: colors.card },
+                        {
+                          borderColor: colors.border,
+                          backgroundColor: colors.card,
+                        },
                       ]}
                     >
                       <Text style={[styles.chipPillTxt, { color: colors.text }]}>
                         {u.nombre} {u.apellido}
                       </Text>
-                      <TouchableOpacity onPress={() => removeUser(u.id_usuario)} style={styles.chipClose}>
+                      <TouchableOpacity
+                        onPress={() => removeUser(u.id_usuario)}
+                        style={styles.chipClose}
+                      >
                         <Ionicons name="close" size={14} color={colors.text} />
                       </TouchableOpacity>
                     </View>
@@ -399,7 +480,12 @@ export default function GroupCreateScreen() {
                   { borderColor: colors.border, backgroundColor: colors.card },
                 ]}
               >
-                <Ionicons name="search-outline" size={16} color={colors.primary} style={{ marginRight: 6 }} />
+                <Ionicons
+                  name="search-outline"
+                  size={16}
+                  color={colors.primary}
+                  style={{ marginRight: 6 }}
+                />
                 <TextInput
                   value={query}
                   onChangeText={setQuery}
@@ -468,7 +554,7 @@ export default function GroupCreateScreen() {
                   ? designadosErr
                   : `Se agregarán ${selectedUsers.length} pasajeros aprobados. La capacidad incluye al conductor.`}
               </Text>
-            </View>
+            </Animated.View>
           )}
 
           {/* Botón principal */}
@@ -489,13 +575,34 @@ export default function GroupCreateScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   scrollContainer: { padding: 20, flexGrow: 1 },
-  header: { fontSize: 24, fontWeight: "700", textAlign: "center", marginBottom: 20 },
+  header: {
+    fontSize: 24,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 20,
+  },
   note: { fontSize: 13, marginBottom: 16, textAlign: "center", opacity: 0.8 },
   block: { marginBottom: 14 },
   label: { fontSize: 14, fontWeight: "500", opacity: 0.7, marginBottom: 6 },
-  row: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
-  rowBetween: { flexDirection: "row", alignItems: "center", gap: 12, justifyContent: "space-between" },
-  pickBtn: { flex: 1, paddingVertical: 14, borderRadius: 10, borderWidth: 1, alignItems: "center" },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  rowBetween: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    justifyContent: "space-between",
+  },
+  pickBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: "center",
+  },
   chip: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
   chipTxt: { fontWeight: "600", fontSize: 13 },
   help: { fontSize: 12, opacity: 0.8, marginTop: 4 },
@@ -511,14 +618,24 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   searchInput: { flex: 1, fontSize: 14, paddingVertical: 2 },
-  suggestionsBox: { borderWidth: 1, borderRadius: 10, marginTop: 6, overflow: "hidden" },
+  suggestionsBox: {
+    borderWidth: 1,
+    borderRadius: 10,
+    marginTop: 6,
+    overflow: "hidden",
+  },
   suggestionItem: {
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#00000010",
   },
-  chipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
+  chipsWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 8,
+  },
   chipPill: {
     flexDirection: "row",
     alignItems: "center",

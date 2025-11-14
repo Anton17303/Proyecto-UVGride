@@ -1,5 +1,5 @@
 // src/screens/RegisterScreen.tsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Text,
   StyleSheet,
@@ -10,11 +10,19 @@ import {
   Modal,
   TouchableOpacity,
   View,
-  Animated,
 } from "react-native";
 import axios from "axios";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+
+// 🌀 Reanimated
+import Animated, {
+  Easing,
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withDelay,
+} from "react-native-reanimated";
 
 import { API_URL } from "../services/api";
 import { RootStackParamList } from "../type";
@@ -37,41 +45,48 @@ export default function RegisterScreen() {
   const { theme } = useTheme();
   const colors = theme === "light" ? lightColors : darkColors;
 
-  // 🔹 Animaciones
-  const headerOpacity = useRef(new Animated.Value(0)).current;
-  const headerTranslateY = useRef(new Animated.Value(-20)).current;
-  const formOpacity = useRef(new Animated.Value(0)).current;
-  const formTranslateY = useRef(new Animated.Value(10)).current;
+  // 🔹 Reanimated shared values
+  const headerOpacity = useSharedValue(0);
+  const headerTranslateY = useSharedValue(-24);
+  const formOpacity = useSharedValue(0);
+  const formTranslateY = useSharedValue(12);
 
   useEffect(() => {
-    Animated.sequence([
-      Animated.parallel([
-        Animated.timing(headerOpacity, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }),
-        Animated.timing(headerTranslateY, {
-          toValue: 0,
-          duration: 400,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.delay(100),
-      Animated.parallel([
-        Animated.timing(formOpacity, {
-          toValue: 1,
-          duration: 350,
-          useNativeDriver: true,
-        }),
-        Animated.timing(formTranslateY, {
-          toValue: 0,
-          duration: 350,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]).start();
+    // Entrada suave del header y luego del formulario (como en Login)
+    headerOpacity.value = withTiming(1, {
+      duration: 420,
+      easing: Easing.out(Easing.quad),
+    });
+    headerTranslateY.value = withTiming(0, {
+      duration: 420,
+      easing: Easing.out(Easing.quad),
+    });
+
+    formOpacity.value = withDelay(
+      120,
+      withTiming(1, {
+        duration: 380,
+        easing: Easing.out(Easing.quad),
+      })
+    );
+    formTranslateY.value = withDelay(
+      120,
+      withTiming(0, {
+        duration: 380,
+        easing: Easing.out(Easing.quad),
+      })
+    );
   }, [headerOpacity, headerTranslateY, formOpacity, formTranslateY]);
+
+  const headerAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ translateY: headerTranslateY.value }],
+  }));
+
+  const formAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: formOpacity.value,
+    transform: [{ translateY: formTranslateY.value }],
+  }));
 
   const handleRegister = async () => {
     if (
@@ -114,15 +129,7 @@ export default function RegisterScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         {/* Header animado */}
-        <Animated.View
-          style={[
-            styles.headerBlock,
-            {
-              opacity: headerOpacity,
-              transform: [{ translateY: headerTranslateY }],
-            },
-          ]}
-        >
+        <Animated.View style={[styles.headerBlock, headerAnimatedStyle]}>
           <Text style={[styles.title, { color: colors.primary }]}>
             Crear cuenta
           </Text>
@@ -132,12 +139,7 @@ export default function RegisterScreen() {
         </Animated.View>
 
         {/* Formulario animado */}
-        <Animated.View
-          style={{
-            opacity: formOpacity,
-            transform: [{ translateY: formTranslateY }],
-          }}
-        >
+        <Animated.View style={formAnimatedStyle}>
           <AnimatedInput
             placeholder="Nombre"
             value={nombre}

@@ -21,8 +21,18 @@ import { getGroup, closeGroup, leaveGroup, Grupo } from "../services/groups";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
 import { useUser } from "../context/UserContext";
-import { FloatingActionButton, BackButton} from "../components";
+import { FloatingActionButton, BackButton } from "../components";
 import { useAchievements } from "../achievements/AchievementsContext";
+
+// 🌀 Reanimated
+import Animated, {
+  Easing,
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  FadeInUp,
+  Layout,
+} from "react-native-reanimated";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "GroupDetail">;
 type Rt = RouteProp<RootStackParamList, "GroupDetail">;
@@ -30,13 +40,14 @@ type Rt = RouteProp<RootStackParamList, "GroupDetail">;
 export default function GroupDetailScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Rt>();
-  const rawParam = (route?.params as any)?.groupId ?? (route?.params as any)?.grupoId;
+  const rawParam =
+    (route?.params as any)?.groupId ?? (route?.params as any)?.grupoId;
   const groupId = Number(rawParam);
 
   const { theme } = useTheme();
   const colors = theme === "light" ? lightColors : darkColors;
   const { user } = useUser();
-  const { emit, ready } = useAchievements(); // 👈 NUEVO
+  const { emit, ready } = useAchievements();
 
   const [loading, setLoading] = useState(true);
   const [group, setGroup] = useState<Grupo | null>(null);
@@ -48,43 +59,57 @@ export default function GroupDetailScreen() {
   const fmtDate = useMemo(
     () => (s?: string | null) =>
       s
-        ? new Date(s).toLocaleString("es-GT", { dateStyle: "medium", timeStyle: "short" })
+        ? new Date(s).toLocaleString("es-GT", {
+            dateStyle: "medium",
+            timeStyle: "short",
+          })
         : "—",
     []
   );
 
-  const fetchGroup = useCallback(async () => {
-    if (!Number.isInteger(groupId) || groupId <= 0) {
-      setError("No se recibió un ID de grupo válido.");
-      setLoading(false);
-      return;
-    }
-    if (isFetching.current) return;
-    isFetching.current = true;
-    try {
-      setLoading(true);
-      setError(null);
-      const g = await getGroup(groupId, user?.id ? { user_id: Number(user.id) } : undefined);
-      setGroup(g);
-    } catch (e: any) {
-      console.error("getGroup error:", e?.response?.data || e?.message);
-      setError(e?.response?.data?.error || "No se pudo cargar el grupo.");
-    } finally {
-      setLoading(false);
-      isFetching.current = false;
-    }
-  }, [groupId, user?.id]);
+  const fetchGroup = useCallback(
+    async () => {
+      if (!Number.isInteger(groupId) || groupId <= 0) {
+        setError("No se recibió un ID de grupo válido.");
+        setLoading(false);
+        return;
+      }
+      if (isFetching.current) return;
+      isFetching.current = true;
+      try {
+        setLoading(true);
+        setError(null);
+        const g = await getGroup(
+          groupId,
+          user?.id ? { user_id: Number(user.id) } : undefined
+        );
+        setGroup(g);
+      } catch (e: any) {
+        console.error("getGroup error:", e?.response?.data || e?.message);
+        setError(e?.response?.data?.error || "No se pudo cargar el grupo.");
+      } finally {
+        setLoading(false);
+        isFetching.current = false;
+      }
+    },
+    [groupId, user?.id]
+  );
 
   useEffect(() => {
     fetchGroup();
   }, [fetchGroup]);
 
   const isOwner = useMemo(
-    () => (user?.id != null && group ? Number(user.id) === Number(group.conductor_id) : false),
+    () =>
+      user?.id != null && group
+        ? Number(user.id) === Number(group.conductor_id)
+        : false,
     [user?.id, group]
   );
 
-  const cuposTotales = Number(group?.capacidad_total ?? group?.cupos_totales ?? 0);
+  const cuposTotales = Number(
+    group?.capacidad_total ?? group?.cupos_totales ?? 0
+  );
   const cuposUsados = Number(group?.cupos_usados ?? 0);
   const cuposDisp = Math.max(0, cuposTotales - cuposUsados);
   const members = group?.miembros ?? [];
@@ -94,41 +119,50 @@ export default function GroupDetailScreen() {
     const uid = Number(user.id);
     return members.some(
       (m: any) =>
-        Number(m.id_usuario) === uid && String(m.estado_solicitud ?? "").toLowerCase() === "aprobado"
+        Number(m.id_usuario) === uid &&
+        String(m.estado_solicitud ?? "").toLowerCase() === "aprobado"
     );
   }, [members, user?.id]);
 
-  const handleLeave = useCallback(async () => {
-    try {
-      if (!group || !user?.id) return;
-      setLeaving(true);
-      await leaveGroup(group.id_grupo, { id_usuario: Number(user.id) });
-      Alert.alert("Listo", "Saliste del grupo.");
-      if (navigation.canGoBack()) {
-        navigation.goBack();
-      } else {
-        await fetchGroup();
+  const handleLeave = useCallback(
+    async () => {
+      try {
+        if (!group || !user?.id) return;
+        setLeaving(true);
+        await leaveGroup(group.id_grupo, { id_usuario: Number(user.id) });
+        Alert.alert("Listo", "Saliste del grupo.");
+        if (navigation.canGoBack()) {
+          navigation.goBack();
+        } else {
+          await fetchGroup();
+        }
+      } catch (e: any) {
+        console.error("leaveGroup error:", e?.response?.data || e?.message);
+        Alert.alert(
+          "Error",
+          e?.response?.data?.error || "No se pudo salir del grupo"
+        );
+      } finally {
+        setLeaving(false);
       }
-    } catch (e: any) {
-      console.error("leaveGroup error:", e?.response?.data || e?.message);
-      Alert.alert("Error", e?.response?.data?.error || "No se pudo salir del grupo");
-    } finally {
-      setLeaving(false);
-    }
-  }, [fetchGroup, group, navigation, user?.id]);
+    },
+    [fetchGroup, group, navigation, user?.id]
+  );
 
-  const confirmLeave = useCallback(() => {
-    if (!group || leaving) return;
-    Alert.alert("Salir del grupo", "¿Deseas abandonar este grupo?", [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Salir",
-        style: "destructive",
-        onPress: handleLeave,
-      },
-    ]);
-  }, [group, handleLeave, leaving]);
-
+  const confirmLeave = useCallback(
+    () => {
+      if (!group || leaving) return;
+      Alert.alert("Salir del grupo", "¿Deseas abandonar este grupo?", [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Salir",
+          style: "destructive",
+          onPress: handleLeave,
+        },
+      ]);
+    },
+    [group, handleLeave, leaving]
+  );
 
   const handleClose = async (estado: "cerrado" | "cancelado" | "finalizado") => {
     try {
@@ -138,7 +172,10 @@ export default function GroupDetailScreen() {
       await fetchGroup();
     } catch (e: any) {
       console.error("closeGroup error:", e?.response?.data || e?.message);
-      Alert.alert("Error", e?.response?.data?.error || "No se pudo actualizar el grupo");
+      Alert.alert(
+        "Error",
+        e?.response?.data?.error || "No se pudo actualizar el grupo"
+      );
     }
   };
 
@@ -150,20 +187,40 @@ export default function GroupDetailScreen() {
     } as any);
   };
 
-  // 🎨 Estado → label + colores (cerrado = iniciado)
-  const estadoMap: Record<string, { label: string; color: string; bg: string }> = {
-    abierto: { label: "Abierto", color: "#2e7d32", bg: "rgba(46,125,50,0.15)" },
-    cerrado: { label: "Iniciado", color: "#1565c0", bg: "rgba(21,101,192,0.15)" },
-    cancelado: { label: "Cancelado", color: "#c62828", bg: "rgba(198,40,40,0.15)" },
-    finalizado: { label: "Finalizado", color: "#616161", bg: "rgba(97,97,97,0.15)" },
+  // 🎨 Estado → label + colores
+  const estadoMap: Record<
+    string,
+    { label: string; color: string; bg: string }
+  > = {
+    abierto: {
+      label: "Abierto",
+      color: "#2e7d32",
+      bg: "rgba(46,125,50,0.15)",
+    },
+    cerrado: {
+      label: "Iniciado",
+      color: "#1565c0",
+      bg: "rgba(21,101,192,0.15)",
+    },
+    cancelado: {
+      label: "Cancelado",
+      color: "#c62828",
+      bg: "rgba(198,40,40,0.15)",
+    },
+    finalizado: {
+      label: "Finalizado",
+      color: "#616161",
+      bg: "rgba(97,97,97,0.15)",
+    },
   };
-  const estadoInfo = estadoMap[group?.estado ?? ""] ?? {
-    label: group?.estado ?? "—",
-    color: colors.text,
-    bg: colors.card,
-  };
+  const estadoInfo =
+    estadoMap[group?.estado ?? ""] ?? {
+      label: group?.estado ?? "—",
+      color: colors.text,
+      bg: colors.card,
+    };
 
-  // === SOS: número ficticio + confirmación y llamada ===
+  // === SOS: confirmación + llamada + logro ===
   const EMERGENCY_NUMBER = "110";
   const confirmAndCallEmergency = async () => {
     Alert.alert(
@@ -187,13 +244,15 @@ export default function GroupDetailScreen() {
                   "Este dispositivo/emulador no puede abrir el marcador. Se simuló la acción."
                 );
               }
-              tested = true; // cuenta como prueba aunque sea simulación
+              tested = true;
             } catch (err) {
               console.error("Error abriendo marcador:", err);
-              Alert.alert("Error", "No se pudo abrir el marcador telefónico.");
+              Alert.alert(
+                "Error",
+                "No se pudo abrir el marcador telefónico."
+              );
             } finally {
               if (tested && ready) {
-                // 👈 Desbloquea logro "sos_tester"
                 emit("SOS_TESTED", { at: Date.now() });
               }
             }
@@ -203,9 +262,31 @@ export default function GroupDetailScreen() {
     );
   };
 
+  // 🔹 Reanimated: header + card
+  const headerOpacity = useSharedValue(0);
+  const headerTranslateY = useSharedValue(-10);
+
+  const headerAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ translateY: headerTranslateY.value }],
+  }));
+
+  useEffect(() => {
+    headerOpacity.value = withTiming(1, {
+      duration: 320,
+      easing: Easing.out(Easing.quad),
+    });
+    headerTranslateY.value = withTiming(0, {
+      duration: 320,
+      easing: Easing.out(Easing.quad),
+    });
+  }, [headerOpacity, headerTranslateY]);
+
   const Header = () => (
-    <>
-      <Text style={[styles.screenTitle, { color: colors.text }]}>Detalle del grupo</Text>
+    <Animated.View style={headerAnimatedStyle}>
+      <Text style={[styles.screenTitle, { color: colors.text }]}>
+        Detalle del grupo
+      </Text>
 
       <View style={[styles.card, { backgroundColor: colors.card }]}>
         <Text style={[styles.label, { color: colors.text }]}>Conductor</Text>
@@ -218,8 +299,17 @@ export default function GroupDetailScreen() {
           {group?.viaje?.destino ?? group?.destino_nombre ?? "—"}
         </Text>
 
-        <View style={[styles.estadoPill, { backgroundColor: estadoInfo.bg }]}>
-          <Text style={{ color: estadoInfo.color, fontWeight: "700" }}>{estadoInfo.label}</Text>
+        <View
+          style={[styles.estadoPill, { backgroundColor: estadoInfo.bg }]}
+        >
+          <Text
+            style={{
+              color: estadoInfo.color,
+              fontWeight: "700",
+            }}
+          >
+            {estadoInfo.label}
+          </Text>
         </View>
 
         <Text style={[styles.label, { color: colors.text }]}>Cupos</Text>
@@ -268,7 +358,8 @@ export default function GroupDetailScreen() {
             )}
           </View>
         )}
-         {!isOwner && isMember && (
+
+        {!isOwner && isMember && (
           <TouchableOpacity
             onPress={confirmLeave}
             style={[styles.leaveBtn, { backgroundColor: "#c62828" }]}
@@ -281,62 +372,100 @@ export default function GroupDetailScreen() {
             )}
           </TouchableOpacity>
         )}
-
-
       </View>
 
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>Miembros</Text>
-    </>
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>
+        Miembros
+      </Text>
+    </Animated.View>
   );
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.center, { backgroundColor: colors.background }]}>
+      <SafeAreaView
+        style={[styles.center, { backgroundColor: colors.background }]}
+      >
         <ActivityIndicator size="large" color={colors.primary} />
       </SafeAreaView>
     );
   }
   if (error) {
     return (
-      <SafeAreaView style={[styles.center, { backgroundColor: colors.background }]}>
+      <SafeAreaView
+        style={[styles.center, { backgroundColor: colors.background }]}
+      >
         <Text style={{ color: colors.text }}>{error}</Text>
       </SafeAreaView>
     );
   }
 
-  const showSOS = isMember && group && !["cancelado", "finalizado"].includes(group.estado ?? "");
+  const showSOS =
+    isMember &&
+    group &&
+    !["cancelado", "finalizado"].includes(group.estado ?? "");
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
       <BackButton />
-      
+
       <FlatList
         data={members}
-        keyExtractor={(m: any) => String(m.id_grupo_miembro ?? `${m.id_usuario}-${m.joined_at}`)}
+        keyExtractor={(m: any) =>
+          String(m.id_grupo_miembro ?? `${m.id_usuario}-${m.joined_at}`)
+        }
         ListHeaderComponent={<Header />}
-        renderItem={({ item }: any) => (
-          <View style={[styles.memberRow, { backgroundColor: colors.card }]}>
-            {item.usuario?.foto_url ? (
-              <Image source={{ uri: item.usuario.foto_url }} style={styles.avatar} />
-            ) : (
-              <Ionicons name="person-circle-outline" size={36} color={colors.text} />
-            )}
-            <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={[styles.memberName, { color: colors.text }]}>
-                {item.usuario?.nombre} {item.usuario?.apellido}
-              </Text>
-              <View style={[styles.memberPill, { backgroundColor: "rgba(0,0,0,0.08)" }]}>
-                <Text style={{ fontSize: 12, color: colors.text }}>
-                  {item.rol} · {item.estado_solicitud}
+        renderItem={({ item, index }: any) => (
+          <Animated.View
+            entering={FadeInUp.delay(80 + index * 40)
+              .duration(260)
+              .easing(Easing.out(Easing.cubic))}
+            layout={Layout.springify().damping(14).stiffness(120)}
+            style={{ marginBottom: 8 }}
+          >
+            <View
+              style={[styles.memberRow, { backgroundColor: colors.card }]}
+            >
+              {item.usuario?.foto_url ? (
+                <Image
+                  source={{ uri: item.usuario.foto_url }}
+                  style={styles.avatar}
+                />
+              ) : (
+                <Ionicons
+                  name="person-circle-outline"
+                  size={36}
+                  color={colors.text}
+                />
+              )}
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text
+                  style={[styles.memberName, { color: colors.text }]}
+                >
+                  {item.usuario?.nombre} {item.usuario?.apellido}
                 </Text>
+                <View
+                  style={[
+                    styles.memberPill,
+                    { backgroundColor: "rgba(0,0,0,0.08)" },
+                  ]}
+                >
+                  <Text style={{ fontSize: 12, color: colors.text }}>
+                    {item.rol} · {item.estado_solicitud}
+                  </Text>
+                </View>
               </View>
             </View>
-          </View>
+          </Animated.View>
         )}
-        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 120 }}
+        contentContainerStyle={{
+          padding: 16,
+          paddingBottom: 120,
+        }}
       />
 
-      {/* FAB pasajero */}
+      {/* FAB pasajero: calificar conductor */}
       {group?.estado === "finalizado" && !isOwner && (
         <FloatingActionButton
           id={`fab_rate_driver_${group.id_grupo}_${user?.id}`}
@@ -348,7 +477,7 @@ export default function GroupDetailScreen() {
         />
       )}
 
-      {/* FAB SOS con hold-to-activate + cooldown + haptics */}
+      {/* FAB SOS */}
       {showSOS && (
         <FloatingActionButton
           id={`fab_sos_${group?.id_grupo}_${user?.id}`}
@@ -364,7 +493,12 @@ export default function GroupDetailScreen() {
           enableHaptics={true}
           accessibilityLabel="Botón de emergencia SOS"
           accessibilityHint="Mantén presionado para llamar al número de emergencia"
-          style={{ position: "absolute", bottom: 50, right: 20, zIndex: 20 }}
+          style={{
+            position: "absolute",
+            bottom: 50,
+            right: 20,
+            zIndex: 20,
+          }}
         />
       )}
     </SafeAreaView>

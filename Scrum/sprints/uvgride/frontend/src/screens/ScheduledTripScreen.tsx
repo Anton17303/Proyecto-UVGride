@@ -1,5 +1,5 @@
 // src/screens/ScheduledTripScreen.tsx
-import React, { useCallback, useState, useEffect, useRef } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   SafeAreaView,
   StyleSheet,
@@ -8,10 +8,19 @@ import {
   Alert,
   RefreshControl,
   Text,
-  Animated,
 } from "react-native";
 import axios from "axios";
 import { useFocusEffect } from "@react-navigation/native";
+
+// 🌀 Reanimated
+import Animated, {
+  Easing,
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  FadeInUp,
+  Layout,
+} from "react-native-reanimated";
 
 import { API_URL } from "../services/api";
 import { useUser } from "../context/UserContext";
@@ -51,41 +60,13 @@ function formatDateTime(iso: string | null) {
  * Fila animada para cada viaje programado
  */
 function ScheduledTripRow({ item, index, colors, onDelete }: RowProps) {
-  const rowOpacity = useRef(new Animated.Value(0)).current;
-  const rowTranslateY = useRef(new Animated.Value(8)).current;
-  const rowScale = useRef(new Animated.Value(0.98)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(rowOpacity, {
-        toValue: 1,
-        duration: 260,
-        delay: index * 70,
-        useNativeDriver: true,
-      }),
-      Animated.timing(rowTranslateY, {
-        toValue: 0,
-        duration: 260,
-        delay: index * 70,
-        useNativeDriver: true,
-      }),
-      Animated.spring(rowScale, {
-        toValue: 1,
-        friction: 7,
-        tension: 80,
-        delay: index * 70,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [index, rowOpacity, rowScale, rowTranslateY]);
-
   return (
     <Animated.View
-      style={{
-        opacity: rowOpacity,
-        transform: [{ translateY: rowTranslateY }, { scale: rowScale }],
-        marginBottom: 10,
-      }}
+      entering={FadeInUp.delay(80 + index * 40)
+        .duration(260)
+        .easing(Easing.out(Easing.cubic))}
+      layout={Layout.springify().damping(14).stiffness(120)}
+      style={{ marginBottom: 10 }}
     >
       <ScheduledTripCard
         destino={item.destino}
@@ -108,23 +89,24 @@ export default function ScheduledTripScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [trips, setTrips] = useState<TripItem[]>([]);
 
-  // Animaciones header
-  const headerOpacity = useRef(new Animated.Value(0)).current;
-  const headerTranslateY = useRef(new Animated.Value(-10)).current;
+  // 🔹 Animaciones header con Reanimated
+  const headerOpacity = useSharedValue(0);
+  const headerTranslateY = useSharedValue(-10);
+
+  const headerAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ translateY: headerTranslateY.value }],
+  }));
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(headerOpacity, {
-        toValue: 1,
-        duration: 320,
-        useNativeDriver: true,
-      }),
-      Animated.timing(headerTranslateY, {
-        toValue: 0,
-        duration: 320,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    headerOpacity.value = withTiming(1, {
+      duration: 320,
+      easing: Easing.out(Easing.quad),
+    });
+    headerTranslateY.value = withTiming(0, {
+      duration: 320,
+      easing: Easing.out(Easing.quad),
+    });
   }, [headerOpacity, headerTranslateY]);
 
   const fetchTrips = async () => {
@@ -198,12 +180,7 @@ export default function ScheduledTripScreen() {
       <BackButton />
 
       {/* Header animado */}
-      <Animated.View
-        style={{
-          opacity: headerOpacity,
-          transform: [{ translateY: headerTranslateY }],
-        }}
-      >
+      <Animated.View style={headerAnimatedStyle}>
         <Text style={[styles.header, { color: colors.text }]}>
           Viajes Programados
         </Text>

@@ -1,5 +1,5 @@
 // src/screens/HomeScreen.tsx
-import React, { useCallback, useState, useRef, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,10 +8,22 @@ import {
   Alert,
   SafeAreaView,
   RefreshControl,
-  Animated,
 } from "react-native";
 import axios from "axios";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
+
+// 🌀 Reanimated
+import Animated, {
+  Easing,
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  withRepeat,
+  withSequence,
+  FadeInUp,
+  Layout,
+} from "react-native-reanimated";
 
 import { API_URL } from "../services/api";
 import { useUser } from "../context/UserContext";
@@ -34,14 +46,14 @@ export default function HomeScreen() {
   const [trips, setTrips] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Racha
+  // 🔥 Racha
   const { ready, current, best, refresh, touchToday } = useStreak();
 
-  // 🔹 Animaciones
-  const headerOpacity = useRef(new Animated.Value(0)).current;
-  const headerTranslateY = useRef(new Animated.Value(-10)).current;
-  const streakScale = useRef(new Animated.Value(0.95)).current;
-  const fabScale = useRef(new Animated.Value(1)).current;
+  // 🔹 Reanimated shared values
+  const headerOpacity = useSharedValue(0);
+  const headerTranslateY = useSharedValue(-10);
+  const streakScale = useSharedValue(0.95);
+  const fabScale = useSharedValue(1);
 
   const fetchTrips = useCallback(async () => {
     if (!user?.id) return;
@@ -65,57 +77,64 @@ export default function HomeScreen() {
     }, [fetchTrips, refresh, touchToday])
   );
 
-  // Animación de entrada del header en cada focus
+  // Animación de entrada del header + racha en cada focus
   useFocusEffect(
     useCallback(() => {
-      // reset
-      headerOpacity.setValue(0);
-      headerTranslateY.setValue(-10);
-      streakScale.setValue(0.95);
+      // reset inicial
+      headerOpacity.value = 0;
+      headerTranslateY.value = -10;
+      streakScale.value = 0.95;
 
-      Animated.parallel([
-        Animated.timing(headerOpacity, {
-          toValue: 1,
-          duration: 350,
-          useNativeDriver: true,
-        }),
-        Animated.timing(headerTranslateY, {
-          toValue: 0,
-          duration: 350,
-          useNativeDriver: true,
-        }),
-        Animated.spring(streakScale, {
-          toValue: 1,
-          useNativeDriver: true,
-          speed: 20,
-          bounciness: 7,
-        }),
-      ]).start();
+      headerOpacity.value = withTiming(1, {
+        duration: 320,
+        easing: Easing.out(Easing.quad),
+      });
+      headerTranslateY.value = withTiming(0, {
+        duration: 320,
+        easing: Easing.out(Easing.quad),
+      });
+      streakScale.value = withSpring(1, {
+        damping: 12,
+        stiffness: 170,
+        mass: 0.8,
+      });
     }, [headerOpacity, headerTranslateY, streakScale])
   );
 
-  // Animación suave tipo “latido” para el FAB
+  // Animación suave tipo “latido” para el FAB (sutil)
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(fabScale, {
-          toValue: 1.04,
-          duration: 900,
-          useNativeDriver: true,
+    fabScale.value = withRepeat(
+      withSequence(
+        withTiming(1.03, {
+          duration: 1100,
+          easing: Easing.out(Easing.quad),
         }),
-        Animated.timing(fabScale, {
-          toValue: 1,
-          duration: 900,
-          useNativeDriver: true,
-        }),
-      ])
+        withTiming(1, {
+          duration: 1100,
+          easing: Easing.in(Easing.quad),
+        })
+      ),
+      -1, // infinito
+      true // auto-reverse
     );
-    loop.start();
 
     return () => {
-      loop.stop();
+      fabScale.value = 1; // reset al desmontar
     };
   }, [fabScale]);
+
+  const headerAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ translateY: headerTranslateY.value }],
+  }));
+
+  const streakAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: streakScale.value }],
+  }));
+
+  const fabAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: fabScale.value }],
+  }));
 
   const onPullRefresh = useCallback(async () => {
     try {
@@ -149,28 +168,19 @@ export default function HomeScreen() {
       hour: "2-digit",
       minute: "2-digit",
     })}`;
-    // Si quieres forzar "es-GT": date.toLocaleString("es-GT", { ... })
   };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={styles.container}>
         {/* Header animado: título + racha + subtítulo */}
-        <Animated.View
-          style={[
-            styles.headerBlock,
-            {
-              opacity: headerOpacity,
-              transform: [{ translateY: headerTranslateY }],
-            },
-          ]}
-        >
+        <Animated.View style={[styles.headerBlock, headerAnimatedStyle]}>
           <Text style={[styles.title, { color: colors.text }]}>
             Bienvenido, {user?.name || "Usuario"}
           </Text>
 
           {ready && (
-            <Animated.View style={{ transform: [{ scale: streakScale }] }}>
+            <Animated.View style={streakAnimatedStyle}>
               <StreakCard current={current} best={best} color={colors.primary} mode="outline" />
             </Animated.View>
           )}
@@ -180,21 +190,29 @@ export default function HomeScreen() {
           </Text>
         </Animated.View>
 
-        {/* Lista de viajes */}
+        {/* Lista de viajes con cards animadas */}
         <FlatList
           data={trips}
           keyExtractor={(item) => item.id_viaje_maestro.toString()}
-          renderItem={({ item }) => (
-            <TripCard
-              origen={item.origen}
-              destino={item.destino}
-              fecha={formatFecha(item.fecha_inicio)}
-              onPress={() => handleRepeatTrip(item)}
-              loading={false}
-              color={colors.primary}
-              background={colors.card}
-              textColor={colors.text}
-            />
+          renderItem={({ item, index }) => (
+            <Animated.View
+              entering={FadeInUp.delay(index * 40)
+                .duration(220)
+                .easing(Easing.out(Easing.quad))}
+              layout={Layout.springify().damping(18).stiffness(160)}
+              style={{ marginBottom: 8 }}
+            >
+              <TripCard
+                origen={item.origen}
+                destino={item.destino}
+                fecha={formatFecha(item.fecha_inicio)}
+                onPress={() => handleRepeatTrip(item)}
+                loading={false}
+                color={colors.primary}
+                background={colors.card}
+                textColor={colors.text}
+              />
+            </Animated.View>
           )}
           ListEmptyComponent={
             <EmptyState
@@ -218,14 +236,7 @@ export default function HomeScreen() {
         />
 
         {/* FAB animado */}
-        <Animated.View
-          style={[
-            styles.fabContainer,
-            {
-              transform: [{ scale: fabScale }],
-            },
-          ]}
-        >
+        <Animated.View style={[styles.fabContainer, fabAnimatedStyle]}>
           <FloatingActionButton
             icon="star-outline"
             label="Lugares Favoritos"

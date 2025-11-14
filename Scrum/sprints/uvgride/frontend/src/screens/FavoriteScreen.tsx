@@ -1,5 +1,5 @@
 // src/screens/FavoriteScreen.tsx
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,11 +8,22 @@ import {
   SafeAreaView,
   ActivityIndicator,
   Alert,
-  Animated,
 } from "react-native";
 import * as Location from "expo-location";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import axios from "axios";
+
+// 🌀 Reanimated
+import Animated, {
+  Easing,
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withRepeat,
+  withSequence,
+  FadeInUp,
+  Layout,
+} from "react-native-reanimated";
 
 import { API_URL } from "../services/api";
 import { useUser } from "../context/UserContext";
@@ -41,33 +52,13 @@ type FavoriteItemProps = {
 };
 
 function FavoriteItem({ item, index, colors, onStartTrip, onDelete }: FavoriteItemProps) {
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(8)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 280,
-        delay: index * 70,
-        useNativeDriver: true,
-      }),
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: 280,
-        delay: index * 70,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [opacity, translateY, index]);
-
   return (
     <Animated.View
-      style={{
-        opacity,
-        transform: [{ translateY }],
-        marginBottom: 10,
-      }}
+      entering={FadeInUp.delay(index * 40) // más rápido que 70ms
+        .duration(220)                     // un pelín más corta
+        .easing(Easing.out(Easing.quad))}
+      layout={Layout.springify().damping(18).stiffness(160)}
+      style={{ marginBottom: 10 }}
     >
       <FavoriteCard
         nombre={item.nombre_lugar}
@@ -91,10 +82,19 @@ export default function FavoriteScreen() {
   const [favoritos, setFavoritos] = useState<LugarFavorito[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Animaciones header + FAB
-  const headerOpacity = useRef(new Animated.Value(0)).current;
-  const headerTranslateY = useRef(new Animated.Value(-10)).current;
-  const fabScale = useRef(new Animated.Value(1)).current;
+  // 🌀 Animaciones header + FAB (Reanimated)
+  const headerOpacity = useSharedValue(0);
+  const headerTranslateY = useSharedValue(-10);
+  const fabScale = useSharedValue(1);
+
+  const headerAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ translateY: headerTranslateY.value }],
+  }));
+
+  const fabAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: fabScale.value }],
+  }));
 
   // 📌 Cargar favoritos del backend
   const cargarFavoritos = async () => {
@@ -113,28 +113,6 @@ export default function FavoriteScreen() {
     }
   };
 
-  // 📌 Eliminar favorito
-  const eliminarFavorito = async (id: number) => {
-    Alert.alert("Eliminar favorito", "¿Quieres eliminar este lugar?", [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Eliminar",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await axios.delete(`${API_URL}/api/favoritos/${id}`);
-            setFavoritos((prev) =>
-              prev.filter((fav) => fav.id_lugar_favorito !== id)
-            );
-          } catch (err) {
-            console.error("❌ Error al eliminar favorito:", err);
-            Alert.alert("Error", "No se pudo eliminar el lugar");
-          }
-        },
-      },
-    ]);
-  };
-
   // 📌 Refrescar al volver a la pantalla
   useFocusEffect(
     useCallback(() => {
@@ -142,42 +120,42 @@ export default function FavoriteScreen() {
     }, [user?.id])
   );
 
-  // 🔹 Animar header al montar
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(headerOpacity, {
-        toValue: 1,
-        duration: 350,
-        useNativeDriver: true,
-      }),
-      Animated.timing(headerTranslateY, {
-        toValue: 0,
-        duration: 350,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [headerOpacity, headerTranslateY]);
+  // 🔹 Animar header cada vez que entras a la pantalla
+  useFocusEffect(
+    useCallback(() => {
+      headerOpacity.value = 0;
+      headerTranslateY.value = -10;
 
-  // 🔹 Latido suave del FAB
+      headerOpacity.value = withTiming(1, {
+        duration: 320,
+        easing: Easing.out(Easing.quad),
+      });
+      headerTranslateY.value = withTiming(0, {
+        duration: 320,
+        easing: Easing.out(Easing.quad),
+      });
+    }, [headerOpacity, headerTranslateY])
+  );
+
+  // 🔹 Latido suave del FAB (más sutil)
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(fabScale, {
-          toValue: 1.04,
-          duration: 900,
-          useNativeDriver: true,
+    fabScale.value = withRepeat(
+      withSequence(
+        withTiming(1.03, {
+          duration: 1100,
+          easing: Easing.out(Easing.quad),
         }),
-        Animated.timing(fabScale, {
-          toValue: 1,
-          duration: 900,
-          useNativeDriver: true,
-        }),
-      ])
+        withTiming(1, {
+          duration: 1100,
+          easing: Easing.in(Easing.quad),
+        })
+      ),
+      -1, // infinito
+      true // auto-reverse
     );
-    loop.start();
 
     return () => {
-      loop.stop();
+      fabScale.value = 1;
     };
   }, [fabScale]);
 
@@ -210,17 +188,34 @@ export default function FavoriteScreen() {
     }
   };
 
+  // 📌 Eliminar favorito
+  const eliminarFavorito = async (id: number) => {
+    Alert.alert("Eliminar favorito", "¿Quieres eliminar este lugar?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Eliminar",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await axios.delete(`${API_URL}/api/favoritos/${id}`);
+            setFavoritos((prev) =>
+              prev.filter((fav) => fav.id_lugar_favorito !== id)
+            );
+          } catch (err) {
+            console.error("❌ Error al eliminar favorito:", err);
+            Alert.alert("Error", "No se pudo eliminar el lugar");
+          }
+        },
+      },
+    ]);
+  };
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
     >
-      {/* Header animado */}
-      <Animated.View
-        style={{
-          opacity: headerOpacity,
-          transform: [{ translateY: headerTranslateY }],
-        }}
-      >
+      {/* Header animado: back + título */}
+      <Animated.View style={headerAnimatedStyle}>
         <BackButton />
         <Text style={[styles.title, { color: colors.text }]}>
           Lugares Favoritos
@@ -259,14 +254,16 @@ export default function FavoriteScreen() {
         />
       )}
 
-      {/* FAB para agregar */}
+      {/* FAB para agregar (con latido sutil) */}
       <Animated.View
-        style={{
-          position: "absolute",
-          bottom: 50,
-          right: 20,
-          transform: [{ scale: fabScale }],
-        }}
+        style={[
+          {
+            position: "absolute",
+            bottom: 50,
+            right: 20,
+          },
+          fabAnimatedStyle,
+        ]}
       >
         <FloatingActionButton
           id={`fab_addFavorite_${user?.id}`}
