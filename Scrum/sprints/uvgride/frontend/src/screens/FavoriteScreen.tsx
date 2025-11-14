@@ -16,10 +16,7 @@ import { API_URL } from "../services/api";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
-
-import FloatingActionButton from "../components/FloatingActionButton";
-import FavoriteCard from "../components/FavoriteCard";
-import EmptyState from "../components/EmptyState";
+import { BackButton, FloatingActionButton, FavoriteCard, EmptyState } from "../components";
 
 type LugarFavorito = {
   id_lugar_favorito: number;
@@ -115,6 +112,8 @@ export default function FavoriteScreen() {
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
     >
+      <BackButton />
+      
       {/* Header */}
       <Text style={[styles.title, { color: colors.text }]}>
         Lugares Favoritos

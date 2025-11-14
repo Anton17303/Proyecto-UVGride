@@ -99,6 +99,8 @@ export default function AddFavoriteScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
+      <BackButton />
+      
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -107,7 +109,7 @@ export default function AddFavoriteScreen() {
           contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
           keyboardShouldPersistTaps="handled"
         >
-          <BackButton />
+          
 
           <Text style={[styles.header, { color: colors.text }]}>
             Agregar Lugar Favorito

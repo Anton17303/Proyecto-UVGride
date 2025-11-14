@@ -18,7 +18,7 @@ import { API_URL } from "../services/api";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
-import { PrimaryButton, AnimatedInput } from "../components";
+import { PrimaryButton, AnimatedInput, BackButton } from "../components";
 
 type RootStackParamList = {
   Profile: undefined;
@@ -275,6 +275,7 @@ export default function EditProfileScreen() {
   if (loading) {
     return (
       <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
+
         <View style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={{ color: colors.text, marginTop: 8 }}>Cargando…</Text>
@@ -285,6 +286,8 @@ export default function EditProfileScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
+      <BackButton />
+      
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : undefined}

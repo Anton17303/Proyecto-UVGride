@@ -21,7 +21,7 @@ import { getGroup, closeGroup, leaveGroup, Grupo } from "../services/groups";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
 import { useUser } from "../context/UserContext";
-import FloatingActionButton from "../components/FloatingActionButton";
+import { FloatingActionButton, BackButton} from "../components";
 import { useAchievements } from "../achievements/AchievementsContext";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "GroupDetail">;
@@ -308,6 +308,8 @@ export default function GroupDetailScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <BackButton />
+      
       <FlatList
         data={members}
         keyExtractor={(m: any) => String(m.id_grupo_miembro ?? `${m.id_usuario}-${m.joined_at}`)}

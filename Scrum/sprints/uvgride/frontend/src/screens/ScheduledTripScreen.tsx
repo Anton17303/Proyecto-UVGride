@@ -15,9 +15,7 @@ import { API_URL } from "../services/api";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
-
-import ScheduledTripCard from "../components/ScheduledTripCard";
-import EmptyState from "../components/EmptyState";
+import { BackButton, ScheduledTripCard, EmptyState } from "../components";
 
 type TripItem = {
   id_viaje_maestro: number;
@@ -125,6 +123,8 @@ export default function ScheduledTripScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
+      <BackButton />
+      
       {/* Encabezado */}
       <Text style={[styles.header, { color: colors.text }]}>
         Viajes Programados

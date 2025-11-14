@@ -27,7 +27,7 @@ import { TravelStackParamList } from "../navigation/TravelStack";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
-import { PrimaryButton, AnimatedInput, LinkText } from "../components";
+import { PrimaryButton, AnimatedInput, LinkText, BackButton } from "../components";
 import { useAchievements } from "../achievements/AchievementsContext"; // 👈 NUEVO
 
 type TripFormScreenRouteProp = RouteProp<TravelStackParamList, "TripFormScreen">;
@@ -188,6 +188,8 @@ export default function TripFormScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
+      <BackButton />
+
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -274,15 +276,13 @@ export default function TripFormScreen() {
           color={colors.primary}
         />
 
-        {/* Link regresar */}
-        <LinkText text="Regresar" onPress={() => navigation.goBack()} color={colors.primary} />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
+  safe: { flex: 0.90 },
   container: { flex: 1, padding: 20, gap: 20, justifyContent: "center" },
   block: { gap: 6 },
   caption: { fontSize: 14, fontWeight: "500", opacity: 0.7 },
