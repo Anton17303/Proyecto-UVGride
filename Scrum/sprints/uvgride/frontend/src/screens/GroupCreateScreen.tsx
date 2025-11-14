@@ -25,7 +25,7 @@ import { searchUsers, type UserLite } from "../services/users";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
-import { AnimatedInput, PrimaryButton, LinkText } from "../components";
+import { AnimatedInput, PrimaryButton, LinkText, BackButton } from "../components";
 import { useAchievements } from "../achievements/AchievementsContext"; // 👈 NUEVO
 
 /* ---------------- Utils num ---------------- */
@@ -227,6 +227,8 @@ export default function GroupCreateScreen() {
   /* ---------------- Render ---------------- */
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
+      <BackButton />
+
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -477,8 +479,6 @@ export default function GroupCreateScreen() {
             color={colors.primary}
             disabled={!isFormValid || !esConductor}
           />
-
-          <LinkText text="Cancelar" onPress={() => navigation.goBack()} color={colors.primary} />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

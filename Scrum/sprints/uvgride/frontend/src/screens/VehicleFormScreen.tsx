@@ -14,7 +14,7 @@ import { API_URL } from "../services/api";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
-import { PrimaryButton, AnimatedInput, LinkText } from "../components";
+import { PrimaryButton, AnimatedInput, LinkText, BackButton } from "../components";
 
 export default function VehicleFormScreen({ navigation }: any) {
   const { user } = useUser();
@@ -57,6 +57,8 @@ export default function VehicleFormScreen({ navigation }: any) {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
+      <BackButton />
+
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -129,13 +131,6 @@ export default function VehicleFormScreen({ navigation }: any) {
             title="Registrar vehículo"
             onPress={handleRegister}
             loading={loading}
-            color={colors.primary}
-          />
-
-          {/* Link regresar */}
-          <LinkText
-            text="Cancelar"
-            onPress={() => navigation.goBack()}
             color={colors.primary}
           />
         </ScrollView>
