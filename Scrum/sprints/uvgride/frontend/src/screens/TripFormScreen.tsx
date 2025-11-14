@@ -1,5 +1,5 @@
 // src/screens/TripFormScreen.tsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Platform,
   Switch,
   SafeAreaView,
+  Animated,
 } from "react-native";
 import axios from "axios";
 import {
@@ -27,11 +28,14 @@ import { TravelStackParamList } from "../navigation/TravelStack";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
-import { PrimaryButton, AnimatedInput, LinkText, BackButton } from "../components";
-import { useAchievements } from "../achievements/AchievementsContext"; // 👈 NUEVO
+import { PrimaryButton, AnimatedInput, BackButton } from "../components";
+import { useAchievements } from "../achievements/AchievementsContext";
 
 type TripFormScreenRouteProp = RouteProp<TravelStackParamList, "TripFormScreen">;
-type TripFormNavigationProp = NativeStackNavigationProp<TravelStackParamList, "TripFormScreen">;
+type TripFormNavigationProp = NativeStackNavigationProp<
+  TravelStackParamList,
+  "TripFormScreen"
+>;
 
 // Haversine en km
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -53,7 +57,7 @@ export default function TripFormScreen() {
   const { theme } = useTheme();
   const colors = theme === "light" ? lightColors : darkColors;
 
-  const { emit, ready } = useAchievements(); // 👈 NUEVO
+  const { emit, ready } = useAchievements();
 
   const { origin, latitude, longitude, destinationName } = route.params;
   const [destination, setDestination] = useState(destinationName || "");
@@ -63,6 +67,25 @@ export default function TripFormScreen() {
   const [isScheduled, setIsScheduled] = useState(false);
   const [scheduledAt, setScheduledAt] = useState<Date>(new Date());
   const [showPicker, setShowPicker] = useState<"date" | "time" | null>(null);
+
+  // Animación header
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const headerTranslateY = useRef(new Animated.Value(-12)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(headerOpacity, {
+        toValue: 1,
+        duration: 320,
+        useNativeDriver: true,
+      }),
+      Animated.timing(headerTranslateY, {
+        toValue: 0,
+        duration: 320,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [headerOpacity, headerTranslateY]);
 
   // 📍 Obtener ubicación inicial
   useEffect(() => {
@@ -127,7 +150,10 @@ export default function TripFormScreen() {
         const { data: geoData } = await axios.get(geoUrl);
 
         if (!geoData.features?.length) {
-          return Alert.alert("Destino no encontrado", "No se pudo localizar el destino.");
+          return Alert.alert(
+            "Destino no encontrado",
+            "No se pudo localizar el destino."
+          );
         }
 
         [lng, lat] = geoData.features[0].geometry.coordinates;
@@ -151,12 +177,12 @@ export default function TripFormScreen() {
 
       await axios.post(`${API_URL}/api/viajes/crear`, tripData);
 
-      // ✅ MVP de logros:
-      // Si es viaje NO programado, lo marcamos como "completado" al guardarlo para probar
-      // first_ride y five_rides. Luego podrás mover este emit al "fin real" en TravelScreen.
+      // MVP de logros: contamos el viaje al crearlo (si no es programado)
       if (!isScheduled && coords && lat != null && lng != null && ready) {
         const distanceKm = haversineKm(coords.lat, coords.lon, lat, lng);
-        emit("RIDE_COMPLETED", { distanceKm: Math.max(0, Number(distanceKm) || 0) });
+        emit("RIDE_COMPLETED", {
+          distanceKm: Math.max(0, Number(distanceKm) || 0),
+        });
       }
 
       if (isScheduled) {
@@ -180,7 +206,10 @@ export default function TripFormScreen() {
       }
     } catch (err: any) {
       console.error("❌ Error creando viaje:", err);
-      Alert.alert("Error", err.response?.data?.error || "No se pudo procesar el viaje.");
+      Alert.alert(
+        "Error",
+        err.response?.data?.error || "No se pudo procesar el viaje."
+      );
     } finally {
       setLoading(false);
     }
@@ -188,7 +217,20 @@ export default function TripFormScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
-      <BackButton />
+      {/* Header animado */}
+      <Animated.View
+        style={{
+          opacity: headerOpacity,
+          transform: [{ translateY: headerTranslateY }],
+          paddingHorizontal: 20,
+          paddingTop: 8,
+        }}
+      >
+        <BackButton />
+        <Text style={[styles.headerTitle, { color: colors.text }]}>
+          Creación de Viaje
+        </Text>
+      </Animated.View>
 
       <KeyboardAvoidingView
         style={styles.container}
@@ -216,7 +258,9 @@ export default function TripFormScreen() {
 
         {/* Programar viaje */}
         <View style={[styles.block, styles.scheduleRow]}>
-          <Text style={[styles.labelInline, { color: colors.text }]}>Programar viaje</Text>
+          <Text style={[styles.labelInline, { color: colors.text }]}>
+            Programar viaje
+          </Text>
           <Switch
             value={isScheduled}
             onValueChange={setIsScheduled}
@@ -231,24 +275,35 @@ export default function TripFormScreen() {
               <TouchableOpacity
                 style={[
                   styles.pickBtn,
-                  { borderColor: colors.border, backgroundColor: colors.card },
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.card,
+                  },
                 ]}
                 onPress={() => setShowPicker("date")}
                 disabled={loading}
               >
-                <Text style={{ color: colors.text }}>{scheduledAt.toLocaleDateString()}</Text>
+                <Text style={{ color: colors.text }}>
+                  {scheduledAt.toLocaleDateString()}
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[
                   styles.pickBtn,
-                  { borderColor: colors.border, backgroundColor: colors.card },
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.card,
+                  },
                 ]}
                 onPress={() => setShowPicker("time")}
                 disabled={loading}
               >
                 <Text style={{ color: colors.text }}>
-                  {scheduledAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  {scheduledAt.toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -275,25 +330,37 @@ export default function TripFormScreen() {
           loading={loading}
           color={colors.primary}
         />
-
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 0.90 },
-  container: { flex: 1, padding: 20, gap: 20, justifyContent: "center" },
-  block: { gap: 6 },
+  safe: { flex: 1 },
+  container: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    paddingTop: 8,
+    gap: 20,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  block: { gap: 6, marginBottom: 8 },
   caption: { fontSize: 14, fontWeight: "500", opacity: 0.7 },
   value: { fontSize: 16, fontWeight: "600" },
   scheduleRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    marginTop: 8,
   },
   labelInline: { fontSize: 16, fontWeight: "600" },
-  datetimeBox: { gap: 12 },
+  datetimeBox: { gap: 12, marginTop: 4 },
   datetimeRow: { flexDirection: "row", gap: 12 },
   pickBtn: {
     flex: 1,

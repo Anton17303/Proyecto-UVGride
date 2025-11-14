@@ -1,5 +1,5 @@
 // src/screens/AddFavoriteScreen.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Platform,
   SafeAreaView,
   ScrollView,
+  Animated,
 } from "react-native";
 import axios from "axios";
 import { useNavigation } from "@react-navigation/native";
@@ -18,9 +19,13 @@ import { API_URL } from "../services/api";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
-import { useAchievements } from "../achievements/AchievementsContext"; // 👈 importar
-import { PrimaryButton, AnimatedInput, LinkText, LogoHeader, BackButton } from "../components";
-
+import { useAchievements } from "../achievements/AchievementsContext";
+import {
+  PrimaryButton,
+  AnimatedInput,
+  LinkText,
+  BackButton,
+} from "../components";
 
 const COLORES = [
   "#FF6B6B",
@@ -35,18 +40,88 @@ const COLORES = [
   "#9A9A9A",
 ];
 
+type ColorDotProps = {
+  value: string;
+  selected: boolean;
+  onPress: () => void;
+  borderColor: string;
+  primaryColor: string;
+};
+
+function ColorDot({
+  value,
+  selected,
+  onPress,
+  borderColor,
+  primaryColor,
+}: ColorDotProps) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.spring(scale, {
+      toValue: selected ? 1.12 : 1,
+      friction: 6,
+      tension: 120,
+      useNativeDriver: true,
+    }).start();
+  }, [selected, scale]);
+
+  return (
+    <Animated.View
+      style={[
+        styles.colorCircleWrapper,
+        {
+          transform: [{ scale }],
+        },
+      ]}
+    >
+      <TouchableOpacity
+        style={[
+          styles.colorCircle,
+          {
+            backgroundColor: value,
+            borderWidth: selected ? 3 : 1,
+            borderColor: selected ? primaryColor : borderColor,
+          },
+        ]}
+        onPress={onPress}
+        activeOpacity={0.8}
+      />
+    </Animated.View>
+  );
+}
+
 export default function AddFavoriteScreen() {
   const { user } = useUser();
   const navigation = useNavigation();
   const { theme } = useTheme();
   const colors = theme === "light" ? lightColors : darkColors;
 
-  const { emit, ready } = useAchievements(); // 👈 usar achievements
+  const { emit, ready } = useAchievements();
 
   const [nombre, setNombre] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [color, setColor] = useState(COLORES[0]);
   const [loading, setLoading] = useState(false);
+
+  // Animaciones header
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const headerTranslateY = useRef(new Animated.Value(-12)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(headerOpacity, {
+        toValue: 1,
+        duration: 320,
+        useNativeDriver: true,
+      }),
+      Animated.timing(headerTranslateY, {
+        toValue: 0,
+        duration: 320,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [headerOpacity, headerTranslateY]);
 
   const handleGuardar = async () => {
     if (!nombre.trim() || !color.trim()) {
@@ -66,9 +141,7 @@ export default function AddFavoriteScreen() {
       const response = await axios.post(`${API_URL}/api/favoritos`, nuevoFavorito);
 
       if (response.status === 201 || response.data?.success) {
-        // ✅ Emitir logro ANTES de navegar (para asegurar encolado del modal)
         if (ready) {
-          // trata de obtener un id real del backend y si no, usa un fallback
           const createdId =
             response.data?.id ??
             response.data?.favorito?.id ??
@@ -99,8 +172,18 @@ export default function AddFavoriteScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
-      <BackButton />
-      
+      <Animated.View
+        style={{
+          opacity: headerOpacity,
+          transform: [{ translateY: headerTranslateY }],
+        }}
+      >
+        <BackButton />
+        <Text style={[styles.header, { color: colors.text }]}>
+          Agregar Lugar Favorito
+        </Text>
+      </Animated.View>
+
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -109,12 +192,6 @@ export default function AddFavoriteScreen() {
           contentContainerStyle={{ flexGrow: 1, paddingBottom: 24 }}
           keyboardShouldPersistTaps="handled"
         >
-          
-
-          <Text style={[styles.header, { color: colors.text }]}>
-            Agregar Lugar Favorito
-          </Text>
-
           <View style={styles.block}>
             <Text style={[styles.caption, { color: colors.text }]}>
               Nombre del lugar *
@@ -151,17 +228,13 @@ export default function AddFavoriteScreen() {
             </Text>
             <View style={styles.colorGrid}>
               {COLORES.map((c) => (
-                <TouchableOpacity
+                <ColorDot
                   key={c}
-                  style={[
-                    styles.colorCircle,
-                    {
-                      backgroundColor: c,
-                      borderWidth: color === c ? 3 : 1,
-                      borderColor: color === c ? colors.primary : colors.border,
-                    },
-                  ]}
+                  value={c}
+                  selected={color === c}
                   onPress={() => setColor(c)}
+                  borderColor={colors.border}
+                  primaryColor={colors.primary}
                 />
               ))}
             </View>
@@ -174,11 +247,6 @@ export default function AddFavoriteScreen() {
             color={colors.primary}
           />
 
-          <LinkText
-            text="← Cancelar"
-            onPress={() => navigation.goBack()}
-            color={colors.primary}
-          />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -192,7 +260,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "bold",
     textAlign: "center",
-    marginBottom: 20,
+    marginBottom: 8,
   },
   block: { gap: 6, marginBottom: 16 },
   caption: { fontSize: 14, fontWeight: "500", opacity: 0.7 },
@@ -202,6 +270,9 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 6,
     marginBottom: 12,
+  },
+  colorCircleWrapper: {
+    // wrapper animado, deja el círculo centrado
   },
   colorCircle: {
     width: 40,

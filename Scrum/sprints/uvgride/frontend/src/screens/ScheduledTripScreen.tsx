@@ -1,4 +1,5 @@
-import React, { useCallback, useState } from "react";
+// src/screens/ScheduledTripScreen.tsx
+import React, { useCallback, useState, useEffect, useRef } from "react";
 import {
   SafeAreaView,
   StyleSheet,
@@ -7,6 +8,7 @@ import {
   Alert,
   RefreshControl,
   Text,
+  Animated,
 } from "react-native";
 import axios from "axios";
 import { useFocusEffect } from "@react-navigation/native";
@@ -26,6 +28,77 @@ type TripItem = {
   costo_total?: number;
 };
 
+type RowProps = {
+  item: TripItem;
+  index: number;
+  colors: {
+    text: string;
+    card: string;
+  };
+  onDelete: () => void;
+};
+
+function formatDateTime(iso: string | null) {
+  if (!iso) return "Sin fecha";
+  const d = new Date(iso);
+  return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  })}`;
+}
+
+/**
+ * Fila animada para cada viaje programado
+ */
+function ScheduledTripRow({ item, index, colors, onDelete }: RowProps) {
+  const rowOpacity = useRef(new Animated.Value(0)).current;
+  const rowTranslateY = useRef(new Animated.Value(8)).current;
+  const rowScale = useRef(new Animated.Value(0.98)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(rowOpacity, {
+        toValue: 1,
+        duration: 260,
+        delay: index * 70,
+        useNativeDriver: true,
+      }),
+      Animated.timing(rowTranslateY, {
+        toValue: 0,
+        duration: 260,
+        delay: index * 70,
+        useNativeDriver: true,
+      }),
+      Animated.spring(rowScale, {
+        toValue: 1,
+        friction: 7,
+        tension: 80,
+        delay: index * 70,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [index, rowOpacity, rowScale, rowTranslateY]);
+
+  return (
+    <Animated.View
+      style={{
+        opacity: rowOpacity,
+        transform: [{ translateY: rowTranslateY }, { scale: rowScale }],
+        marginBottom: 10,
+      }}
+    >
+      <ScheduledTripCard
+        destino={item.destino}
+        fecha={formatDateTime(item.fecha_inicio)}
+        costo={item.costo_total}
+        colorText={colors.text}
+        backgroundColor={colors.card}
+        onDelete={onDelete}
+      />
+    </Animated.View>
+  );
+}
+
 export default function ScheduledTripScreen() {
   const { user } = useUser();
   const { theme } = useTheme();
@@ -34,6 +107,25 @@ export default function ScheduledTripScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [trips, setTrips] = useState<TripItem[]>([]);
+
+  // Animaciones header
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const headerTranslateY = useRef(new Animated.Value(-10)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(headerOpacity, {
+        toValue: 1,
+        duration: 320,
+        useNativeDriver: true,
+      }),
+      Animated.timing(headerTranslateY, {
+        toValue: 0,
+        duration: 320,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [headerOpacity, headerTranslateY]);
 
   const fetchTrips = async () => {
     if (!user?.id) return;
@@ -78,15 +170,6 @@ export default function ScheduledTripScreen() {
     fetchTrips();
   };
 
-  const formatDateTime = (iso: string | null) => {
-    if (!iso) return "Sin fecha";
-    const d = new Date(iso);
-    return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    })}`;
-  };
-
   const handleDelete = (id: number) => {
     Alert.alert(
       "Eliminar viaje programado",
@@ -110,25 +193,21 @@ export default function ScheduledTripScreen() {
     );
   };
 
-  const renderItem = ({ item }: { item: TripItem }) => (
-    <ScheduledTripCard
-      destino={item.destino}
-      fecha={formatDateTime(item.fecha_inicio)}
-      costo={item.costo_total}
-      colorText={colors.text}
-      backgroundColor={colors.card}
-      onDelete={() => handleDelete(item.id_viaje_maestro)}
-    />
-  );
-
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
       <BackButton />
-      
-      {/* Encabezado */}
-      <Text style={[styles.header, { color: colors.text }]}>
-        Viajes Programados
-      </Text>
+
+      {/* Header animado */}
+      <Animated.View
+        style={{
+          opacity: headerOpacity,
+          transform: [{ translateY: headerTranslateY }],
+        }}
+      >
+        <Text style={[styles.header, { color: colors.text }]}>
+          Viajes Programados
+        </Text>
+      </Animated.View>
 
       {loading ? (
         <ActivityIndicator
@@ -148,7 +227,14 @@ export default function ScheduledTripScreen() {
         <FlatList
           data={trips}
           keyExtractor={(it) => String(it.id_viaje_maestro)}
-          renderItem={renderItem}
+          renderItem={({ item, index }) => (
+            <ScheduledTripRow
+              item={item}
+              index={index}
+              colors={{ text: colors.text, card: colors.card }}
+              onDelete={() => handleDelete(item.id_viaje_maestro)}
+            />
+          )}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl
@@ -174,6 +260,6 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 24,
-    paddingHorizontal: 12, // espacio lateral
+    paddingHorizontal: 12,
   },
 });

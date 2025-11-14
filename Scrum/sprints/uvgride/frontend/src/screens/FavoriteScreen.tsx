@@ -1,4 +1,5 @@
-import React, { useState, useCallback } from "react";
+// src/screens/FavoriteScreen.tsx
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -7,6 +8,7 @@ import {
   SafeAreaView,
   ActivityIndicator,
   Alert,
+  Animated,
 } from "react-native";
 import * as Location from "expo-location";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
@@ -16,7 +18,12 @@ import { API_URL } from "../services/api";
 import { useUser } from "../context/UserContext";
 import { useTheme } from "../context/ThemeContext";
 import { lightColors, darkColors } from "../constants/colors";
-import { BackButton, FloatingActionButton, FavoriteCard, EmptyState } from "../components";
+import {
+  BackButton,
+  FloatingActionButton,
+  FavoriteCard,
+  EmptyState,
+} from "../components";
 
 type LugarFavorito = {
   id_lugar_favorito: number;
@@ -24,6 +31,56 @@ type LugarFavorito = {
   descripcion?: string;
   color_hex?: string;
 };
+
+type FavoriteItemProps = {
+  item: LugarFavorito;
+  index: number;
+  colors: typeof lightColors;
+  onStartTrip: (lugar: LugarFavorito) => void;
+  onDelete: (id: number) => void;
+};
+
+function FavoriteItem({ item, index, colors, onStartTrip, onDelete }: FavoriteItemProps) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(8)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 280,
+        delay: index * 70,
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 280,
+        delay: index * 70,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [opacity, translateY, index]);
+
+  return (
+    <Animated.View
+      style={{
+        opacity,
+        transform: [{ translateY }],
+        marginBottom: 10,
+      }}
+    >
+      <FavoriteCard
+        nombre={item.nombre_lugar}
+        descripcion={item.descripcion}
+        color={item.color_hex || colors.primary}
+        textColor={colors.text}
+        backgroundColor={colors.card}
+        onPress={() => onStartTrip(item)}
+        onDelete={() => onDelete(item.id_lugar_favorito)}
+      />
+    </Animated.View>
+  );
+}
 
 export default function FavoriteScreen() {
   const navigation = useNavigation<any>();
@@ -34,10 +91,16 @@ export default function FavoriteScreen() {
   const [favoritos, setFavoritos] = useState<LugarFavorito[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Animaciones header + FAB
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const headerTranslateY = useRef(new Animated.Value(-10)).current;
+  const fabScale = useRef(new Animated.Value(1)).current;
+
   // 📌 Cargar favoritos del backend
   const cargarFavoritos = async () => {
     if (!user?.id) return;
     try {
+      setLoading(true);
       const response = await axios.get(
         `${API_URL}/api/favoritos/usuario/${user.id}`
       );
@@ -79,6 +142,45 @@ export default function FavoriteScreen() {
     }, [user?.id])
   );
 
+  // 🔹 Animar header al montar
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(headerOpacity, {
+        toValue: 1,
+        duration: 350,
+        useNativeDriver: true,
+      }),
+      Animated.timing(headerTranslateY, {
+        toValue: 0,
+        duration: 350,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [headerOpacity, headerTranslateY]);
+
+  // 🔹 Latido suave del FAB
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(fabScale, {
+          toValue: 1.04,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fabScale, {
+          toValue: 1,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+
+    return () => {
+      loop.stop();
+    };
+  }, [fabScale]);
+
   // 📌 Iniciar un viaje hacia el lugar favorito
   const handleStartTrip = async (lugar: LugarFavorito) => {
     try {
@@ -112,12 +214,18 @@ export default function FavoriteScreen() {
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
     >
-      <BackButton />
-      
-      {/* Header */}
-      <Text style={[styles.title, { color: colors.text }]}>
-        Lugares Favoritos
-      </Text>
+      {/* Header animado */}
+      <Animated.View
+        style={{
+          opacity: headerOpacity,
+          transform: [{ translateY: headerTranslateY }],
+        }}
+      >
+        <BackButton />
+        <Text style={[styles.title, { color: colors.text }]}>
+          Lugares Favoritos
+        </Text>
+      </Animated.View>
 
       {/* Lista o estado vacío */}
       {loading ? (
@@ -138,30 +246,36 @@ export default function FavoriteScreen() {
         <FlatList
           data={favoritos}
           keyExtractor={(item) => item.id_lugar_favorito.toString()}
-          renderItem={({ item }) => (
-            <FavoriteCard
-              nombre={item.nombre_lugar}
-              descripcion={item.descripcion}
-              color={item.color_hex || colors.primary}
-              textColor={colors.text}
-              backgroundColor={colors.card}
-              onPress={() => handleStartTrip(item)}
-              onDelete={() => eliminarFavorito(item.id_lugar_favorito)}
+          renderItem={({ item, index }) => (
+            <FavoriteItem
+              item={item}
+              index={index}
+              colors={colors}
+              onStartTrip={handleStartTrip}
+              onDelete={eliminarFavorito}
             />
           )}
-          contentContainerStyle={{ paddingBottom: 100 }}
+          contentContainerStyle={{ paddingBottom: 100, paddingTop: 8 }}
         />
       )}
 
       {/* FAB para agregar */}
-      <FloatingActionButton
-        id={`fab_addFavorite_${user?.id}`}
-        icon="add"
-        label="Agregar lugar"
-        backgroundColor={colors.primary}
-        onPress={() => navigation.navigate("AddFavorite")}
-        style={{ position: "absolute", bottom: 50, right: 20 }}
-      />
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 50,
+          right: 20,
+          transform: [{ scale: fabScale }],
+        }}
+      >
+        <FloatingActionButton
+          id={`fab_addFavorite_${user?.id}`}
+          icon="add"
+          label="Agregar lugar"
+          backgroundColor={colors.primary}
+          onPress={() => navigation.navigate("AddFavorite")}
+        />
+      </Animated.View>
     </SafeAreaView>
   );
 }

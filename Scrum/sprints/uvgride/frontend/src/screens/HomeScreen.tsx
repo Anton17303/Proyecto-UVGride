@@ -1,5 +1,5 @@
 // src/screens/HomeScreen.tsx
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Alert,
   SafeAreaView,
   RefreshControl,
+  Animated,
 } from "react-native";
 import axios from "axios";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -21,8 +22,8 @@ import TripCard from "../components/TripCard";
 import EmptyState from "../components/EmptyState";
 import FloatingActionButton from "../components/FloatingActionButton";
 
-import StreakCard from "../components/StreakCard";          // 👈 nueva card
-import { useStreak } from "../hooks/useStreak";             // 👈 hook mejorado
+import StreakCard from "../components/StreakCard";
+import { useStreak } from "../hooks/useStreak";
 
 export default function HomeScreen() {
   const navigation = useNavigation();
@@ -33,8 +34,14 @@ export default function HomeScreen() {
   const [trips, setTrips] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  // 🔥 Racha (ready, current, best) + touchToday para contar día nuevo y disparar logro APP_OPENED
+  // Racha
   const { ready, current, best, refresh, touchToday } = useStreak();
+
+  // 🔹 Animaciones
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const headerTranslateY = useRef(new Animated.Value(-10)).current;
+  const streakScale = useRef(new Animated.Value(0.95)).current;
+  const fabScale = useRef(new Animated.Value(1)).current;
 
   const fetchTrips = useCallback(async () => {
     if (!user?.id) return;
@@ -52,11 +59,63 @@ export default function HomeScreen() {
     useCallback(() => {
       (async () => {
         await fetchTrips();
-        await refresh();                         // sincroniza desde storage
-        await touchToday({ emitAchievement: true }); // cuenta el día si aplica y emite APP_OPENED
+        await refresh();
+        await touchToday({ emitAchievement: true });
       })();
     }, [fetchTrips, refresh, touchToday])
   );
+
+  // Animación de entrada del header en cada focus
+  useFocusEffect(
+    useCallback(() => {
+      // reset
+      headerOpacity.setValue(0);
+      headerTranslateY.setValue(-10);
+      streakScale.setValue(0.95);
+
+      Animated.parallel([
+        Animated.timing(headerOpacity, {
+          toValue: 1,
+          duration: 350,
+          useNativeDriver: true,
+        }),
+        Animated.timing(headerTranslateY, {
+          toValue: 0,
+          duration: 350,
+          useNativeDriver: true,
+        }),
+        Animated.spring(streakScale, {
+          toValue: 1,
+          useNativeDriver: true,
+          speed: 20,
+          bounciness: 7,
+        }),
+      ]).start();
+    }, [headerOpacity, headerTranslateY, streakScale])
+  );
+
+  // Animación suave tipo “latido” para el FAB
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(fabScale, {
+          toValue: 1.04,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fabScale, {
+          toValue: 1,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+
+    return () => {
+      loop.stop();
+    };
+  }, [fabScale]);
 
   const onPullRefresh = useCallback(async () => {
     try {
@@ -90,30 +149,38 @@ export default function HomeScreen() {
       hour: "2-digit",
       minute: "2-digit",
     })}`;
-    // Nota: si quieres forzar "es-GT", usa toLocaleString("es-GT", { ... })
+    // Si quieres forzar "es-GT": date.toLocaleString("es-GT", { ... })
   };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={styles.container}>
-        <Text style={[styles.title, { color: colors.text }]}>
-          Bienvenido, {user?.name || "Usuario"}
-        </Text>
+        {/* Header animado: título + racha + subtítulo */}
+        <Animated.View
+          style={[
+            styles.headerBlock,
+            {
+              opacity: headerOpacity,
+              transform: [{ translateY: headerTranslateY }],
+            },
+          ]}
+        >
+          <Text style={[styles.title, { color: colors.text }]}>
+            Bienvenido, {user?.name || "Usuario"}
+          </Text>
 
-        {/* 🔥 Racha (nueva UI) */}
-        {ready && (
-          <StreakCard
-            current={current}
-            best={best}
-            color={colors.primary}
-            mode="outline"
-          />
-        )}
+          {ready && (
+            <Animated.View style={{ transform: [{ scale: streakScale }] }}>
+              <StreakCard current={current} best={best} color={colors.primary} mode="outline" />
+            </Animated.View>
+          )}
 
-        <Text style={[styles.subtitle, { color: colors.primary }]}>
-          Tu historial de viajes
-        </Text>
+          <Text style={[styles.subtitle, { color: colors.primary }]}>
+            Tu historial de viajes
+          </Text>
+        </Animated.View>
 
+        {/* Lista de viajes */}
         <FlatList
           data={trips}
           keyExtractor={(item) => item.id_viaje_maestro.toString()}
@@ -133,7 +200,9 @@ export default function HomeScreen() {
             <EmptyState
               icon="car-outline"
               title="Aún no tienes viajes"
-              subtitle={"Empieza creando tu primer viaje desde el mapa.\n¡Haz tu trayecto más fácil con UVGride!"}
+              subtitle={
+                "Empieza creando tu primer viaje desde el mapa.\n¡Haz tu trayecto más fácil con UVGride!"
+              }
               color={colors.primary}
               textColor={colors.text}
             />
@@ -145,16 +214,25 @@ export default function HomeScreen() {
               tintColor={colors.primary}
             />
           }
-          contentContainerStyle={{ paddingBottom: 100 }}
+          contentContainerStyle={{ paddingBottom: 120 }}
         />
 
-        <FloatingActionButton
-          icon="star-outline"
-          label="Lugares Favoritos"
-          backgroundColor={colors.primary}
-          onPress={() => navigation.navigate("Favorite" as never)}
-          style={{ position: "absolute", bottom: 30, right: 20 }}
-        />
+        {/* FAB animado */}
+        <Animated.View
+          style={[
+            styles.fabContainer,
+            {
+              transform: [{ scale: fabScale }],
+            },
+          ]}
+        >
+          <FloatingActionButton
+            icon="star-outline"
+            label="Lugares Favoritos"
+            backgroundColor={colors.primary}
+            onPress={() => navigation.navigate("Favorite" as never)}
+          />
+        </Animated.View>
       </View>
     </SafeAreaView>
   );
@@ -162,6 +240,14 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20, paddingTop: 10 },
+  headerBlock: {
+    marginBottom: 12,
+  },
   title: { fontSize: 28, fontWeight: "700", marginBottom: 4 },
-  subtitle: { fontSize: 16, marginTop: 16, marginBottom: 12, fontWeight: "500" },
+  subtitle: { fontSize: 16, marginTop: 10, marginBottom: 8, fontWeight: "500" },
+  fabContainer: {
+    position: "absolute",
+    bottom: 30,
+    right: 20,
+  },
 });

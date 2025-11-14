@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, StyleSheet, Text, Alert, Platform, TouchableOpacity } from "react-native";
+import { View, StyleSheet, Text, Alert, Platform, TouchableOpacity, Animated } from "react-native";
 import MapView, { Marker, Polyline, MapPressEvent, Circle } from "react-native-maps";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -46,6 +46,15 @@ export default function TravelScreen() {
   // Seguir al usuario y throttling de recálculo
   const [followUser, setFollowUser] = useState(false);
   const lastRouteRef = useRef<{ at: number; lat?: number; lng?: number }>({ at: 0 });
+
+  // 🔹 Animaciones
+  const [showHint, setShowHint] = useState(true);
+  const hintOpacity = useRef(new Animated.Value(0)).current;
+
+  const summaryOpacity = useRef(new Animated.Value(0)).current;
+  const summaryTranslateY = useRef(new Animated.Value(-10)).current;
+
+  const fabScale = useRef(new Animated.Value(1)).current;
 
   const handleMapPress = (event: MapPressEvent) => {
     const { latitude, longitude } = event.nativeEvent.coordinate;
@@ -97,7 +106,10 @@ export default function TravelScreen() {
           const now = Date.now();
           const movedEnough =
             distanceMeters(
-              { latitude: lastRouteRef.current.lat ?? latitude, longitude: lastRouteRef.current.lng ?? longitude },
+              {
+                latitude: lastRouteRef.current.lat ?? latitude,
+                longitude: lastRouteRef.current.lng ?? longitude,
+              },
               { latitude, longitude }
             ) > 25; // recalc si moviste ~25m
 
@@ -132,7 +144,7 @@ export default function TravelScreen() {
     if (origin && coords.length > 0) {
       lastRouteRef.current = { at: Date.now(), lat: origin.latitude, lng: origin.longitude };
     }
-  }, [coords.length]);
+  }, [coords.length, origin]);
 
   const centerOnUser = async () => {
     try {
@@ -161,6 +173,80 @@ export default function TravelScreen() {
       Alert.alert("Error", "No se pudo obtener la ubicación.");
     }
   };
+
+  // 🔹 Animación del hint según si ya hay origen o no
+  useEffect(() => {
+    if (!origin) {
+      setShowHint(true);
+      Animated.timing(hintOpacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(hintOpacity, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) setShowHint(false);
+      });
+    }
+  }, [origin, hintOpacity]);
+
+  // 🔹 Animación de entrada de la RouteInfoCard cuando hay summary
+  useEffect(() => {
+    if (summary) {
+      Animated.parallel([
+        Animated.timing(summaryOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(summaryTranslateY, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(summaryOpacity, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(summaryTranslateY, {
+          toValue: -8,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [summary, summaryOpacity, summaryTranslateY]);
+
+  // 🔹 Animación “latido” para los FABs
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(fabScale, {
+          toValue: 1.04,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fabScale, {
+          toValue: 1,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+
+    return () => {
+      loop.stop();
+    };
+  }, [fabScale]);
 
   return (
     <View style={styles.container}>
@@ -193,27 +279,41 @@ export default function TravelScreen() {
           <Polyline coordinates={coords} strokeColor={colors.primary} strokeWidth={4} />
         )}
       </MapView>
+
       {summary && (
-        <RouteInfoCard
-          durationSec={summary.durationSec}
-          distanceKm={summary.distanceKm}
-          backgroundColor={colors.card}
-          borderColor={colors.border}
-          textColor={colors.text}
+        <Animated.View
           style={{
             position: "absolute",
             top: STATUS_OFFSET + 20,
             alignSelf: "center",
+            opacity: summaryOpacity,
+            transform: [{ translateY: summaryTranslateY }],
           }}
-        />
+        >
+          <RouteInfoCard
+            durationSec={summary.durationSec}
+            distanceKm={summary.distanceKm}
+            backgroundColor={colors.card}
+            borderColor={colors.border}
+            textColor={colors.text}
+          />
+        </Animated.View>
       )}
 
-      {!origin && (
-        <View style={[styles.hintContainer, { backgroundColor: `${colors.card}DD` }]}>
+      {showHint && (
+        <Animated.View
+          style={[
+            styles.hintContainer,
+            {
+              backgroundColor: `${colors.card}DD`,
+              opacity: hintOpacity,
+            },
+          ]}
+        >
           <Text style={[styles.hintText, { color: colors.text }]}>
             Toca el mapa para elegir tu origen
           </Text>
-        </View>
+        </Animated.View>
       )}
 
       {/* Centrar en usuario */}
@@ -229,7 +329,11 @@ export default function TravelScreen() {
         style={[styles.followBtn, { backgroundColor: colors.card }]}
         onPress={() => setFollowUser((v) => !v)}
       >
-        <Ionicons name={followUser ? "navigate" : "navigate-outline"} size={22} color={colors.primary} />
+        <Ionicons
+          name={followUser ? "navigate" : "navigate-outline"}
+          size={22}
+          color={colors.primary}
+        />
       </TouchableOpacity>
 
       <ZoomControls
@@ -252,23 +356,35 @@ export default function TravelScreen() {
         style={{ position: "absolute", bottom: 40, left: 20 }}
       />
 
-      <FloatingActionButton
-        id="navigate"
-        icon="navigate"
-        label="Nuevo Viaje"
-        backgroundColor={colors.primary}
-        onPress={goToTripForm}
-        style={{ position: "absolute", bottom: 40, right: 20 }}
-      />
+      <Animated.View
+        style={[
+          styles.fabContainer,
+          { bottom: 40, right: 20, transform: [{ scale: fabScale }] },
+        ]}
+      >
+        <FloatingActionButton
+          id="navigate"
+          icon="navigate"
+          label="Nuevo Viaje"
+          backgroundColor={colors.primary}
+          onPress={goToTripForm}
+        />
+      </Animated.View>
 
-      <FloatingActionButton
-        id="calendar"
-        icon="calendar-outline"
-        label="Programados"
-        backgroundColor={colors.primary}
-        onPress={goToScheduledList}
-        style={{ position: "absolute", bottom: 110, right: 20 }}
-      />
+      <Animated.View
+        style={[
+          styles.fabContainer,
+          { bottom: 110, right: 20, transform: [{ scale: fabScale }] },
+        ]}
+      >
+        <FloatingActionButton
+          id="calendar"
+          icon="calendar-outline"
+          label="Programados"
+          backgroundColor={colors.primary}
+          onPress={goToScheduledList}
+        />
+      </Animated.View>
 
       <LoadingModal
         visible={loading}
@@ -282,8 +398,47 @@ export default function TravelScreen() {
 }
 
 function BlueDot() {
+  const scale = useRef(new Animated.Value(1)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(scale, {
+            toValue: 1.15,
+            duration: 700,
+            useNativeDriver: true,
+          }),
+          Animated.timing(opacity, {
+            toValue: 0.7,
+            duration: 700,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(scale, {
+            toValue: 1,
+            duration: 700,
+            useNativeDriver: true,
+          }),
+          Animated.timing(opacity, {
+            toValue: 1,
+            duration: 700,
+            useNativeDriver: true,
+          }),
+        ]),
+      ])
+    );
+    loop.start();
+
+    return () => {
+      loop.stop();
+    };
+  }, [scale, opacity]);
+
   return (
-    <View
+    <Animated.View
       style={{
         width: 14,
         height: 14,
@@ -291,6 +446,8 @@ function BlueDot() {
         backgroundColor: "#1E90FF",
         borderWidth: 2,
         borderColor: "#fff",
+        transform: [{ scale }],
+        opacity,
       }}
     />
   );
@@ -355,5 +512,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 3,
+  },
+  fabContainer: {
+    position: "absolute",
   },
 });

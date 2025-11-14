@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+// src/screens/RegisterScreen.tsx
+import React, { useState, useEffect, useRef } from "react";
 import {
   Text,
   StyleSheet,
@@ -9,6 +10,7 @@ import {
   Modal,
   TouchableOpacity,
   View,
+  Animated,
 } from "react-native";
 import axios from "axios";
 import { useNavigation } from "@react-navigation/native";
@@ -34,6 +36,42 @@ export default function RegisterScreen() {
 
   const { theme } = useTheme();
   const colors = theme === "light" ? lightColors : darkColors;
+
+  // 🔹 Animaciones
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const headerTranslateY = useRef(new Animated.Value(-20)).current;
+  const formOpacity = useRef(new Animated.Value(0)).current;
+  const formTranslateY = useRef(new Animated.Value(10)).current;
+
+  useEffect(() => {
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(headerOpacity, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(headerTranslateY, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.delay(100),
+      Animated.parallel([
+        Animated.timing(formOpacity, {
+          toValue: 1,
+          duration: 350,
+          useNativeDriver: true,
+        }),
+        Animated.timing(formTranslateY, {
+          toValue: 0,
+          duration: 350,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+  }, [headerOpacity, headerTranslateY, formOpacity, formTranslateY]);
 
   const handleRegister = async () => {
     if (
@@ -75,82 +113,116 @@ export default function RegisterScreen() {
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        {/* Header */}
-        <Text style={[styles.title, { color: colors.primary }]}>
-          Crear cuenta
-        </Text>
-        <Text style={[styles.subtitle, { color: colors.text }]}>
-          Completa los campos para registrarte
-        </Text>
-
-        {/* Inputs */}
-        <AnimatedInput
-          placeholder="Nombre"
-          value={nombre}
-          onChangeText={setNombre}
-          variant="short"
-          textColor={colors.text}
-          borderColor={colors.border}
-          color={colors.primary}
-        />
-
-        <AnimatedInput
-          placeholder="Apellido"
-          value={apellido}
-          onChangeText={setApellido}
-          variant="short"
-          textColor={colors.text}
-          borderColor={colors.border}
-          color={colors.primary}
-        />
-
-        <AnimatedInput
-          placeholder="Correo institucional"
-          value={correo_institucional}
-          onChangeText={setCorreo}
-          variant="email"
-          textColor={colors.text}
-          borderColor={colors.border}
-          color={colors.primary}
-        />
-
-        <AnimatedInput
-          placeholder="Contraseña"
-          value={contrasenia}
-          onChangeText={setContrasenia}
-          variant="password"
-          textColor={colors.text}
-          borderColor={colors.border}
-          color={colors.primary}
-        />
-
-        <AnimatedInput
-          placeholder="Teléfono"
-          value={telefono}
-          onChangeText={setTelefono}
-          variant="phone"
-          textColor={colors.text}
-          borderColor={colors.border}
-          color={colors.primary}
-        />
-
-        {/* Selector tipo usuario */}
-        <TouchableOpacity
-          onPress={() => setModalVisible(true)}
+        {/* Header animado */}
+        <Animated.View
           style={[
-            styles.selector,
+            styles.headerBlock,
             {
-              borderColor: colors.border,
-              backgroundColor: colors.card,
+              opacity: headerOpacity,
+              transform: [{ translateY: headerTranslateY }],
             },
           ]}
         >
-          <Text style={{ color: tipo_usuario ? colors.text : "#999" }}>
-            {tipo_usuario || "Selecciona un tipo de usuario"}
+          <Text style={[styles.title, { color: colors.primary }]}>
+            Crear cuenta
           </Text>
-        </TouchableOpacity>
+          <Text style={[styles.subtitle, { color: colors.text }]}>
+            Completa los campos para registrarte
+          </Text>
+        </Animated.View>
 
-        {/* Modal */}
+        {/* Formulario animado */}
+        <Animated.View
+          style={{
+            opacity: formOpacity,
+            transform: [{ translateY: formTranslateY }],
+          }}
+        >
+          <AnimatedInput
+            placeholder="Nombre"
+            value={nombre}
+            onChangeText={setNombre}
+            variant="short"
+            textColor={colors.text}
+            borderColor={colors.border}
+            color={colors.primary}
+          />
+
+          <AnimatedInput
+            placeholder="Apellido"
+            value={apellido}
+            onChangeText={setApellido}
+            variant="short"
+            textColor={colors.text}
+            borderColor={colors.border}
+            color={colors.primary}
+          />
+
+          <AnimatedInput
+            placeholder="Correo institucional"
+            value={correo_institucional}
+            onChangeText={setCorreo}
+            variant="email"
+            textColor={colors.text}
+            borderColor={colors.border}
+            color={colors.primary}
+          />
+
+          <AnimatedInput
+            placeholder="Contraseña"
+            value={contrasenia}
+            onChangeText={setContrasenia}
+            variant="password"
+            textColor={colors.text}
+            borderColor={colors.border}
+            color={colors.primary}
+          />
+
+          <AnimatedInput
+            placeholder="Teléfono"
+            value={telefono}
+            onChangeText={setTelefono}
+            variant="phone"
+            textColor={colors.text}
+            borderColor={colors.border}
+            color={colors.primary}
+          />
+
+          {/* Selector tipo usuario */}
+          <TouchableOpacity
+            onPress={() => setModalVisible(true)}
+            style={[
+              styles.selector,
+              {
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+              },
+            ]}
+          >
+            <Text style={{ color: tipo_usuario ? colors.text : "#999" }}>
+              {tipo_usuario || "Selecciona un tipo de usuario"}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Botón */}
+          <PrimaryButton
+            title="Registrarse"
+            onPress={handleRegister}
+            loading={loading}
+            color={colors.primary}
+          />
+
+          {/* Link */}
+          <View style={{ marginTop: 12 }}>
+            <LinkText
+              text="¿Ya tienes cuenta? Inicia sesión"
+              onPress={() => navigation.goBack()}
+              color={colors.primary}
+            />
+          </View>
+        </Animated.View>
+
+        {/* Modal tipo de usuario */}
         <Modal
           visible={modalVisible}
           transparent
@@ -182,21 +254,6 @@ export default function RegisterScreen() {
             </View>
           </TouchableOpacity>
         </Modal>
-
-        {/* Botón */}
-        <PrimaryButton
-          title="Registrarse"
-          onPress={handleRegister}
-          loading={loading}
-          color={colors.primary}
-        />
-
-        {/* Link */}
-        <LinkText
-          text="¿Ya tienes cuenta? Inicia sesión"
-          onPress={() => navigation.goBack()}
-          color={colors.primary}
-        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -205,6 +262,9 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   container: { flex: 1, padding: 24, justifyContent: "center" },
+  headerBlock: {
+    marginBottom: 24,
+  },
   title: {
     fontSize: 32,
     fontWeight: "700",
@@ -214,7 +274,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     textAlign: "center",
-    marginBottom: 24,
+    marginBottom: 8,
     opacity: 0.7,
   },
   selector: {
